@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Physical Security Village</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap"
+            rel="stylesheet"
+        />
+        <link href="{{ url_for('static', path='/styles.css') }}" rel="stylesheet">
+    </head>
+
+    <body>
+        <header>
+            {% include 'navbar.html' %}
+        </header>
+
+        {% block main %}
+        
+        {% endblock %}
+
+        <footer>
+            {% include 'footer.html' %}
+        </footer>
+
+        <script>
+
+            // Theme toggle
+            const toggle = document.getElementById("themeToggle");
+            const html = document.documentElement;
+            toggle.addEventListener("click", () => {
+                html.dataset.theme =
+                    html.dataset.theme === "dark" ? "light" : "dark";
+            });
+
+            // Hamburger
+            const hamburger = document.getElementById("hamburger");
+            const mobileMenu = document.getElementById("mobileMenu");
+            hamburger.addEventListener("click", () =>
+                mobileMenu.classList.toggle("open"),
+            );
+            function closeMobile() {
+                mobileMenu.classList.remove("open");
+            }
+
+            // Navbar background on scroll
+            const nav = document.querySelector("nav");
+            window.addEventListener("scroll", () => {
+                nav.style.borderBottomColor =
+                    window.scrollY > 20
+                        ? "rgba(232,193,74,0.1)"
+                        : "var(--border)";
+            });
+        </script>
+    </body>
+</html>

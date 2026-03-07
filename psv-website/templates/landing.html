@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+
+{% block main %}
+<section class="hero" id="home">
+    <div class="hero-inner">
+        <div class="hero-content">
+            <div class="hero-tag">Canada based · Est. 2019</div>
+            <h1 class="hero-title">
+                Physical<br />
+                <em>Security</em>
+                Village
+            </h1>
+            <p class="hero-desc">
+                the Physical Security Village (PSV) is a security awareness initiative
+                that makes appearances at security conferences and other educational functions.
+                You can find some of the content we’ve created below.
+            </p>
+            <div class="hero-ctas">
+                <a class="btn btn-primary">
+                    <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                    >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    About Us
+                </a>
+                <a class="btn btn-outline">
+                    <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                    >
+                        <path
+                            d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"
+                        />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    Volunteer with Us
+                </a>
+            </div>
+        </div>
+
+        <div class="hero-visual">
+            <div class="logo-ring">
+                <img
+                    src="{{ url_for('static', path='/psv-compact-logo.png') }}"
+                    alt="Running man symbol like one would see in an exit sign, with Physical Security Village written on the side"
+                    height="200px"
+                >
+        </div>
+    </div>
+</section>
+
+<section id="faq">
+    <div class="section-inner">
+        <p class="section-label">// Common Questions</p>
+        <h2 class="section-title">FAQ</h2>
+        <div class="faq-list">
+
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFAQ(this)">
+                    What is the Physical Security Village?
+                    <svg
+                        class="chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                </button>
+                <div class="faq-a">
+                    <p>
+                        The Physical Security Village (or PSV) is a not-for-profit dedicated to physical security education! 
+                        We most commonly appear as a “village” at security conferences, 
+                        where you can come by our room and try our hands-on exhibits 
+                        covering topics like bypass techniques, access control, RFID, lockpicking, and remediations!
+                    </p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFAQ(this)">
+                    What will I learn in the village?
+                    <svg
+                        class="chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                </button>
+                <div class="faq-a">
+                    <p>
+                        We have many educational hands-on exhibits, where you can learn about various physical security topics.
+                        These include motion sensor demonstrations and vehicular security setups, 
+                        but our mainstay exhibits are our mini-doors with all sorts of commonly seen door hardware – 
+                        you’ll learn common vulnerabilities such as improperly protected latches, 
+                        door handles and knobs that can be used from the other side of the door, 
+                        and how alarm systems can be defeated and surveillance systems avoided.
+                    </p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFAQ(this)">
+                    Do I need experience to attend or participate?
+                    <svg
+                        class="chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                </button>
+                <div class="faq-a">
+                    <p>
+                        Absolutely not! PSV welcomes everyone from total
+                        beginners to seasoned professionals. We are one of the 
+                        most accessible villages in terms of being able to come and 
+                        quickly understand whats going on without prior knowledge.
+                        If you run into any trouble, ask any of our volunteers in green shirts and they’ll help you out!
+                    </p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFAQ(this)">
+                    I can’t make it to a conference, can I learn your material online?
+                    <svg
+                        class="chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                </button>
+                <div class="faq-a">
+                    <p>
+                        Yes! Many of our past talks are recorded and available here, 
+                        and you can still access a lot of the online hands-on content 
+                        we developed during COVID right here on this site. 
+                        Finally, we have a Discord server where people share fun physical security-related material 
+                        they discover and learn about what the village is up to!
+                    </p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFAQ(this)">
+                    How do I volunteer with PSV?
+                    <svg
+                        class="chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                </button>
+                <div class="faq-a">
+                    <p>
+                        We open volunteer applications ahead of each conference!
+                        Keep an eye on our Discord server and
+                        social media for announcements. Volunteers help
+                        with setup, teardown, staffing stations, and
+                        assisting attendees throughout the event.
+                    </p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFAQ(this)">
+                    Can I submit a talk or workshop?
+                    <svg
+                        class="chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                </button>
+                <div class="faq-a">
+                    <p>
+                        Yes! We publish a Call for Papers (CFP) each
+                        year. We're looking for talks and workshops on
+                        any topic related to physical security — attack
+                        techniques, defensive research, case studies,
+                        new tools, or novel vulnerabilities. All levels
+                        of speakers are welcome.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<script>
+    // FAQ accordion
+    function toggleFAQ(btn) {
+        const item = btn.closest(".faq-item");
+        const wasOpen = item.classList.contains("open");
+        document
+            .querySelectorAll(".faq-item")
+            .forEach((i) => i.classList.remove("open"));
+        if (!wasOpen) item.classList.add("open");
+    }
+</script>
+{% endblock %}
