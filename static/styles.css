@@ -36,7 +36,9 @@ body {
     font-family: "DM Sans", sans-serif;
     background: var(--bg);
     color: var(--text);
-    display: flex; flex-direction: column; min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
     transition:
         background var(--transition),
         color var(--transition);
@@ -468,7 +470,8 @@ nav {
 .stats-inner {
     max-width: 1200px;
     margin: 0 auto;
-    display: flex; justify-content: space-between;
+    display: flex;
+    justify-content: space-between;
     gap: 2rem;
     align-items: center;
 }
