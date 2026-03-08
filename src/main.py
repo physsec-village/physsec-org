@@ -1,35 +1,12 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+
+from .forms.router import router as form_router
+from .router import router as root_router
 
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-templates = Jinja2Templates(directory="templates")
-
-
-@app.get("/", response_class=HTMLResponse)
-def home_page(request: Request):
-    return templates.TemplateResponse(request=request, name="landing.html")
-
-
-@app.get("/about", response_class=HTMLResponse)
-def about_us_page(request: Request):
-    return templates.TemplateResponse(request=request, name="pages/about-us.html")
-
-
-@app.get("/involved", response_class=HTMLResponse)
-def get_involved_page(request: Request):
-    return templates.TemplateResponse(request=request, name="pages/get-involved.html")
-
-
-@app.get("/content", response_class=HTMLResponse)
-def content_page(request: Request):
-    return templates.TemplateResponse(request=request, name="pages/content.html")
-
-
-@app.get("/volunteer", response_class=HTMLResponse)
-def volunteer_form_page(request: Request):
-    return templates.TemplateResponse(request=request, name="pages/about-us.html")
+app.include_router(root_router)
+app.include_router(form_router)

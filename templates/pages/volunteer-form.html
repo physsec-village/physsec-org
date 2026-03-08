@@ -1,0 +1,265 @@
+{% extends "base.html" %} {% block main %}
+
+<section id="volunteer">
+    <div class="section-inner">
+        <p class="section-label">// Volunteer with us</p>
+        <h2 class="section-title">Volunteer With Us</h2>
+        <p class="section-desc">
+            Interested in volunteering with the Physical Security Village? Fill
+            out the form below and we'll be in touch ahead of the next event.
+        </p>
+
+        <div class="vol-form-wrap">
+            <form id="volForm">
+                <div class="form-grid">
+                    <div class="form-section-label">Basic Information</div>
+
+                    <div class="field">
+                        <label>Name</label>
+                        <input type="text" placeholder="Your name or handle" />
+                    </div>
+                    <div class="field">
+                        <label>Email</label>
+                        <input type="email" placeholder="you@example.com" />
+                    </div>
+
+                    <hr class="form-divider" />
+                    <div class="form-section-label">Discord</div>
+
+                    <div class="field">
+                        <label>Discord Handle</label>
+                        <input type="text" placeholder="username" />
+                    </div>
+                    <div class="field">
+                        <label>Discord User ID</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. 123456789012345678"
+                        />
+                    </div>
+
+                    <hr class="form-divider" />
+                    <div class="form-section-label">Personal Details</div>
+
+                    <div class="field">
+                        <label
+                            >Shirt Size
+                            <span class="opt">(optional)</span></label
+                        >
+                        <select>
+                            <option value="" disabled selected>
+                                Select a size
+                            </option>
+                            <option>XS</option>
+                            <option>S</option>
+                            <option>M</option>
+                            <option>L</option>
+                            <option>XL</option>
+                            <option>2XL</option>
+                            <option>3XL</option>
+                            <option>4XL</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label
+                            >Location <span class="opt">(optional)</span></label
+                        >
+                        <input
+                            type="text"
+                            placeholder="City, Country, or however specific you want to get"
+                        />
+                    </div>
+
+                    <div class="field full">
+                        <label>Food Limitations</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. vegetarian, gluten-free, nut allergy — or 'None'"
+                        />
+                    </div>
+
+                    <hr class="form-divider" />
+                    <div class="form-section-label">Conferences</div>
+
+                    <div class="field full">
+                        <label
+                            >Which conferences are you interested in
+                            volunteering for?</label
+                        >
+                        <div class="check-group">
+                            <label class="check-pill">
+                                <input type="checkbox" value="RSAC" />
+                                <span class="pill-box"
+                                    ><svg viewBox="0 0 10 10">
+                                        <polyline
+                                            points="1.5,5 4,7.5 8.5,2"
+                                        /></svg
+                                ></span>
+                                <span>RSAC</span>
+                            </label>
+                            <label class="check-pill">
+                                <input type="checkbox" value="HOPE" />
+                                <span class="pill-box"
+                                    ><svg viewBox="0 0 10 10">
+                                        <polyline
+                                            points="1.5,5 4,7.5 8.5,2"
+                                        /></svg
+                                ></span>
+                                <span>HOPE</span>
+                            </label>
+                            <label class="check-pill">
+                                <input type="checkbox" value="DEF CON" />
+                                <span class="pill-box"
+                                    ><svg viewBox="0 0 10 10">
+                                        <polyline
+                                            points="1.5,5 4,7.5 8.5,2"
+                                        /></svg
+                                ></span>
+                                <span>DEF CON</span>
+                            </label>
+                            <label class="check-pill">
+                                <input type="checkbox" value="Ekoparty" />
+                                <span class="pill-box"
+                                    ><svg viewBox="0 0 10 10">
+                                        <polyline
+                                            points="1.5,5 4,7.5 8.5,2"
+                                        /></svg
+                                ></span>
+                                <span>Ekoparty</span>
+                            </label>
+                            <label class="check-pill">
+                                <input type="checkbox" value="Northsec" />
+                                <span class="pill-box"
+                                    ><svg viewBox="0 0 10 10">
+                                        <polyline
+                                            points="1.5,5 4,7.5 8.5,2"
+                                        /></svg
+                                ></span>
+                                <span>Northsec</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <hr class="form-divider" />
+                    <div class="form-section-label">About You</div>
+
+                    <div class="field full">
+                        <label>Have you volunteered with PSV before?</label>
+                        <div class="radio-group">
+                            <label class="radio-pill">
+                                <input
+                                    type="radio"
+                                    name="prev_vol"
+                                    value="yes"
+                                />
+                                <span class="radio-dot"></span>
+                                <span>Yes</span>
+                            </label>
+                            <label class="radio-pill">
+                                <input
+                                    type="radio"
+                                    name="prev_vol"
+                                    value="no"
+                                />
+                                <span class="radio-dot"></span>
+                                <span>No, first time</span>
+                            </label>
+                        </div>
+                    </div>
+                    <br />
+                    <div class="field full">
+                        <label
+                            >Why are you interested in volunteering with the
+                            village?</label
+                        >
+                        <textarea
+                            placeholder="Tell us a bit about your interest in physical security and what draws you to PSV..."
+                        ></textarea>
+                    </div>
+
+                    <div class="field full">
+                        <label
+                            >Any other relevant information
+                            <span class="opt">(optional)</span></label
+                        >
+                        <textarea
+                            placeholder="Skills, past experience, certifications, or anything else you'd like us to know..."
+                            style="min-height: 90px"
+                        ></textarea>
+                    </div>
+
+                    <hr class="form-divider" />
+                    <div class="form-section-label">Consent</div>
+
+                    <div class="field full">
+                        <label>Data & Notifications</label>
+                        <label class="consent-row">
+                            <input type="checkbox" id="consentCheck" />
+                            <span class="toggle-track"></span>
+                            <span class="consent-text">
+                                <strong
+                                    >I consent to having my information
+                                    stored</strong
+                                >
+                                and to being contacted about future volunteer
+                                opportunities at PSV-affiliated conferences.
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="form-submit-row">
+                        <span class="form-note"
+                            >Fields without
+                            <span
+                                class="opt"
+                                style="opacity: 1; color: var(--muted)"
+                                >(optional)</span
+                            >
+                            are required.</span
+                        >
+                        <button
+                            class="btn btn-primary"
+                            type="button"
+                            onclick="submitVolForm()"
+                        >
+                            <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                            >
+                                <line x1="22" y1="2" x2="11" y2="13" />
+                                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                            </svg>
+                            Submit Application
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="form-success" id="volSuccess">
+                <div class="success-icon">
+                    <svg viewBox="0 0 24 24">
+                        <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                </div>
+                <h3>Application Received!</h3>
+                <p>
+                    Thanks for your interest in volunteering with PSV.<br />We'll
+                    be in touch ahead of the next event.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+    function submitVolForm() {
+        document.getElementById("volForm").style.display = "none";
+        document.getElementById("volSuccess").style.display = "block";
+    }
+</script>
+
+{% endblock %}
