@@ -5,7 +5,7 @@
 <section class="hero" id="home">
     <div class="hero-inner">
         <div class="hero-content">
-            <div class="hero-tag">Canada based · Est. 2019</div>
+            <div class="hero-tag">Canada based · Est. 2018</div>
             <h1 class="hero-title">
                 Physical<br />
                 <em>Security</em>
@@ -17,7 +17,7 @@
                 You can find some of the content we’ve created below.
             </p>
             <div class="hero-ctas">
-                <a class="btn btn-primary">
+                <a href="{{ url_for('about_us_page') }}" class="btn btn-primary">
                     <svg
                         width="16"
                         height="16"
@@ -32,7 +32,7 @@
                     </svg>
                     About Us
                 </a>
-                <a class="btn btn-outline">
+                <a href="{{ url_for('get_involved_page') }}" class="btn btn-outline">
                     <svg
                         width="16"
                         height="16"
@@ -63,6 +63,30 @@
         </div>
     </div>
 </section>
+
+<div class="stats-bar">
+    <div class="stats-inner">
+        <div class="stat">
+            <div class="stat-num">5K+</div>
+            <div class="stat-label">Annual Attendees</div>
+        </div>
+        <div class="stats-divider"></div>
+        <div class="stat">
+            <div class="stat-num">100+</div>
+            <div class="stat-label">Volunteers</div>
+        </div>
+        <div class="stats-divider"></div>
+        <div class="stat">
+            <div class="stat-num">8</div>
+            <div class="stat-label">Years Running</div>
+        </div>
+        <div class="stats-divider"></div>
+        <div class="stat">
+            <div class="stat-num">20+</div>
+            <div class="stat-label">Talks & Workshops</div>
+        </div>
+    </div>
+</div>
 
 <section id="faq">
     <div class="section-inner">
@@ -207,7 +231,7 @@
                     <p>
                         Yes! We publish a Call for Papers (CFP) each
                         year. We're looking for talks and workshops on
-                        any topic related to physical security — attack
+                        any topic related to physical security - attack
                         techniques, defensive research, case studies,
                         new tools, or novel vulnerabilities. All levels
                         of speakers are welcome.

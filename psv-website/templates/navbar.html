@@ -1,5 +1,5 @@
 <nav>
-    <a href="#" class="nav-logo">
+    <a href="{{ url_for('home_page') }}" class="nav-logo">
         <div class="logo-icon">
             <img
                 src="{{ url_for('static', path='/psv-running-man.svg') }}"
@@ -11,10 +11,10 @@
     </a>
 
     <ul class="nav-links">
-        <li><a>About Us</a></li>
-        <li><a>Get Involved</a></li>
+        <li><a href="{{ url_for('about_us_page') }}">About Us</a></li>
+        <li><a href="{{ url_for('get_involved_page') }}">Get Involved</a></li>
         <li class="dropdown">
-            <a>Content</a>
+            <a href="{{ url_for('content_page') }}">Content</a>
             <div class="dropdown-menu">
                 <a>Talks & Presentations</a>
                 <a>Conferences</a>
@@ -90,9 +90,9 @@
 
 <!-- MOBILE MENU -->
 <div class="mobile-menu" id="mobileMenu">
-    <a href="#about" onclick="closeMobile()">About Us</a>
-    <a href="#involve" onclick="closeMobile()">Get Involved</a>
-    <a href="#content" onclick="closeMobile()">Content</a>
-    <a href="#store" onclick="closeMobile()">PSV Store</a>
-    <a href="#faq" onclick="closeMobile()">FAQ</a>
+    <a href="{{ url_for('about_us_page') }}" onclick="closeMobile()">About Us</a>
+    <a href="{{ url_for('get_involved_page') }}" onclick="closeMobile()">Get Involved</a>
+    <a href="{{ url_for('content_page') }}" onclick="closeMobile()">Content</a>
+    <a onclick="closeMobile()">PSV Store</a>
+    <a onclick="closeMobile()">FAQ</a>
 </div>
