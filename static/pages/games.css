@@ -1,0 +1,380 @@
+/* PAGE HEADER */
+.page-header {
+    padding: calc(var(--nav-h) + 4rem) clamp(1.5rem, 6vw, 5rem) 3.5rem;
+    position: relative;
+    overflow: hidden;
+}
+.page-header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(21, 161, 74, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(21, 161, 74, 0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(
+        ellipse 100% 100% at 50% 0%,
+        black 30%,
+        transparent 100%
+    );
+}
+.page-header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+    animation: fade-up 0.6s ease both;
+}
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1.25rem;
+}
+.breadcrumb a {
+    color: var(--accent);
+    text-decoration: none;
+}
+.breadcrumb a:hover {
+    text-decoration: underline;
+}
+.breadcrumb span {
+    opacity: 0.4;
+}
+.page-title {
+    font-family: "Bebas Neue", sans-serif;
+    font-size: clamp(3rem, 7vw, 6rem);
+    line-height: 0.95;
+    letter-spacing: 0.02em;
+    color: var(--text);
+    margin-bottom: 1rem;
+}
+.page-title em {
+    font-style: normal;
+    color: var(--accent);
+}
+.page-desc {
+    font-size: 1rem;
+    color: var(--muted);
+    line-height: 1.75;
+    max-width: 620px;
+    font-weight: 300;
+}
+
+/* NOTICE BANNER */
+.notice-banner {
+    background: rgba(21, 161, 74, 0.07);
+    border: 1px solid rgba(21, 161, 74, 0.2);
+    border-radius: var(--radius);
+    padding: 1rem 1.4rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    margin: 0 clamp(1.5rem, 6vw, 5rem) 0;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.notice-banner svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: var(--accent);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    margin-top: 1px;
+}
+.notice-banner p {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.65;
+}
+.notice-banner strong {
+    color: var(--text);
+    font-weight: 500;
+}
+
+/* MAIN */
+.games-body {
+    padding: 3rem clamp(1.5rem, 6vw, 5rem) 6rem;
+}
+.games-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* GAME CARDS GRID */
+.games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1.5rem;
+}
+
+.game-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition:
+        border-color var(--transition),
+        transform var(--transition),
+        box-shadow var(--transition);
+    display: flex;
+    flex-direction: column;
+}
+.game-card:hover {
+    border-color: rgba(21, 161, 74, 0.35);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Thumbnail */
+.game-thumb {
+    position: relative;
+    aspect-ratio: 422/242;
+    overflow: hidden;
+    background: var(--surface2);
+}
+.game-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+    display: block;
+}
+.game-card:hover .game-thumb img {
+    transform: scale(1.04);
+}
+.game-thumb-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface2);
+}
+.game-thumb-placeholder svg {
+    width: 48px;
+    height: 48px;
+    color: var(--muted);
+    opacity: 0.25;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.2;
+}
+.thumb-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.thumb-label-inner {
+    font-family: "Bebas Neue", sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.15);
+    text-align: center;
+    padding: 1rem;
+    line-height: 1.2;
+}
+
+/* Card body */
+.game-info {
+    padding: 1.35rem 1.4rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    flex: 1;
+}
+.game-category {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.67rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+.game-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+}
+.game-desc {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.7;
+    flex: 1;
+}
+
+/* Levels / links */
+.game-levels {
+    margin-top: 0.5rem;
+}
+.levels-toggle {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.6rem 1rem;
+    font-family: "DM Sans", sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition:
+        border-color var(--transition),
+        color var(--transition);
+}
+.levels-toggle:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+.levels-toggle svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    transition: transform var(--transition);
+}
+.levels-toggle.open svg {
+    transform: rotate(180deg);
+}
+.levels-list {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.levels-list.open {
+    max-height: 600px;
+}
+.levels-list ul {
+    list-style: none;
+    padding: 0.5rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.levels-list ul li a {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 0.45rem 0.6rem;
+    border-radius: 2px;
+    transition:
+        color var(--transition),
+        background var(--transition);
+}
+.levels-list ul li a::before {
+    content: "→";
+    font-size: 0.7rem;
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity var(--transition);
+}
+.levels-list ul li a:hover {
+    color: var(--text);
+    background: rgba(21, 161, 74, 0.07);
+}
+.levels-list ul li a:hover::before {
+    opacity: 1;
+}
+.level-num {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.68rem;
+    color: var(--accent);
+    min-width: 22px;
+}
+
+/* Direct play links */
+.game-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+.game-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-decoration: none;
+    background: rgba(21, 161, 74, 0.08);
+    border: 1px solid rgba(21, 161, 74, 0.2);
+    border-radius: var(--radius);
+    padding: 0.45rem 0.85rem;
+    transition:
+        background var(--transition),
+        border-color var(--transition),
+        transform var(--transition);
+}
+.game-link:hover {
+    background: rgba(21, 161, 74, 0.15);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+.game-link svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+}
+
+/* License footer */
+.license-bar {
+    margin-top: 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.license-bar p {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.6;
+}
+.license-bar a {
+    color: var(--accent);
+    text-decoration: none;
+}
+.license-bar a:hover {
+    text-decoration: underline;
+}
+.cc-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.4rem 0.75rem;
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    white-space: nowrap;
+}

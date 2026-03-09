@@ -34,3 +34,13 @@ def contact_us_page(request: Request):
 @router.get("/talks", response_class=HTMLResponse)
 def talks_page(request: Request):
     return templates.TemplateResponse(request=request, name="pages/talks.html")
+
+
+@router.get("/games", response_class=HTMLResponse)
+def games_page(request: Request):
+    return templates.TemplateResponse(request=request, name="pages/games.html")
+
+
+@router.get("/materials", response_class=HTMLResponse)
+def materials_page(request: Request):
+    return templates.TemplateResponse(request=request, name="pages/materials.html")

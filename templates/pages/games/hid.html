@@ -1,0 +1,721 @@
+<html>
+    <head>
+        <style>
+            .tool {
+                border: 1px solid black;
+                border-radius: 20px;
+                margin: 3px;
+                padding: 10px;
+                width: 100px;
+                height: 100px;
+                display: inline-block;
+                position: relative;
+                vertical-align: top;
+                text-align: center;
+            }
+            .tool img {
+                height: 70px;
+            }
+            #toolbox img {
+                height: 80px;
+            }
+            #toolbox,
+            #commands {
+                vertical-align: top;
+                width: 300px;
+            }
+        </style>
+
+        <script>
+            comboRenderer = {
+                buttonHTML: (layout, i) =>
+                    "<div style='width:53px;height:37px;text-align:center;line-height:40px;color:white;font-size:20pt;position:absolute;left:" +
+                    layout.x +
+                    "px;top:" +
+                    layout.y +
+                    "px;background-image:url(HID/HID_button_unpressed.png);background-color:none;' id='btn" +
+                    layout.label +
+                    "' data-index='" +
+                    i +
+                    "' data-label='" +
+                    layout.label +
+                    "' onmouseenter='btnMouseenter(this)' onmouseleave='btnMouseleave(this)' onclick='btnClick(this)'>" +
+                    "<img src='uv.png' style='width:36px' /></div>",
+                press: (btn) =>
+                    (btn.ref.style.backgroundImage =
+                        "url(HID/HID_button_pressed.png)"),
+                unpress: (btn) =>
+                    (btn.ref.style.backgroundImage =
+                        "url(HID/HID_button_unpressed.png)"),
+                uvOff: (btn) => {
+                    btn.ref.firstChild.style.opacity = "0";
+                },
+                uvOn: (btn) => {
+                    var bright =
+                        Math.log(btn.ink / 5 + 1) / Math.log(100 / 5 + 1);
+                    btn.ref.firstChild.style.opacity = bright;
+                },
+            };
+            comboLayout = [
+                { label: 0, x: 176, y: 411 },
+                { label: 1, x: 95, y: 168 },
+                { label: 2, x: 176, y: 168 },
+                { label: 3, x: 256, y: 168 },
+                { label: 4, x: 95, y: 249 },
+                { label: 5, x: 176, y: 249 },
+                { label: 6, x: 256, y: 249 },
+                { label: 7, x: 95, y: 330 },
+                { label: 8, x: 176, y: 330 },
+                { label: 9, x: 256, y: 330 },
+                { label: "*", x: 95, y: 411 },
+                { label: "#", x: 256, y: 411 },
+                //{label:, x:, y:},
+            ];
+            function wrongCode() {
+                var ledStrip = document.getElementById("ledStrip");
+                for (i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+                    setTimeout(
+                        (i) =>
+                            (ledStrip.style.backgroundColor =
+                                i % 2 !== 0 ? "red" : "#777777"),
+                        i * 70,
+                        i,
+                    );
+                }
+            }
+            function rightCode() {
+                var ledStrip = document.getElementById("ledStrip");
+                for (i in [1, 2]) {
+                    setTimeout(
+                        (i) =>
+                            (ledStrip.style.backgroundColor =
+                                i % 2 !== 0 ? "red" : "#33FF33"),
+                        i * 5000,
+                        i,
+                    );
+                }
+            }
+            function resetCode() {
+                var ledStrip = document.getElementById("ledStrip");
+                for (i in [1, 2, 3, 4]) {
+                    setTimeout(
+                        (i) =>
+                            (ledStrip.style.backgroundColor =
+                                i % 2 !== 0 ? "red" : "#33FF33"),
+                        i * 100,
+                        i,
+                    );
+                }
+            }
+            function timeoutCode(time) {
+                var ledStrip = document.getElementById("ledStrip");
+                for (i in [...Array(2 * time).keys()].map((x) => x + 1)) {
+                    setTimeout(
+                        (i) =>
+                            (ledStrip.style.backgroundColor =
+                                i % 2 !== 0 ? "red" : "#777777"),
+                        i * 500,
+                        i,
+                    );
+                }
+            }
+            function Sausage() {
+                hue = 0;
+                var sausage = setInterval(() => {
+                    ledStrip.style.backgroundColor =
+                        "hsl(" + hue++ + ",100%,50%)";
+                    if (hue > 720) clearInterval(sausage);
+                }, 10);
+            }
+
+            cheatCode = "";
+
+            function docKeyPress(e) {
+                cheatCode = (cheatCode + e.key).slice(-10);
+                if (cheatCode.slice(-7) == "sausage") {
+                    toolbox.innerHTML +=
+                        "<div id='toolWipeOne' class='tool' onclick='Sausage();setTool(\"sausage\");'><img src='sausage.png' /><br /> Sosig Colo</div>";
+                }
+                if (cheatCode.slice(-4) == "taco") {
+                    toolbox.innerHTML +=
+                        "<div id='toolWipeOne' class='tool' onclick='rightCode();setTool(\"sausage\");'><img src='sausage.png' /><br /> " +
+                        correctCombo.join("") +
+                        "</div>";
+                }
+            }
+
+            transferCoeff = 0.3;
+            lossCoeff = 0.5;
+            function inkByCombo(combo, layout) {
+                fingerInk = 0;
+                for (i in combo) {
+                    fingerInk = inkOneButton(combo[i], fingerInk);
+                }
+            }
+            function inkOneButton(btnIndex, fingerInk) {
+                inkLost = layout[btnIndex].ink * lossCoeff;
+                layout[btnIndex].ink *= 1 - lossCoeff;
+                transferredToFinger =
+                    (layout[btnIndex].ink - fingerInk) * transferCoeff;
+                layout[btnIndex].ink -= transferredToFinger;
+                fingerInk += transferredToFinger;
+                return fingerInk;
+            }
+
+            function docload() {
+                s =
+                    "<div id='cursor' style='border:1px solid blue; background-color: rgba(80, 80, 255, 0);width:56px;height:41px;position:absolute;z-index:100;display:none;pointer-events: none;box-shadow: blue 0 0 8px;border-radius: 10px;'></div>";
+                renderer = comboRenderer;
+                layout = comboLayout;
+
+                for (i in layout) {
+                    s += renderer.buttonHTML(layout[i], i);
+                    layout[i].ink = 100;
+                    layout[i].index = i;
+                }
+                document.getElementById("comboContainer").innerHTML += s;
+                for (i in comboLayout) {
+                    layout[i].ref = document.getElementById(
+                        "btn" + layout[i].label,
+                    );
+                }
+                cursor = document.getElementById("cursor");
+                resetDemo();
+            }
+
+            function randComboOrdered(n, opts) {
+                return Array(n)
+                    .fill(0)
+                    .map(() => Math.floor(Math.random() * opts));
+            }
+            //function randComboUnordered(n, opts) {return Array(n).fill(0).map(()=>Math.floor(Math.random()*opts))};
+
+            var cursor;
+            function btnMouseenter(btn) {
+                cursor.style.left = layout[btn.dataset.index].x - 3;
+                cursor.style.top = layout[btn.dataset.index].y - 3;
+                cursor.style.display = "block";
+            }
+            function btnMouseleave(btn) {
+                cursor.style.display = "none";
+            }
+            function btnClick(btn) {
+                //cursor.style.display = "none";
+                btn = layout[btn.dataset.index];
+                switch (activeTool) {
+                    case "finger":
+                        renderer.press(btn);
+                        if (btn.label == "*" || btn.label == "#") {
+                            if (btn.label == "#") {
+                                if (
+                                    correctCombo
+                                        .map((v, i) => v == enteredCombo[i])
+                                        .reduce((a, v) => a && v, true)
+                                )
+                                    rightCode();
+                                else wrongCode();
+                            } else {
+                                resetCode();
+                            }
+                            enteredCombo = [];
+                        } else {
+                            enteredCombo.push(btn.index);
+                        }
+                        userFingerInk = inkOneButton(btn.index, userFingerInk);
+                        redrawButtons();
+                        setTimeout(() => {
+                            renderer.unpress(btn);
+                        }, 100);
+                        break;
+                    case "inkOne":
+                        btn.ink = 100;
+                        redrawButtons();
+                        break;
+                    case "wipeOne":
+                        btn.ink = 0;
+                        redrawButtons();
+                        break;
+                }
+            }
+
+            function redrawButtons() {
+                layout.forEach(UV ? renderer.uvOn : renderer.uvOff);
+            }
+
+            var UV = false;
+
+            function toggleTool(which) {
+                switch (which) {
+                    case "UV":
+                        UV = !UV;
+                        redrawButtons();
+                        document.getElementById("toolUV").innerHTML = UV
+                            ? "<img src='uv_light_off.png' /><br /> Turn UV Light Off"
+                            : "<img src='uv_light_on.png' /><br /> Turn UV Light On";
+                        break;
+                }
+            }
+            function globalTool(which) {
+                userFingerInk = 0;
+                switch (which) {
+                    case "wipeAll":
+                        layout.forEach((i) => (i.ink = 0));
+                        redrawButtons();
+                        break;
+                    case "inkAll":
+                        layout.forEach((i) => (i.ink = 100));
+                        redrawButtons();
+                        break;
+                    case "waitOneUse":
+                        document.getElementById("timeCard").style.display =
+                            "block";
+                        inkByCombo(correctCombo.concat(11));
+                        setTimeout(() => {
+                            document.getElementById("timeCard").style.display =
+                                "none";
+                            redrawButtons();
+                        }, 1000);
+                }
+            }
+            function setTool(which) {
+                userFingerInk = 0;
+                activeTool = which;
+                switch (which) {
+                    case "finger":
+                        document.getElementById("comboContainer").style.cursor =
+                            "url(hand.cur), pointer";
+                        break;
+                    case "inkOne":
+                        document.getElementById("comboContainer").style.cursor =
+                            "url(marker.cur), default";
+                        break;
+                    case "wipeOne":
+                        document.getElementById("comboContainer").style.cursor =
+                            "url(napkin.cur), default";
+                        break;
+                    case "sausage":
+                        document.getElementById("comboContainer").style.cursor =
+                            "url(sausage.ani), url(sausage.cur), auto";
+                        break;
+                }
+            }
+            var activeTool = "finger";
+
+            var correctCombo;
+            var enteredCombo;
+            var userFingerInk;
+            function resetDemo() {
+                correctCombo = randComboOrdered(4, 10);
+                enteredCombo = [];
+                userFingerInk = 0;
+                globalTool("wipeAll");
+            }
+        </script>
+    </head>
+
+    <body>
+        <table>
+            <tbody>
+                <tr>
+                    <td
+                        id="comboContainer"
+                        style="
+                            position: relative;
+                            display: inline-block;
+                            width: 403px;
+                            height: 572px;
+                            background-image: url(/web/20220523220356im_/https://www.physsec.org/games/combo/HID/HID_full.png);
+                        "
+                    >
+                        <div
+                            id="ledStrip"
+                            style="
+                                position: absolute;
+                                background-color: red;
+                                top: 0px;
+                                left: 68px;
+                                height: 20px;
+                                width: 267px;
+                            "
+                        ></div>
+                        <div
+                            id="cursor"
+                            style="
+                                border: 1px solid blue;
+                                background-color: rgba(80, 80, 255, 0);
+                                width: 56px;
+                                height: 41px;
+                                position: absolute;
+                                z-index: 100;
+                                display: none;
+                                pointer-events: none;
+                                box-shadow: blue 0 0 8px;
+                                border-radius: 10px;
+                            "
+                        ></div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 176px;
+                                top: 411px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn0"
+                            data-index="0"
+                            data-label="0"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 95px;
+                                top: 168px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn1"
+                            data-index="1"
+                            data-label="1"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 176px;
+                                top: 168px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn2"
+                            data-index="2"
+                            data-label="2"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 256px;
+                                top: 168px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn3"
+                            data-index="3"
+                            data-label="3"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 95px;
+                                top: 249px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn4"
+                            data-index="4"
+                            data-label="4"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 176px;
+                                top: 249px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn5"
+                            data-index="5"
+                            data-label="5"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 256px;
+                                top: 249px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn6"
+                            data-index="6"
+                            data-label="6"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 95px;
+                                top: 330px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn7"
+                            data-index="7"
+                            data-label="7"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 176px;
+                                top: 330px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn8"
+                            data-index="8"
+                            data-label="8"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 256px;
+                                top: 330px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn9"
+                            data-index="9"
+                            data-label="9"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 95px;
+                                top: 411px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn*"
+                            data-index="10"
+                            data-label="*"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                        <div
+                            style="
+                                width: 53px;
+                                height: 37px;
+                                text-align: center;
+                                line-height: 40px;
+                                color: white;
+                                font-size: 20pt;
+                                position: absolute;
+                                left: 256px;
+                                top: 411px;
+                                background-image: url(HID/HID_button_unpressed.png);
+                                background-color: none;
+                            "
+                            id="btn#"
+                            data-index="11"
+                            data-label="#"
+                            onmouseenter="btnMouseenter(this)"
+                            onmouseleave="btnMouseleave(this)"
+                            onclick="btnClick(this)"
+                        >
+                            <img src="uv.png" style="width: 36px; opacity: 0" />
+                        </div>
+                    </td>
+                    <td>
+                        <div
+                            id="toolbox"
+                            style="position: relative; display: inline-block"
+                        >
+                            Tools: <br />
+                            <div
+                                id="toolFinger"
+                                class="tool"
+                                onclick="setTool('finger')"
+                            >
+                                <img
+                                    src="/web/20220523220356im_/https://www.physsec.org/games/combo/finger.png"
+                                /><br />
+                                Enter Code
+                            </div>
+                            <div
+                                id="toolInkOne"
+                                class="tool"
+                                onclick="setTool('inkOne')"
+                            >
+                                <img
+                                    src="/web/20220523220356im_/https://www.physsec.org/games/combo/uv pen.png"
+                                /><br />
+                                UV Marker
+                            </div>
+                            <div
+                                id="toolWipeOne"
+                                class="tool"
+                                onclick="setTool('wipeOne')"
+                            >
+                                <img
+                                    src="/web/20220523220356im_/https://www.physsec.org/games/combo/napkin.png"
+                                /><br />
+                                Wipe Button
+                            </div>
+                        </div>
+                        <div
+                            id="commands"
+                            style="position: relative; display: inline-block"
+                        >
+                            Actions: <br />
+                            <div
+                                id="toolUV"
+                                class="tool"
+                                onclick="toggleTool('UV')"
+                            >
+                                <img
+                                    src="/web/20220523220356im_/https://www.physsec.org/games/combo/uv_light_on.png"
+                                /><br />
+                                Turn UV Light On
+                            </div>
+                            <div
+                                id="toolInkAll"
+                                class="tool"
+                                onclick="globalTool('inkAll')"
+                            >
+                                <img
+                                    src="/web/20220523220356im_/https://www.physsec.org/games/combo/UV_all_icon_brush_2.png"
+                                /><br />
+                                Apply UV ink to all
+                            </div>
+                            <div
+                                id="toolWipeAll"
+                                class="tool"
+                                onclick="globalTool('wipeAll')"
+                            >
+                                <img
+                                    src="/web/20220523220356im_/https://www.physsec.org/games/combo/tissue.png"
+                                /><br />
+                                Wipe off all ink
+                            </div>
+                            <div
+                                id="toolWaitOneUse"
+                                class="tool"
+                                onclick="globalTool('waitOneUse')"
+                            >
+                                <img
+                                    src="/web/20220523220356im_/https://www.physsec.org/games/combo/wait1day.png"
+                                /><br />
+                                Wait until code entered
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </body>
+</html>

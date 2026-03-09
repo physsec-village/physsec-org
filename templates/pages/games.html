@@ -1,0 +1,453 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/games.css" rel="stylesheet" />
+{% endblock %} {% block main %}
+
+<header class="page-header">
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="index.html">PSV</a>
+            <span>/</span>
+            <a href="#">Content</a>
+            <span>/</span>
+            <span style="color: var(--text)">Games</span>
+        </div>
+        <h1 class="page-title">Bypass<br /><em>Simulator Games</em></h1>
+        <p class="page-desc">
+            Learning about physical security bypass is a hands-on experience.
+            These interactive games and demos let you explore and test various
+            physical security exploits right in your browser. A keyboard and
+            mouse are required.
+        </p>
+    </div>
+</header>
+
+<!-- NOTICE -->
+<div style="padding: 0 clamp(1.5rem, 6vw, 5rem); margin-bottom: 3rem">
+    <div style="max-width: 1200px; margin: 0 auto">
+        <div class="notice-banner">
+            <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <p>
+                These games were originally created for online conferences
+                during the COVID-19 pandemic, when hands-on physical security
+                education had to move online. They remain freely available as
+                educational tools for the community.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- GAMES GRID -->
+<main class="games-body">
+    <div class="games-inner">
+        <div class="games-grid">
+            <!-- ALARM BYPASS -->
+            <div class="game-card">
+                <div class="game-thumb">
+                    <img
+                        src="https://physsec.org/wp-content/uploads/2022/08/alarm-bypass-thumbnail-300x172.png"
+                        onerror="
+                            this.style.display = 'none';
+                            this.nextElementSibling.style.display = 'flex';
+                        "
+                        alt="Alarm Bypass Game thumbnail"
+                    />
+                    <div class="game-thumb-placeholder" style="display: none">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
+                            <path
+                                d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"
+                            />
+                            <line x1="6" y1="1" x2="6" y2="4" />
+                            <line x1="10" y1="1" x2="10" y2="4" />
+                            <line x1="14" y1="1" x2="14" y2="4" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="game-info">
+                    <div class="game-category">Alarm Systems</div>
+                    <div class="game-title">Alarm Bypass Game</div>
+                    <div class="game-desc">
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                        In ac viverra mi. Lorem ipsum dolor sit amet,
+                        consectetur adipiscing elit. Mauris vestibulum sapien eu
+                        tortor vehicula faucibus. Nulla eget nibh finibus,
+                        facilisis neque vel, tincidunt lorem.
+                    </div>
+                    <div class="game-levels">
+                        <button
+                            class="levels-toggle"
+                            onclick="toggleLevels(this)"
+                        >
+                            Show 10 Levels
+                            <svg viewBox="0 0 24 24">
+                                <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                        </button>
+                        <div class="levels-list">
+                            <ul>
+                                <li>
+                                    <a
+                                        href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=0&EOLshunt=Infinity&NC=&regOK=6,20&regAlarm=0,6"
+                                        target="_blank"
+                                        rel="noopener"
+                                        ><span class="level-num">01</span
+                                        >Normally Open (NO)</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=0&EOLshunt=Infinity&regOK=0,6&regAlarm=6,20"
+                                        target="_blank"
+                                        rel="noopener"
+                                        ><span class="level-num">02</span
+                                        >Normally Closed (NC)</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=2000&EOLshunt=Infinity&internalR=2000&regOK=1,10&regAlarm=10,20"
+                                        target="_blank"
+                                        rel="noopener"
+                                        ><span class="level-num">03</span>NC
+                                        with 2k EOLR, permissive controller</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=0&EOLshunt=2000&NC=&regOK=6,10&regAlarm=0,6"
+                                        target="_blank"
+                                        rel="noopener"
+                                        ><span class="level-num">04</span>NO
+                                        with 2k EOLR, permissive controller</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=2000&EOLshunt=2000&internalR=2000&NC=&regOK=5,11&regAlarm=1,5"
+                                        target="_blank"
+                                        rel="noopener"
+                                        ><span class="level-num">05</span>NC
+                                        with 2k+2k DEOLR, permissive
+                                        controller</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=2000&EOLshunt=2000&internalR=2000&regOK=1,5&regAlarm=5,11"
+                                        target="_blank"
+                                        rel="noopener"
+                                        ><span class="level-num">06</span>NO
+                                        with 2k+2k DEOLR, permissive
+                                        controller</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=2000&EOLshunt=2000&internalR=2000&NC=&regOK=5.8,6.2&regAlarm=3.8,4.2"
+                                        target="_blank"
+                                        rel="noopener"
+                                        ><span class="level-num">07</span>NC
+                                        with 2k+2k DEOLR, sensitive
+                                        controller</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=0&EOLshunt=Infinity&regOK=0,6&regAlarm=6,20&hideReadouts=true"
+                                        target="_blank"
+                                        rel="noopener"
+                                        ><span class="level-num">08</span>Level
+                                        8: ?</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=50&EOLshunt=500&regOK=0.5,6&regAlarm=6,11&voltageSource=20&hideReadouts=true"
+                                        target="_blank"
+                                        rel="noopener"
+                                        ><span class="level-num">09</span>Level
+                                        9: ??</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=1000&EOLshunt=1000&NC=&regOK=18,22&regAlarm=10,18&voltageSource=30&hideReadouts=true"
+                                        target="_blank"
+                                        rel="noopener"
+                                        ><span class="level-num">10</span>Level
+                                        10: ???</a
+                                    >
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COMBO LOCK DECODING -->
+            <div class="game-card">
+                <div class="game-thumb">
+                    <img
+                        src="https://physsec.org/wp-content/uploads/2022/08/combo-lock-thumbnail-300x172.png"
+                        onerror="
+                            this.style.display = 'none';
+                            this.nextElementSibling.style.display = 'flex';
+                        "
+                        alt="Combo Lock Decoding thumbnail"
+                    />
+                    <div class="game-thumb-placeholder" style="display: none">
+                        <svg viewBox="0 0 24 24">
+                            <rect
+                                x="3"
+                                y="11"
+                                width="18"
+                                height="11"
+                                rx="2"
+                                ry="2"
+                            />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            <circle cx="12" cy="16" r="1" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="game-info">
+                    <div class="game-category">Keypad &amp; Combo Locks</div>
+                    <div class="game-title">Combo Lock Decoding</div>
+                    <div class="game-desc">
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                        In ac viverra mi. Lorem ipsum dolor sit amet,
+                        consectetur adipiscing elit. Mauris vestibulum sapien eu
+                        tortor vehicula faucibus. Nulla eget nibh finibus,
+                        facilisis neque vel, tincidunt lorem.
+                    </div>
+                    <div class="game-links">
+                        <a
+                            href="https://physsec.org/games/combo/hid.html"
+                            target="_blank"
+                            rel="noopener"
+                            class="game-link"
+                        >
+                            <svg viewBox="0 0 24 24">
+                                <polygon points="5 3 19 12 5 21 5 3" />
+                            </svg>
+                            HID Keypad Simulator
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONTACT SENSOR BYPASS -->
+            <div class="game-card">
+                <div class="game-thumb">
+                    <img
+                        src="https://physsec.org/wp-content/uploads/2022/08/contact-sensor-thumbnail-300x172.png"
+                        onerror="
+                            this.style.display = 'none';
+                            this.nextElementSibling.style.display = 'flex';
+                        "
+                        alt="Contact Sensor Bypass thumbnail"
+                    />
+                    <div class="game-thumb-placeholder" style="display: none">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M18 20V10" />
+                            <path d="M12 20V4" />
+                            <path d="M6 20v-6" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="game-info">
+                    <div class="game-category">Sensors &amp; Magnets</div>
+                    <div class="game-title">Contact Sensor Bypass</div>
+                    <div class="game-desc">
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                        In ac viverra mi. Lorem ipsum dolor sit amet,
+                        consectetur adipiscing elit. Mauris vestibulum sapien eu
+                        tortor vehicula faucibus. Nulla eget nibh finibus,
+                        facilisis neque vel, tincidunt lorem.
+                    </div>
+                    <div class="game-links">
+                        <a
+                            href="https://physsec.org/games/magnet/"
+                            target="_blank"
+                            rel="noopener"
+                            class="game-link"
+                        >
+                            <svg viewBox="0 0 24 24">
+                                <polygon points="5 3 19 12 5 21 5 3" />
+                            </svg>
+                            Level 1
+                        </a>
+                        <a
+                            href="https://physsec.org/games/magnet?lvl=2"
+                            target="_blank"
+                            rel="noopener"
+                            class="game-link"
+                        >
+                            <svg viewBox="0 0 24 24">
+                                <polygon points="5 3 19 12 5 21 5 3" />
+                            </svg>
+                            Level 2
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LATCH SLIPPING -->
+            <div class="game-card">
+                <div class="game-thumb">
+                    <img
+                        src="https://physsec.org/wp-content/uploads/2022/08/slip-thumbnail.png"
+                        onerror="
+                            this.style.display = 'none';
+                            this.nextElementSibling.style.display = 'flex';
+                        "
+                        alt="Latch Slipping thumbnail"
+                    />
+                    <div class="game-thumb-placeholder" style="display: none">
+                        <svg viewBox="0 0 24 24">
+                            <rect x="3" y="11" width="18" height="11" rx="2" />
+                            <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="game-info">
+                    <div class="game-category">Door &amp; Latch Attacks</div>
+                    <div class="game-title">Latch Slipping</div>
+                    <div class="game-desc">
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                        In ac viverra mi. Lorem ipsum dolor sit amet,
+                        consectetur adipiscing elit. Mauris vestibulum sapien eu
+                        tortor vehicula faucibus. Nulla eget nibh finibus,
+                        facilisis neque vel, tincidunt lorem.
+                    </div>
+                    <div class="game-links">
+                        <a
+                            href="https://physsec.org/games/slip/slip.html"
+                            target="_blank"
+                            rel="noopener"
+                            class="game-link"
+                        >
+                            <svg viewBox="0 0 24 24">
+                                <polygon points="5 3 19 12 5 21 5 3" />
+                            </svg>
+                            Latch Bypass Simulator
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ENTERPHONE BYPASS -->
+            <div class="game-card">
+                <div class="game-thumb">
+                    <img
+                        src="https://physsec.org/wp-content/uploads/2022/08/enterphone-thumbnail.png"
+                        onerror="
+                            this.style.display = 'none';
+                            this.nextElementSibling.style.display = 'flex';
+                        "
+                        alt="Enterphone Bypass thumbnail"
+                    />
+                    <div class="game-thumb-placeholder" style="display: none">
+                        <svg viewBox="0 0 24 24">
+                            <path
+                                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"
+                            />
+                        </svg>
+                    </div>
+                </div>
+                <div class="game-info">
+                    <div class="game-category">
+                        Intercom &amp; Entry Systems
+                    </div>
+                    <div class="game-title">Enterphone Bypass</div>
+                    <div class="game-desc">
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                        In ac viverra mi. Lorem ipsum dolor sit amet,
+                        consectetur adipiscing elit. Mauris vestibulum sapien eu
+                        tortor vehicula faucibus. Nulla eget nibh finibus,
+                        facilisis neque vel, tincidunt lorem.
+                    </div>
+                    <div class="game-links">
+                        <a
+                            href="https://physsec.org/games/enterphone/mircom.html"
+                            target="_blank"
+                            rel="noopener"
+                            class="game-link"
+                        >
+                            <svg viewBox="0 0 24 24">
+                                <polygon points="5 3 19 12 5 21 5 3" />
+                            </svg>
+                            Mircom
+                        </a>
+                        <a
+                            href="https://physsec.org/games/enterphone/linear.html"
+                            target="_blank"
+                            rel="noopener"
+                            class="game-link"
+                        >
+                            <svg viewBox="0 0 24 24">
+                                <polygon points="5 3 19 12 5 21 5 3" />
+                            </svg>
+                            Linear
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LICENSE -->
+        <div class="license-bar">
+            <div class="cc-badge">CC BY-NC-SA 4.0</div>
+            <p>
+                These games are licensed under the
+                <a
+                    href="http://creativecommons.org/licenses/by-nc-sa/4.0/"
+                    rel="license"
+                    target="_blank"
+                    >Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+                    International License</a
+                >. You are free to share and adapt the material for
+                non-commercial purposes, as long as you give appropriate credit
+                and distribute under the same license.
+            </p>
+        </div>
+    </div>
+</main>
+
+<script>
+    document.getElementById("themeToggle").addEventListener("click", () => {
+        const h = document.documentElement;
+        h.dataset.theme = h.dataset.theme === "dark" ? "light" : "dark";
+    });
+    const hamburger = document.getElementById("hamburger");
+    const mobileMenu = document.getElementById("mobileMenu");
+    hamburger.addEventListener("click", () =>
+        mobileMenu.classList.toggle("open"),
+    );
+    function closeMobile() {
+        mobileMenu.classList.remove("open");
+    }
+    const nav = document.querySelector("nav");
+    window.addEventListener("scroll", () => {
+        nav.style.borderBottomColor =
+            window.scrollY > 20 ? "rgba(21,161,74,0.1)" : "var(--border)";
+    });
+    function toggleLevels(btn) {
+        btn.classList.toggle("open");
+        const list = btn.nextElementSibling;
+        list.classList.toggle("open");
+        btn.textContent = btn.classList.contains("open")
+            ? "Hide Levels "
+            : "Show 10 Levels ";
+        const icon = document.createElement("svg");
+        icon.setAttribute("viewBox", "0 0 24 24");
+        icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+        btn.appendChild(icon);
+    }
+</script>
+
+{% endblock %}

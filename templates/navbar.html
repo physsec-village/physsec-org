@@ -17,11 +17,12 @@
             <a href="{{ url_for('content_page') }}">Content</a>
             <div class="dropdown-menu">
                 <a href="{{ url_for('talks_page') }}">Talks & Presentations</a>
-                <a>Conferences</a>
+                <!--<a>Conferences</a>-->
+                <a href="{{ url_for('games_page') }}">Bypass Games</a>
+                <!--<a href="{{ url_for('materials_page') }}">Other Materials</a>-->
             </div>
         </li>
         <li><a>PSV Store</a></li>
-        <li><a>FAQ</a></li>
         <li><a href="{{ url_for('contact_us_page') }}">Contact Us</a></li>
     </ul>
 
