@@ -1,5 +1,7 @@
 {% extends "base.html" %}
-
+{% block styles %}
+<link href="/static/pages/landing.css" rel="stylesheet" />
+{% endblock %}
 
 {% block main %}
 <section class="hero" id="home">
@@ -32,7 +34,7 @@
                     </svg>
                     About Us
                 </a>
-                <a href="{{ url_for('get_involved_page') }}" class="btn btn-outline">
+                <a href="{{ url_for('calls_page') }}" class="btn btn-outline">
                     <svg
                         width="16"
                         height="16"

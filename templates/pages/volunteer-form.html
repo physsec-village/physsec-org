@@ -1,12 +1,16 @@
-{% extends "base.html" %} {% block main %}
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/volunteer-form.css" rel="stylesheet" />
+{% endblock %} {% block main %}
 
 <section id="volunteer">
     <div class="section-inner">
         <p class="section-label">// Volunteer with us</p>
         <h2 class="section-title">Volunteer With Us</h2>
         <p class="section-desc">
-            Interested in volunteering with the Physical Security Village? Fill
-            out the form below and we'll be in touch ahead of the next event.
+            Interested in volunteering with the Physical Security Village? From
+            setup and breakdown, to staffing stations and guiding attendees,
+            we're always in need of passionate people. Fill out the form below
+            and we'll be in touch ahead of the next event.
         </p>
 
         <div class="vol-form-wrap">
@@ -74,7 +78,7 @@
                         <label>Food Limitations</label>
                         <input
                             type="text"
-                            placeholder="e.g. vegetarian, gluten-free, nut allergy — or 'None'"
+                            placeholder="e.g. vegetarian, gluten-free, nut allergy - or 'None'"
                         />
                     </div>
 

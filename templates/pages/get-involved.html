@@ -1,4 +1,6 @@
-{% extends "base.html" %} {% block main %}
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/get-involved.css" rel="stylesheet" />
+{% endblock %} {% block main %}
 <section id="involve" style="background: var(--surface2)">
     <div class="section-inner">
         <p class="section-label">// Join The Community</p>
@@ -10,27 +12,27 @@
         <div class="involve-grid">
             <div class="involve-card">
                 <div class="card-num">01</div>
-                <h3>Volunteer</h3>
+                <h3>Volunteer with us</h3>
                 <p>
-                    Come volunteer with PSV! From setup and breakdown, to
-                    staffing stations and guiding attendees, we're always in
-                    need of passionate people.
+                    Want to contribute to PSV? You can volunteer to help with
+                    setup, breakdown, and staffing stations, or share your work
+                    with the community by submitting a talk or exhibit proposal
+                    through our Call for Papers!
                 </p>
-                <a
-                    href="{{ url_for('volunteer_form_page') }}"
-                    class="card-action"
-                    >Apply to volunteer →</a
+                <a href="{{ url_for('calls_page') }}" class="card-action"
+                    >Join us →</a
                 >
             </div>
             <div class="involve-card">
                 <div class="card-num">02</div>
-                <h3>Submit a Talk</h3>
+                <h3>Host the Village</h3>
                 <p>
-                    Have research, a project, or insights worth sharing? Submit
-                    a talk or workshop proposal for our Call for Papers each
-                    year.
+                    Want to feature the Physical Security Village at your
+                    conference? We bring interactive exhibits, talks, and
+                    hands-on education about physical security vulnerabilities
+                    and remediations
                 </p>
-                <a class="card-action">View CFP details →</a>
+                <a class="card-action">Contact us →</a>
             </div>
             <div class="involve-card">
                 <div class="card-num">03</div>
@@ -48,7 +50,9 @@
                     Connect with the PSV community year-round. Share projects,
                     ask questions, and stay up to date with announcements.
                 </p>
-                <a href="#" class="card-action">Join Discord →</a>
+                <a href="https://discord.gg/csYBJPMv4D" class="card-action"
+                    >Join Discord →</a
+                >
             </div>
         </div>
     </div>

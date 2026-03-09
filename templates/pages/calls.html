@@ -1,0 +1,148 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/calls.css" rel="stylesheet" />
+{% endblock %} {% block main %}
+<!-- PAGE HERO -->
+<div class="page-hero">
+    <div class="page-hero-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span class="sep">/</span>
+            <span>Get Involved</span>
+        </div>
+        <div class="hero-tag">Open Opportunities</div>
+        <h1 class="page-title">Get <em>Involved</em></h1>
+        <p class="page-desc">
+            From staffing a table to speaking on stage - there's a place for you
+            at the Physical Security Village. Browse open calls below and apply
+            to join the community.
+        </p>
+    </div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+    <div class="filter-inner">
+        <span class="filter-label">Filter:</span>
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="volunteer">Volunteer</button>
+        <button class="filter-btn" data-filter="cfp">Call for Exhibits</button>
+        <button class="filter-btn" data-filter="cfp">Call for Talks</button>
+        <button class="filter-btn" data-filter="member">Membership</button>
+        <div class="filter-count">
+            Showing <span id="visibleCount">2</span> of 2 opportunities
+        </div>
+    </div>
+</div>
+
+<!-- CARDS -->
+<div class="opportunities-section">
+    <div class="opportunities-inner">
+        <!-- GROUP: VOLUNTEER -->
+        <div class="group-header">
+            <span class="group-label">// Volunteer Opportunities</span>
+            <div class="group-line"></div>
+            <span class="group-count" id="volunteerCount">2 open</span>
+        </div>
+
+        <div class="cards-grid" id="cardsGrid">
+            <div class="opp-card" data-category="volunteer">
+                <div class="card-header">
+                    <div class="card-type-icon">
+                        <svg viewBox="0 0 24 24">
+                            <circle cx="12" cy="8" r="4" />
+                            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+                        </svg>
+                    </div>
+                    <span class="status-badge badge-open">Open</span>
+                </div>
+                <div class="card-category">General Volunteer Pool</div>
+                <div class="card-title">
+                    PSV Volunteer Roster - Any Conference
+                </div>
+                <p class="card-desc">
+                    Join our standing volunteer list. When PSV appears at a new
+                    event, we reach out from this pool first. Ideal if you can't
+                    commit to a specific conference right now but want to help
+                    at future ones.
+                </p>
+
+                <div class="card-meta">
+                    <span class="meta-tag">Multiple locations</span>
+                    <span class="meta-tag">Rolling basis</span>
+                    <span class="meta-tag">All skill levels</span>
+                </div>
+                <div class="card-deadline">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    Always accepting
+                </div>
+                <hr class="card-divider" />
+                <a
+                    href="{{ url_for('volunteer_form_page') }}"
+                    class="card-action"
+                    >Join the roster →</a
+                >
+            </div>
+
+            <div class="opp-card" data-category="volunteer">
+                <div class="card-header">
+                    <div class="card-type-icon">
+                        <!-- person icon -->
+                        <svg viewBox="0 0 24 24">
+                            <circle cx="12" cy="8" r="4" />
+                            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+                        </svg>
+                    </div>
+                    <span class="status-badge badge-open">Open</span>
+                </div>
+                <div class="card-category">Conference Volunteer</div>
+                <div class="card-title">DEF CON 33 Village Staff</div>
+                <p class="card-desc">
+                    Help run the village floor at DEF CON. Tasks include
+                    setup/breakdown, staffing activity stations, guiding
+                    attendees, and supporting presenters. No prior experience
+                    required — just enthusiasm.
+                </p>
+                <div class="card-meta">
+                    <span class="meta-tag highlight">Las Vegas, NV</span>
+                    <span class="meta-tag highlight">Aug 7–10</span>
+                    <span class="meta-tag">All skill levels</span>
+                </div>
+                <div class="card-deadline">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    Closes June 15, 2025
+                </div>
+                <hr class="card-divider" />
+                <a href="#" class="card-action">Apply to volunteer →</a>
+            </div>
+        </div>
+
+        <div class="empty-state" id="emptyState">
+            <p>
+                No opportunities match that filter. Try another category or
+                check back soon.
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="bottom-cta">
+    <div class="bottom-cta-inner">
+        <div class="bottom-cta-text">
+            <h3>Not Ready to Commit? Join the Discord.</h3>
+            <p>
+                Stay in the loop, ask questions, and connect with the PSV
+                community year-round.
+            </p>
+        </div>
+        <a href="https://discord.gg/csYBJPMv4D" class="btn btn-outline"
+            >Join Discord →</a
+        >
+    </div>
+</div>
+{% endblock %}
