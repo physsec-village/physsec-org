@@ -117,6 +117,14 @@ nav {
     border-radius: 2px;
     color: var(--text);
 }
+.dropdown-menu::before {
+    content: "";
+    position: absolute;
+    top: -0.6rem; /* bridges the gap above the menu */
+    left: 0;
+    right: 0;
+    height: 0.6rem;
+}
 .dropdown-menu a:hover {
     color: var(--accent);
     background: rgba(232, 193, 74, 0.08);

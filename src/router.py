@@ -29,3 +29,8 @@ def content_page(request: Request):
 @router.get("/contact", response_class=HTMLResponse)
 def contact_us_page(request: Request):
     return templates.TemplateResponse(request=request, name="pages/contact-us.html")
+
+
+@router.get("/talks", response_class=HTMLResponse)
+def talks_page(request: Request):
+    return templates.TemplateResponse(request=request, name="pages/talks.html")
