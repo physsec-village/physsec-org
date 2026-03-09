@@ -451,13 +451,6 @@
     position: relative;
     overflow: hidden;
 }
-.btn-primary {
-    background: var(--accent);
-    color: #0b0d0f;
-}
-.btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 28px rgba(21, 161, 74, 0.35);
 }
 .btn-outline {
     background: transparent;

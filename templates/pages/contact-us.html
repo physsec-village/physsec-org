@@ -1,0 +1,111 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/forms.css" rel="stylesheet" />
+{% endblock %} {% block main %}
+
+<section id="contact">
+    <div class="section-inner">
+        <p class="section-label">// Contact us</p>
+        <h2 class="section-title">Contact Us</h2>
+        <p class="section-desc">
+            Have a question, partnership inquiry, or just want to get in touch
+            with the Physical Security Village team? Fill out the form below and
+            we'll get back to you as soon as we can.
+        </p>
+
+        <div class="vol-form-wrap">
+            <form id="contactForm">
+                <div class="form-grid">
+                    <div class="form-section-label">Your Information</div>
+
+                    <div class="field">
+                        <label>Name</label>
+                        <input type="text" placeholder="Your name or handle" />
+                    </div>
+                    <div class="field">
+                        <label>Email</label>
+                        <input type="email" placeholder="you@example.com" />
+                    </div>
+
+                    <hr class="form-divider" />
+                    <div class="form-section-label">Your Message</div>
+
+                    <div class="field full">
+                        <label>Subject</label>
+                        <select>
+                            <option value="" disabled selected>
+                                Select a topic
+                            </option>
+                            <option>General Inquiry</option>
+                            <option>Speaking / Talks</option>
+                            <option>Sponsorship & Partnerships</option>
+                            <option>Press & Media</option>
+                            <option>Volunteering</option>
+                            <option>Village Operations</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+
+                    <div class="field full">
+                        <label>Message</label>
+                        <textarea
+                            placeholder="Tell us what's on your mind..."
+                            style="min-height: 140px"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-submit-row">
+                        <span class="form-note">
+                            Fields without
+                            <span
+                                class="opt"
+                                style="opacity: 1; color: var(--muted)"
+                                >(optional)</span
+                            >
+                            are required.
+                        </span>
+                        <button
+                            class="btn btn-primary"
+                            type="button"
+                            onclick="submitContactForm()"
+                        >
+                            <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                            >
+                                <line x1="22" y1="2" x2="11" y2="13" />
+                                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                            </svg>
+                            Send Message
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="form-success" id="contactSuccess">
+                <div class="success-icon">
+                    <svg viewBox="0 0 24 24">
+                        <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                </div>
+                <h3>Message Sent!</h3>
+                <p>
+                    Thanks for reaching out to PSV.<br />We'll get back to you
+                    as soon as we can.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+    function submitContactForm() {
+        document.getElementById("contactForm").style.display = "none";
+        document.getElementById("contactSuccess").style.display = "block";
+    }
+</script>
+
+{% endblock %}
