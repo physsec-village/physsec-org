@@ -2,7 +2,7 @@
     background: var(--surface2);
 }
 .faq-list {
-    margin-top: 3rem;
+    margin-top: 2rem;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -22,12 +22,15 @@
     align-items: center;
     justify-content: space-between;
     padding: 1.25rem 1.5rem;
+    gap: 1rem;
     font-family: "DM Sans", sans-serif;
     font-size: 0.95rem;
     font-weight: 500;
     color: var(--text);
     text-align: left;
     transition: color var(--transition);
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
 }
 .faq-q:hover {
     color: var(--accent);
@@ -54,10 +57,9 @@
     transition:
         max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         padding 0.3s;
-    padding: 0 1.5rem;
 }
 .faq-item.open .faq-a {
-    max-height: 300px;
+    max-height: 400px;
     padding: 0 1.5rem 1.25rem;
 }
 .faq-a p {
@@ -66,7 +68,7 @@
     line-height: 1.8;
 }
 
-/* ─── STATS BAR ──────────────────────────────────────── */
+/* STATS BAR */
 .stats-bar {
     background: var(--surface);
     border-top: 1px solid var(--border);
@@ -76,9 +78,9 @@
 .stats-inner {
     max-width: 1200px;
     margin: 0 auto;
-    display: flex;
-    justify-content: space-between;
-    gap: 2rem;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
     align-items: center;
 }
 .stat {
@@ -86,27 +88,20 @@
 }
 .stat-num {
     font-family: "Bebas Neue", sans-serif;
-    font-size: 2.8rem;
+    font-size: clamp(2rem, 5vw, 2.8rem);
     line-height: 1;
     color: var(--accent);
 }
 .stat-label {
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--muted);
     margin-top: 0.3rem;
 }
-.stats-divider {
-    width: 1px;
-    height: 50px;
-    background: var(--border);
-    margin: 0 auto;
-}
-
-/* ─── HERO ───────────────────────────────────────────── */
+/* HERO */
 .hero {
-    min-height: 100vh;
+    min-height: 100svh;
     display: flex;
     align-items: center;
     padding: calc(var(--nav-h) + 4rem) clamp(1.5rem, 6vw, 5rem) 5rem;
@@ -114,14 +109,14 @@
     overflow: hidden;
 }
 
-/* grid lines background */
+/* Grid lines background */
 .hero::before {
     content: "";
     position: absolute;
     inset: 0;
     background-image:
-        linear-gradient(rgba(232, 193, 74, 0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(232, 193, 74, 0.04) 1px, transparent 1px);
+        linear-gradient(rgba(21, 161, 74, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(21, 161, 74, 0.04) 1px, transparent 1px);
     background-size: 60px 60px;
     mask-image: radial-gradient(
         ellipse 80% 70% at 50% 50%,
@@ -130,7 +125,7 @@
     );
 }
 
-/* corner bracket accents */
+/* Corner bracket accents */
 .hero::after {
     content: "";
     position: absolute;
@@ -138,8 +133,8 @@
     right: clamp(1.5rem, 6vw, 5rem);
     width: 120px;
     height: 120px;
-    border-right: 2px solid rgba(232, 193, 74, 0.2);
-    border-bottom: 2px solid rgba(232, 193, 74, 0.2);
+    border-right: 2px solid rgba(21, 161, 74, 0.2);
+    border-bottom: 2px solid rgba(21, 161, 74, 0.2);
 }
 
 .hero-inner {
@@ -162,7 +157,7 @@
     letter-spacing: 0.15em;
     text-transform: uppercase;
     color: var(--accent);
-    border: 1px solid rgba(232, 193, 74, 0.3);
+    border: 1px solid rgba(21, 161, 74, 0.3);
     padding: 0.35rem 0.75rem;
     border-radius: 2px;
     margin-bottom: 1.5rem;
@@ -178,7 +173,7 @@
     line-height: 0.92;
     letter-spacing: 0.02em;
     color: var(--text);
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
 }
 .hero-title em {
     font-style: normal;
@@ -187,12 +182,12 @@
 }
 
 .hero-desc {
-    font-size: clamp(1rem, 1.8vw, 1.15rem);
+    font-size: clamp(1rem, 2vw, 1.2rem);
     font-weight: 300;
     color: var(--muted);
     line-height: 1.75;
     max-width: 520px;
-    margin-bottom: 2.5rem;
+    margin-bottom: 2rem;
 }
 
 .hero-ctas {
@@ -210,27 +205,26 @@
     width: clamp(220px, 28vw, 360px);
     height: clamp(220px, 28vw, 360px);
     position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-.logo-ring svg {
+.logo-ring img {
     width: 100%;
     height: 100%;
+    object-fit: contain;
 }
 
-/* animated ring */
-@keyframes spin-slow {
-    to {
-        transform: rotate(360deg);
-    }
+/* HERO ANIMATIONS */
+@keyframes fade-up {
+    from { opacity: 0; transform: translateY(28px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes pulse-glow {
-    0%,
-    100% {
-        opacity: 0.5;
-    }
-    50% {
-        opacity: 1;
-    }
-}
+.hero-tag    { animation: fade-up 0.7s ease both; }
+.hero-title  { animation: fade-up 0.7s 0.1s ease both; }
+.hero-desc   { animation: fade-up 0.7s 0.2s ease both; }
+.hero-ctas   { animation: fade-up 0.7s 0.3s ease both; }
+.hero-visual { animation: fade-up 0.9s 0.15s ease both; }
 .ring-outer {
     animation: spin-slow 20s linear infinite;
     transform-origin: center;
@@ -241,4 +235,60 @@
 }
 .lock-glow {
     animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+    /* Hero: stack vertically */
+    .hero-inner {
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
+        text-align: center;
+        justify-items: center;
+    }
+
+    .hero-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .hero-desc  { max-width: 100%; }
+    .hero-ctas  { justify-content: center; }
+    .hero-visual { order: -1; }
+
+    .logo-ring {
+        width: clamp(140px, 35vw, 220px);
+        height: clamp(140px, 35vw, 220px);
+    }
+
+    /* Stats: 2×2 grid */
+    .stats-inner {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem 1rem;
+    }
+}
+
+@media (max-width: 600px) {
+    .hero {
+        padding: calc(var(--nav-h) + 2rem) clamp(1rem, 4vw, 1.5rem) 3rem;
+    }
+
+    .hero::after { display: none; }
+
+    .hero-tag { font-size: 0.65rem; }
+
+    .hero-ctas {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .stats-bar { padding: 1.75rem 1rem; }
+    .stats-inner { gap: 1.25rem 0.5rem; }
+    .stat-num   { font-size: 2rem; }
+    .stat-label { font-size: 0.65rem; }
+}
+
+@media (max-width: 380px) {
+    .hero-title { font-size: clamp(3rem, 13vw, 4rem); }
 }

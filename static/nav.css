@@ -15,7 +15,7 @@ nav {
     transition: background var(--transition);
 }
 [data-theme="light"] nav {
-    background: rgba(244, 241, 235, 0.88);
+    background: rgba(244, 241, 235, 0.92);
 }
 
 .nav-logo {
@@ -27,6 +27,7 @@ nav {
     display: flex;
     align-items: center;
     gap: 0.55rem;
+    -webkit-tap-highlight-color: transparent;
 }
 .nav-logo .logo-icon {
     width: 34px;
@@ -65,7 +66,7 @@ nav {
 }
 .nav-links a:hover {
     color: var(--accent);
-    background: rgba(232, 193, 74, 0.08);
+    background: rgba(21, 161, 74, 0.08);
 }
 
 /* DROPDOWN */
@@ -117,17 +118,18 @@ nav {
     border-radius: 2px;
     color: var(--text);
 }
+/* Bridge gap so menu doesn't close when moving cursor to it */
 .dropdown-menu::before {
     content: "";
     position: absolute;
-    top: -0.6rem; /* bridges the gap above the menu */
+    top: -0.6rem;
     left: 0;
     right: 0;
     height: 0.6rem;
 }
 .dropdown-menu a:hover {
     color: var(--accent);
-    background: rgba(232, 193, 74, 0.08);
+    background: rgba(21, 161, 74, 0.08);
 }
 
 /* NAV RIGHT */
@@ -137,14 +139,20 @@ nav {
     gap: 0.75rem;
 }
 
+.nav-divider {
+    width: 1px;
+    height: 22px;
+    background: var(--border);
+}
+
 .social-icons {
     display: flex;
     align-items: center;
     gap: 0.4rem;
 }
 .social-icons a {
-    width: 34px;
-    height: 34px;
+    width: 40px;
+    height: 40px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     display: flex;
@@ -156,11 +164,12 @@ nav {
         color var(--transition),
         border-color var(--transition),
         background var(--transition);
+    -webkit-tap-highlight-color: transparent;
 }
 .social-icons a:hover {
     color: var(--accent);
     border-color: var(--accent);
-    background: rgba(232, 193, 74, 0.06);
+    background: rgba(21, 161, 74, 0.06);
 }
 .social-icons svg {
     width: 16px;
@@ -174,10 +183,22 @@ nav {
     background: none;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 0.4rem;
+    padding: 0;
+    width: 40px;
+    height: 40px;
     cursor: pointer;
     color: var(--text);
-    transition: color var(--transition);
+    align-items: center;
+    justify-content: center;
+    transition:
+        color var(--transition),
+        border-color var(--transition);
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+}
+.hamburger:hover {
+    color: var(--accent);
+    border-color: var(--accent);
 }
 .hamburger svg {
     width: 20px;
@@ -185,11 +206,10 @@ nav {
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
+    transition: transform var(--transition);
 }
-@media (max-width: 900px) {
-    .hamburger {
-        display: flex;
-    }
+.hamburger.active svg {
+    stroke: var(--accent);
 }
 
 .mobile-menu {
@@ -199,27 +219,46 @@ nav {
     right: 0;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    padding: 1.5rem clamp(1.5rem, 5vw, 4rem);
+    padding: 0.5rem clamp(1.25rem, 5vw, 4rem) 1rem;
     transform: translateY(-110%);
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 999;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 .mobile-menu.open {
     transform: translateY(0);
 }
 .mobile-menu a {
-    display: block;
-    padding: 0.75rem 0;
-    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    padding: 0.9rem 0;
+    font-size: 1rem;
     font-weight: 500;
     color: var(--text);
     text-decoration: none;
     border-bottom: 1px solid var(--border);
     transition: color var(--transition);
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
 }
 .mobile-menu a:last-child {
     border-bottom: none;
 }
-.mobile-menu a:hover {
+.mobile-menu a:hover,
+.mobile-menu a:active {
     color: var(--accent);
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+    :root { --nav-h: 60px; }
+
+    .nav-links  { display: none; }
+    .hamburger  { display: flex; }
+    .social-icons { display: none; }
+    .nav-divider  { display: none; }
+}
+
+@media (max-width: 600px) {
+    :root { --nav-h: 56px; }
 }
