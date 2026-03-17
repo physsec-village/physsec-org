@@ -1,9 +1,17 @@
+/* MAIN */
+.involve-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* GRID */
 .involve-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1.5rem;
-    margin-top: 3.5rem;
 }
+
+/* CARDS */
 .involve-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -13,7 +21,8 @@
     overflow: hidden;
     transition:
         border-color var(--transition),
-        transform var(--transition);
+        transform var(--transition),
+        box-shadow var(--transition);
 }
 .involve-card::before {
     content: "";
@@ -28,8 +37,9 @@
     transition: transform 0.4s ease;
 }
 .involve-card:hover {
-    border-color: rgba(232, 193, 74, 0.3);
+    border-color: rgba(21, 161, 74, 0.35); /* matches game-card */
     transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3); /* matches game-card */
 }
 .involve-card:hover::before {
     transform: scaleX(1);
@@ -37,7 +47,7 @@
 .involve-card .card-num {
     font-family: "Bebas Neue", sans-serif;
     font-size: 3rem;
-    color: rgba(232, 193, 74, 0.12);
+    color: rgba(21, 161, 74, 0.12); /* matches accent, was gold */
     line-height: 1;
     margin-bottom: 1rem;
 }
@@ -51,19 +61,30 @@
     color: var(--muted);
     line-height: 1.7;
 }
+
+/* Action link — aligned with .game-link from games page */
 .involve-card .card-action {
     margin-top: 1.5rem;
-    font-size: 0.8rem;
+    display: inline-flex; /* was flex */
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;    /* matches game-link */
     font-weight: 600;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.05em; /* matches game-link */
     text-transform: uppercase;
     color: var(--accent);
     text-decoration: none;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    transition: gap var(--transition);
+    background: rgba(21, 161, 74, 0.08);  /* matches game-link */
+    border: 1px solid rgba(21, 161, 74, 0.2); /* matches game-link */
+    border-radius: var(--radius);
+    padding: 0.45rem 0.85rem;
+    transition:
+        background var(--transition),
+        border-color var(--transition),
+        transform var(--transition);
 }
-.involve-card:hover .card-action {
-    gap: 0.7rem;
+.involve-card .card-action:hover {
+    background: rgba(21, 161, 74, 0.15);
+    border-color: var(--accent);
+    transform: translateY(-1px);
 }

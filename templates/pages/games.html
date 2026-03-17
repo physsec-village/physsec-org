@@ -1,25 +1,19 @@
 {% extends "base.html" %} {% block styles %}
 <link href="/static/pages/games.css" rel="stylesheet" />
-{% endblock %} {% block main %}
+{% endblock %}
 
-<header class="page-header">
+{% block page_header %}
+
     <div class="page-header-inner">
         <div class="breadcrumb">
-            <a href="index.html">PSV</a>
+            <a href="/">PSV</a>
             <span>/</span>
-            <a href="#">Content</a>
+            <a href="/content">Content</a>
             <span>/</span>
             <span style="color: var(--text)">Games</span>
         </div>
         <h1 class="page-title">Bypass<br /><em>Simulator Games</em></h1>
-        <p class="page-desc">
-            Learning about physical security bypass is a hands-on experience.
-            These interactive games and demos let you explore and test various
-            physical security exploits right in your browser. A keyboard and
-            mouse are required.
-        </p>
     </div>
-</header>
 
 <!-- NOTICE -->
 <div style="padding: 0 clamp(1.5rem, 6vw, 5rem); margin-bottom: 3rem">
@@ -40,8 +34,9 @@
     </div>
 </div>
 
-<!-- GAMES GRID -->
-<main class="games-body">
+{% endblock %}
+
+{% block main %}
     <div class="games-inner">
         <div class="games-grid">
             <!-- ALARM BYPASS -->
@@ -188,7 +183,6 @@
                 </div>
             </div>
 
-            <!-- COMBO LOCK DECODING -->
             <div class="game-card">
                 <div class="game-thumb">
                     <img
@@ -416,7 +410,6 @@
             </p>
         </div>
     </div>
-</main>
 
 <script>
     document.getElementById("themeToggle").addEventListener("click", () => {

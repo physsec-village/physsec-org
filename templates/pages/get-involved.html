@@ -1,14 +1,18 @@
 {% extends "base.html" %} {% block styles %}
 <link href="/static/pages/get-involved.css" rel="stylesheet" />
-{% endblock %} {% block main %}
-<section id="involve" style="background: var(--surface2)">
-    <div class="section-inner">
-        <p class="section-label">// Join The Community</p>
-        <h2 class="section-title">Get Involved</h2>
-        <p class="section-desc">
-            There are many ways to be part of the Physical Security Village,
-            whether you're a first-timer or a longtime community member.
-        </p>
+{% endblock %}
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">PSV</a>
+            <span>/</span>
+            <span style="color: var(--text)">Get Involved</span>
+        </div>
+        <h1 class="page-title">Get<br /><em>Involved</em></h1>
+    </div>
+{% endblock %}
+{% block main %}
+    <div class="involve-inner">
         <div class="involve-grid">
             <div class="involve-card">
                 <div class="card-num">01</div>
@@ -19,9 +23,7 @@
                     with the community by submitting a talk or exhibit proposal
                     through our Call for Papers!
                 </p>
-                <a href="{{ url_for('calls_page') }}" class="card-action"
-                    >Join us →</a
-                >
+                <a href="{{ url_for('calls_page') }}" class="card-action">Join us →</a>
             </div>
             <div class="involve-card">
                 <div class="card-num">02</div>
@@ -30,11 +32,9 @@
                     Want to feature the Physical Security Village at your
                     conference? We bring interactive exhibits, talks, and
                     hands-on education about physical security vulnerabilities
-                    and remediations
+                    and remediations.
                 </p>
-                <a href="{{ url_for('contact_us_page') }}" class="card-action"
-                    >Contact us →</a
-                >
+                <a href="{{ url_for('contact_us_page') }}" class="card-action">Contact us →</a>
             </div>
             <div class="involve-card">
                 <div class="card-num">03</div>
@@ -52,12 +52,8 @@
                     Connect with the PSV community year-round. Share projects,
                     ask questions, and stay up to date with announcements.
                 </p>
-                <a href="https://discord.gg/csYBJPMv4D" class="card-action"
-                    >Join Discord →</a
-                >
+                <a href="https://discord.gg/csYBJPMv4D" class="card-action">Join Discord →</a>
             </div>
         </div>
     </div>
-</section>
-
 {% endblock %}
