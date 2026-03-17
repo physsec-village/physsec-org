@@ -1,12 +1,12 @@
-#volunteer {
-    background: var(--bg);
+.forms-inner {
+    max-width: 1200px;
+    margin: 0 auto;
 }
 .vol-form-wrap {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: clamp(2rem, 4vw, 3.5rem);
-    margin-top: 3.5rem;
     position: relative;
     overflow: hidden;
 }
@@ -32,7 +32,6 @@
         grid-template-columns: 1fr;
     }
 }
-
 .field {
     display: flex;
     flex-direction: column;
@@ -93,8 +92,6 @@
     background-position: right 0.9rem center;
     padding-right: 2.5rem;
 }
-
-/* Checkbox group */
 .check-group {
     display: flex;
     flex-wrap: wrap;
@@ -155,8 +152,6 @@
     font-size: 0.83rem;
     color: var(--text);
 }
-
-/* Radio group */
 .radio-group {
     display: flex;
     gap: 0.6rem;
@@ -214,8 +209,6 @@
     font-size: 0.83rem;
     color: var(--text);
 }
-
-/* Consent toggle */
 .consent-row {
     display: flex;
     align-items: flex-start;
@@ -273,8 +266,6 @@
     color: var(--text);
     font-weight: 500;
 }
-
-/* Form divider */
 .form-divider {
     grid-column: 1 / -1;
     border: none;
@@ -290,8 +281,6 @@
     color: var(--accent);
     padding-top: 0.25rem;
 }
-
-/* Submit */
 .form-submit-row {
     grid-column: 1 / -1;
     display: flex;
@@ -309,8 +298,6 @@
     color: var(--accent);
     text-decoration: none;
 }
-
-/* Success message */
 .form-success {
     display: none;
     text-align: center;

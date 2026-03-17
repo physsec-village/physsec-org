@@ -19,6 +19,8 @@
     padding: 2rem;
     position: relative;
     overflow: hidden;
+    display: flex;          /* add */
+    flex-direction: column; /* add */
     transition:
         border-color var(--transition),
         transform var(--transition),
@@ -64,18 +66,19 @@
 
 /* Action link — aligned with .game-link from games page */
 .involve-card .card-action {
-    margin-top: 1.5rem;
-    display: inline-flex; /* was flex */
+    margin-top: auto;
+    padding-top: 1.5rem;
+    display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    font-size: 0.78rem;    /* matches game-link */
+    font-size: 0.78rem;
     font-weight: 600;
-    letter-spacing: 0.05em; /* matches game-link */
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--accent);
     text-decoration: none;
-    background: rgba(21, 161, 74, 0.08);  /* matches game-link */
-    border: 1px solid rgba(21, 161, 74, 0.2); /* matches game-link */
+    background: rgba(21, 161, 74, 0.08);
+    border: 1px solid rgba(21, 161, 74, 0.2);
     border-radius: var(--radius);
     padding: 0.45rem 0.85rem;
     transition:
@@ -87,4 +90,9 @@
     background: rgba(21, 161, 74, 0.15);
     border-color: var(--accent);
     transform: translateY(-1px);
+}
+
+.card-action-wrap {
+    margin-top: auto;
+    padding-top: 1.5rem;
 }

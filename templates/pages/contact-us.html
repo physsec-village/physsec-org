@@ -1,22 +1,22 @@
 {% extends "base.html" %} {% block styles %}
 <link href="/static/pages/forms.css" rel="stylesheet" />
-{% endblock %} {% block main %}
-
-<section id="contact">
-    <div class="section-inner">
-        <p class="section-label">// Contact us</p>
-        <h2 class="section-title">Contact Us</h2>
-        <p class="section-desc">
-            Have a question, partnership inquiry, or just want to get in touch
-            with the Physical Security Village team? Fill out the form below and
-            we'll get back to you as soon as we can.
-        </p>
-
+{% endblock %}
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">PSV</a>
+            <span>/</span>
+            <span style="color: var(--text)">Contact Us</span>
+        </div>
+        <h1 class="page-title">Contact<br /><em>the Village</em></h1>
+    </div>
+{% endblock %}
+{% block main %}
+    <div class="forms-inner">
         <div class="vol-form-wrap">
             <form id="contactForm">
                 <div class="form-grid">
                     <div class="form-section-label">Your Information</div>
-
                     <div class="field">
                         <label>Name</label>
                         <input type="text" placeholder="Your name or handle" />
@@ -25,10 +25,8 @@
                         <label>Email</label>
                         <input type="email" placeholder="you@example.com" />
                     </div>
-
                     <hr class="form-divider" />
                     <div class="form-section-label">Your Message</div>
-
                     <div class="field full">
                         <label>Subject</label>
                         <select>
@@ -44,7 +42,6 @@
                             <option>Other</option>
                         </select>
                     </div>
-
                     <div class="field full">
                         <label>Message</label>
                         <textarea
@@ -52,7 +49,6 @@
                             style="min-height: 140px"
                         ></textarea>
                     </div>
-
                     <div class="form-submit-row">
                         <span class="form-note">
                             Fields without
@@ -84,7 +80,6 @@
                     </div>
                 </div>
             </form>
-
             <div class="form-success" id="contactSuccess">
                 <div class="success-icon">
                     <svg viewBox="0 0 24 24">
@@ -99,13 +94,10 @@
             </div>
         </div>
     </div>
-</section>
-
 <script>
     function submitContactForm() {
         document.getElementById("contactForm").style.display = "none";
         document.getElementById("contactSuccess").style.display = "block";
     }
 </script>
-
 {% endblock %}

@@ -1,23 +1,21 @@
 {% extends "base.html" %} {% block styles %}
 <link href="/static/pages/talks.css" rel="stylesheet" />
-{% endblock %} {% block main %}
+{% endblock %} 
 
-<header class="page-header">
+{% block page_header %}
     <div class="page-header-inner">
         <div class="breadcrumb">
-            <a href="index.html">PSV</a>
+            <a href="/">PSV</a>
+            <span>/</span>
+            <a href="/content">Content</a>
             <span>/</span>
             <span style="color: var(--text)">Talks Archive</span>
         </div>
         <h1 class="page-title">Talks &<br /><em>Presentations</em></h1>
-        <p class="page-desc">
-            A growing archive of recorded talks, presentations, and lightning
-            rounds from PSV events across multiple conferences.
-        </p>
     </div>
-</header>
+{% endblock %}
 
-<main class="archive-body">
+{% block main %}
     <div class="archive-inner">
         <div class="featured-card">
             <div class="featured-thumb">
@@ -93,295 +91,294 @@
             <p>No talks match your search or filter.</p>
         </div>
     </div>
-</main>
-<script>
-    const talks = [
-        // 2024
-        {
-            id: 1,
-            year: 2024,
-            conf: "DEF CON",
-            confClass: "conf-defcon",
-            title: "Lock Mechanisms Under the Microscope: Vulnerabilities in High-Security Cylinders",
-            speaker: "Jordan Hale",
-            date: "Aug 2024",
-            duration: "35 min",
-            tags: ["Lockpicking", "Hardware"],
-            desc: "An in-depth analysis of tolerances and manufacturing defects in high-security lock cylinders that can be exploited with minimal tooling.",
-        },
-        {
-            id: 2,
-            year: 2024,
-            conf: "DEF CON",
-            confClass: "conf-defcon",
-            title: "The State of Hotel Key Card Security in 2024",
-            speaker: "Priya Nair",
-            date: "Aug 2024",
-            duration: "42 min",
-            tags: ["RFID", "Hotels", "Credentials"],
-            desc: "Surveying the attack surface of RFID-based hotel access systems, from classic Mifare cloning to newer OSDP implementations.",
-        },
-        {
-            id: 3,
-            year: 2024,
-            conf: "RSAC",
-            confClass: "conf-rsac",
-            title: "Physical Security as Part of the Modern Threat Model",
-            speaker: "Danielle Wu",
-            date: "May 2024",
-            duration: "28 min",
-            tags: ["Threat Modeling", "Enterprise"],
-            desc: "Making the case for incorporating physical attack vectors into corporate threat models and red team exercises.",
-        },
-        {
-            id: 4,
-            year: 2024,
-            conf: "Northsec",
-            confClass: "conf-northsec",
-            title: "Open Source Tools for Physical Pen Testers",
-            speaker: "Marco Silva",
-            date: "May 2024",
-            duration: "30 min",
-            tags: ["Tools", "Open Source", "Redteam"],
-            desc: "A survey of freely available hardware and software tools for physical security assessment, from Proxmark to Flipper Zero.",
-        },
-        // 2023
-        {
-            id: 5,
-            year: 2023,
-            conf: "DEF CON",
-            confClass: "conf-defcon",
-            title: "Tailgating at Scale: Social Engineering in Large Enterprises",
-            speaker: "Chris Evans",
-            date: "Aug 2023",
-            duration: "40 min",
-            tags: ["Social Engineering", "Enterprise"],
-            desc: "Case studies from real physical penetration tests involving multi-building campus environments, piggybacking, and impersonation.",
-        },
-        {
-            id: 6,
-            year: 2023,
-            conf: "DEF CON",
-            confClass: "conf-defcon",
-            title: "Wiegand Is Dead, Long Live Wiegand",
-            speaker: "Sofia Reyes",
-            date: "Aug 2023",
-            duration: "33 min",
-            tags: ["Access Control", "Wiegand", "Hardware"],
-            desc: "Despite being decades old, Wiegand is still everywhere. This talk explores why it persists and how attackers continue to exploit it.",
-        },
-        {
-            id: 7,
-            year: 2023,
-            conf: "HOPE",
-            confClass: "conf-hope",
-            title: "Community Locksport: Building the Next Generation of Physical Security Researchers",
-            speaker: "Amir Khalil",
-            date: "Jul 2023",
-            duration: "25 min",
-            tags: ["Locksport", "Community", "Education"],
-            desc: "How the locksport community serves as an on-ramp into physical security research — and what the industry can learn from it.",
-        },
-        {
-            id: 8,
-            year: 2023,
-            conf: "Ekoparty",
-            confClass: "conf-eko",
-            title: "Attacking Parking Garage Access Systems",
-            speaker: "Valentina Cruz",
-            date: "Oct 2023",
-            duration: "31 min",
-            tags: ["RFID", "Infrastructure", "Urban"],
-            desc: "A look at commonly deployed parking and barrier systems across Latin America and their susceptibility to credential replay attacks.",
-        },
-        // 2022
-        {
-            id: 9,
-            year: 2022,
-            conf: "DEF CON",
-            confClass: "conf-defcon",
-            title: "Impressioning Techniques for Modern Locks",
-            speaker: "Lee Jordan",
-            date: "Aug 2022",
-            duration: "38 min",
-            tags: ["Impressioning", "Lockpicking"],
-            desc: "A practical workshop-style talk covering hand and machine impressioning from basic pin tumbler locks through to dimple cylinders.",
-        },
-        {
-            id: 10,
-            year: 2022,
-            conf: "RSAC",
-            confClass: "conf-rsac",
-            title: "When the Firewall Is Made of Glass: Physical Breach Case Studies",
-            speaker: "Natasha Brooks",
-            date: "Jun 2022",
-            duration: "26 min",
-            tags: ["Case Study", "Redteam"],
-            desc: "Real-world examples of physical breaches that enabled digital compromise — and how defenders can close these gaps.",
-        },
-        {
-            id: 11,
-            year: 2022,
-            conf: "Northsec",
-            confClass: "conf-northsec",
-            title: "Under-Door Attacks: Bypassing Lever Handles Without a Key",
-            speaker: "Kevin Park",
-            date: "May 2022",
-            duration: "22 min",
-            tags: ["Bypass", "Hardware", "Doors"],
-            desc: 'Exploring the class of "under-door" attacks that defeat lever handle locks without touching the cylinder, and what countermeasures exist.',
-        },
-        {
-            id: 12,
-            year: 2022,
-            conf: "HOPE",
-            confClass: "conf-hope",
-            title: "A History of Lock Picking: From Ancient Egypt to Sport Picking",
-            speaker: "Dr. Rachel Green",
-            date: "Jul 2022",
-            duration: "45 min",
-            tags: ["History", "Locksport", "Education"],
-            desc: "A fascinating tour through thousands of years of lock technology, how each era's locks were defeated, and how that lineage shapes modern locksport.",
-        },
-        // 2021
-        {
-            id: 13,
-            year: 2021,
-            conf: "DEF CON",
-            confClass: "conf-defcon",
-            title: "RFID Implants and Physical Access: A Hacker's Perspective",
-            speaker: "Zoe Kim",
-            date: "Aug 2021",
-            duration: "29 min",
-            tags: ["RFID", "Implants", "Biohacking"],
-            desc: "First-hand experience using NFC implants for physical access — what works, what doesn't, and the privacy implications.",
-        },
-        {
-            id: 14,
-            year: 2021,
-            conf: "Ekoparty",
-            confClass: "conf-eko",
-            title: "Simulated Physical Red Team Exercises on a Budget",
-            speaker: "Carlos Mendez",
-            date: "Oct 2021",
-            duration: "36 min",
-            tags: ["Redteam", "Budget", "Training"],
-            desc: "Practical guidance on designing physical red team scenarios for organisations without large security budgets.",
-        },
-    ];
+    <script>
+        const talks = [
+            // 2024
+            {
+                id: 1,
+                year: 2024,
+                conf: "DEF CON",
+                confClass: "conf-defcon",
+                title: "Lock Mechanisms Under the Microscope: Vulnerabilities in High-Security Cylinders",
+                speaker: "Jordan Hale",
+                date: "Aug 2024",
+                duration: "35 min",
+                tags: ["Lockpicking", "Hardware"],
+                desc: "An in-depth analysis of tolerances and manufacturing defects in high-security lock cylinders that can be exploited with minimal tooling.",
+            },
+            {
+                id: 2,
+                year: 2024,
+                conf: "DEF CON",
+                confClass: "conf-defcon",
+                title: "The State of Hotel Key Card Security in 2024",
+                speaker: "Priya Nair",
+                date: "Aug 2024",
+                duration: "42 min",
+                tags: ["RFID", "Hotels", "Credentials"],
+                desc: "Surveying the attack surface of RFID-based hotel access systems, from classic Mifare cloning to newer OSDP implementations.",
+            },
+            {
+                id: 3,
+                year: 2024,
+                conf: "RSAC",
+                confClass: "conf-rsac",
+                title: "Physical Security as Part of the Modern Threat Model",
+                speaker: "Danielle Wu",
+                date: "May 2024",
+                duration: "28 min",
+                tags: ["Threat Modeling", "Enterprise"],
+                desc: "Making the case for incorporating physical attack vectors into corporate threat models and red team exercises.",
+            },
+            {
+                id: 4,
+                year: 2024,
+                conf: "Northsec",
+                confClass: "conf-northsec",
+                title: "Open Source Tools for Physical Pen Testers",
+                speaker: "Marco Silva",
+                date: "May 2024",
+                duration: "30 min",
+                tags: ["Tools", "Open Source", "Redteam"],
+                desc: "A survey of freely available hardware and software tools for physical security assessment, from Proxmark to Flipper Zero.",
+            },
+            // 2023
+            {
+                id: 5,
+                year: 2023,
+                conf: "DEF CON",
+                confClass: "conf-defcon",
+                title: "Tailgating at Scale: Social Engineering in Large Enterprises",
+                speaker: "Chris Evans",
+                date: "Aug 2023",
+                duration: "40 min",
+                tags: ["Social Engineering", "Enterprise"],
+                desc: "Case studies from real physical penetration tests involving multi-building campus environments, piggybacking, and impersonation.",
+            },
+            {
+                id: 6,
+                year: 2023,
+                conf: "DEF CON",
+                confClass: "conf-defcon",
+                title: "Wiegand Is Dead, Long Live Wiegand",
+                speaker: "Sofia Reyes",
+                date: "Aug 2023",
+                duration: "33 min",
+                tags: ["Access Control", "Wiegand", "Hardware"],
+                desc: "Despite being decades old, Wiegand is still everywhere. This talk explores why it persists and how attackers continue to exploit it.",
+            },
+            {
+                id: 7,
+                year: 2023,
+                conf: "HOPE",
+                confClass: "conf-hope",
+                title: "Community Locksport: Building the Next Generation of Physical Security Researchers",
+                speaker: "Amir Khalil",
+                date: "Jul 2023",
+                duration: "25 min",
+                tags: ["Locksport", "Community", "Education"],
+                desc: "How the locksport community serves as an on-ramp into physical security research — and what the industry can learn from it.",
+            },
+            {
+                id: 8,
+                year: 2023,
+                conf: "Ekoparty",
+                confClass: "conf-eko",
+                title: "Attacking Parking Garage Access Systems",
+                speaker: "Valentina Cruz",
+                date: "Oct 2023",
+                duration: "31 min",
+                tags: ["RFID", "Infrastructure", "Urban"],
+                desc: "A look at commonly deployed parking and barrier systems across Latin America and their susceptibility to credential replay attacks.",
+            },
+            // 2022
+            {
+                id: 9,
+                year: 2022,
+                conf: "DEF CON",
+                confClass: "conf-defcon",
+                title: "Impressioning Techniques for Modern Locks",
+                speaker: "Lee Jordan",
+                date: "Aug 2022",
+                duration: "38 min",
+                tags: ["Impressioning", "Lockpicking"],
+                desc: "A practical workshop-style talk covering hand and machine impressioning from basic pin tumbler locks through to dimple cylinders.",
+            },
+            {
+                id: 10,
+                year: 2022,
+                conf: "RSAC",
+                confClass: "conf-rsac",
+                title: "When the Firewall Is Made of Glass: Physical Breach Case Studies",
+                speaker: "Natasha Brooks",
+                date: "Jun 2022",
+                duration: "26 min",
+                tags: ["Case Study", "Redteam"],
+                desc: "Real-world examples of physical breaches that enabled digital compromise — and how defenders can close these gaps.",
+            },
+            {
+                id: 11,
+                year: 2022,
+                conf: "Northsec",
+                confClass: "conf-northsec",
+                title: "Under-Door Attacks: Bypassing Lever Handles Without a Key",
+                speaker: "Kevin Park",
+                date: "May 2022",
+                duration: "22 min",
+                tags: ["Bypass", "Hardware", "Doors"],
+                desc: 'Exploring the class of "under-door" attacks that defeat lever handle locks without touching the cylinder, and what countermeasures exist.',
+            },
+            {
+                id: 12,
+                year: 2022,
+                conf: "HOPE",
+                confClass: "conf-hope",
+                title: "A History of Lock Picking: From Ancient Egypt to Sport Picking",
+                speaker: "Dr. Rachel Green",
+                date: "Jul 2022",
+                duration: "45 min",
+                tags: ["History", "Locksport", "Education"],
+                desc: "A fascinating tour through thousands of years of lock technology, how each era's locks were defeated, and how that lineage shapes modern locksport.",
+            },
+            // 2021
+            {
+                id: 13,
+                year: 2021,
+                conf: "DEF CON",
+                confClass: "conf-defcon",
+                title: "RFID Implants and Physical Access: A Hacker's Perspective",
+                speaker: "Zoe Kim",
+                date: "Aug 2021",
+                duration: "29 min",
+                tags: ["RFID", "Implants", "Biohacking"],
+                desc: "First-hand experience using NFC implants for physical access — what works, what doesn't, and the privacy implications.",
+            },
+            {
+                id: 14,
+                year: 2021,
+                conf: "Ekoparty",
+                confClass: "conf-eko",
+                title: "Simulated Physical Red Team Exercises on a Budget",
+                speaker: "Carlos Mendez",
+                date: "Oct 2021",
+                duration: "36 min",
+                tags: ["Redteam", "Budget", "Training"],
+                desc: "Practical guidance on designing physical red team scenarios for organisations without large security budgets.",
+            },
+        ];
 
-    let activeFilter = "all";
+        let activeFilter = "all";
 
-    function confBadgeClass(conf) {
-        const map = {
-            "DEF CON": "conf-defcon",
-            RSAC: "conf-rsac",
-            HOPE: "conf-hope",
-            Ekoparty: "conf-eko",
-            Northsec: "conf-northsec",
-        };
-        return map[conf] || "conf-defcon";
-    }
-
-    function renderTalks() {
-        const query = document
-            .getElementById("searchInput")
-            .value.toLowerCase();
-        const filtered = talks.filter((t) => {
-            const matchConf = activeFilter === "all" || t.conf === activeFilter;
-            const matchSearch =
-                !query ||
-                t.title.toLowerCase().includes(query) ||
-                t.speaker.toLowerCase().includes(query) ||
-                t.tags.some((tag) => tag.toLowerCase().includes(query));
-            return matchConf && matchSearch;
-        });
-
-        document.getElementById("resultsCount").innerHTML =
-            `<strong>${filtered.length}</strong> talk${filtered.length !== 1 ? "s" : ""}`;
-
-        const byYear = {};
-        filtered.forEach((t) => {
-            if (!byYear[t.year]) byYear[t.year] = [];
-            byYear[t.year].push(t);
-        });
-        const years = Object.keys(byYear).sort((a, b) => b - a);
-
-        const output = document.getElementById("videoOutput");
-        const empty = document.getElementById("emptyState");
-
-        if (filtered.length === 0) {
-            output.innerHTML = "";
-            empty.style.display = "block";
-            return;
+        function confBadgeClass(conf) {
+            const map = {
+                "DEF CON": "conf-defcon",
+                RSAC: "conf-rsac",
+                HOPE: "conf-hope",
+                Ekoparty: "conf-eko",
+                Northsec: "conf-northsec",
+            };
+            return map[conf] || "conf-defcon";
         }
-        empty.style.display = "none";
 
-        output.innerHTML = years
-            .map(
-                (year) => `
-      <div class="year-group">
-        <div class="year-heading">
-          <div class="year-label">${year}</div>
-          <div class="year-line"></div>
-          <div class="year-count">${byYear[year].length} talk${byYear[year].length !== 1 ? "s" : ""}</div>
-        </div>
-        <div class="video-grid">
-          ${byYear[year]
-              .map(
-                  (t) => `
-            <div class="video-card">
-              <div class="video-thumb">
-                <div class="thumb-placeholder">
-                  <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                </div>
-                <div class="play-overlay">
-                  <div class="play-btn">
-                    <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                  </div>
-                </div>
-                <span class="conf-badge ${confBadgeClass(t.conf)}">${t.conf}</span>
-                <span class="duration-badge">${t.duration}</span>
-              </div>
-              <div class="video-info">
-                <div class="video-tags">${t.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
-                <div class="video-title">${t.title}</div>
-                <div class="video-speaker">${t.speaker}</div>
-                <div class="video-desc">${t.desc}</div>
-                <div class="video-footer">
-                  <span class="video-date">${t.date}</span>
-                  <a href="#" class="watch-link">
-                    Watch
-                    <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                  </a>
-                </div>
-              </div>
+        function renderTalks() {
+            const query = document
+                .getElementById("searchInput")
+                .value.toLowerCase();
+            const filtered = talks.filter((t) => {
+                const matchConf = activeFilter === "all" || t.conf === activeFilter;
+                const matchSearch =
+                    !query ||
+                    t.title.toLowerCase().includes(query) ||
+                    t.speaker.toLowerCase().includes(query) ||
+                    t.tags.some((tag) => tag.toLowerCase().includes(query));
+                return matchConf && matchSearch;
+            });
+
+            document.getElementById("resultsCount").innerHTML =
+                `<strong>${filtered.length}</strong> talk${filtered.length !== 1 ? "s" : ""}`;
+
+            const byYear = {};
+            filtered.forEach((t) => {
+                if (!byYear[t.year]) byYear[t.year] = [];
+                byYear[t.year].push(t);
+            });
+            const years = Object.keys(byYear).sort((a, b) => b - a);
+
+            const output = document.getElementById("videoOutput");
+            const empty = document.getElementById("emptyState");
+
+            if (filtered.length === 0) {
+                output.innerHTML = "";
+                empty.style.display = "block";
+                return;
+            }
+            empty.style.display = "none";
+
+            output.innerHTML = years
+                .map(
+                    (year) => `
+        <div class="year-group">
+            <div class="year-heading">
+            <div class="year-label">${year}</div>
+            <div class="year-line"></div>
+            <div class="year-count">${byYear[year].length} talk${byYear[year].length !== 1 ? "s" : ""}</div>
             </div>
-          `,
-              )
-              .join("")}
+            <div class="video-grid">
+            ${byYear[year]
+                .map(
+                    (t) => `
+                <div class="video-card">
+                <div class="video-thumb">
+                    <div class="thumb-placeholder">
+                    <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                    </div>
+                    <div class="play-overlay">
+                    <div class="play-btn">
+                        <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    </div>
+                    </div>
+                    <span class="conf-badge ${confBadgeClass(t.conf)}">${t.conf}</span>
+                    <span class="duration-badge">${t.duration}</span>
+                </div>
+                <div class="video-info">
+                    <div class="video-tags">${t.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
+                    <div class="video-title">${t.title}</div>
+                    <div class="video-speaker">${t.speaker}</div>
+                    <div class="video-desc">${t.desc}</div>
+                    <div class="video-footer">
+                    <span class="video-date">${t.date}</span>
+                    <a href="#" class="watch-link">
+                        Watch
+                        <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                    </a>
+                    </div>
+                </div>
+                </div>
+            `,
+                )
+                .join("")}
+            </div>
         </div>
-      </div>
-    `,
-            )
-            .join("");
-    }
+        `,
+                )
+                .join("");
+        }
 
-    document.querySelectorAll(".filter-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            document
-                .querySelectorAll(".filter-btn")
-                .forEach((b) => b.classList.remove("active"));
-            btn.classList.add("active");
-            activeFilter = btn.dataset.filter;
-            renderTalks();
+        document.querySelectorAll(".filter-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                document
+                    .querySelectorAll(".filter-btn")
+                    .forEach((b) => b.classList.remove("active"));
+                btn.classList.add("active");
+                activeFilter = btn.dataset.filter;
+                renderTalks();
+            });
         });
-    });
 
-    document
-        .getElementById("searchInput")
-        .addEventListener("input", renderTalks);
+        document
+            .getElementById("searchInput")
+            .addEventListener("input", renderTalks);
 
-    renderTalks();
-</script>
+        renderTalks();
+    </script>
 {% endblock %}
