@@ -44,3 +44,8 @@ def games_page(request: Request):
 @router.get("/materials", response_class=HTMLResponse)
 def materials_page(request: Request):
     return templates.TemplateResponse(request=request, name="pages/materials.html")
+
+
+@router.get("/archives", response_class=HTMLResponse)
+def archives_page(request: Request):
+    return templates.TemplateResponse(request=request, name="pages/archives.html")
