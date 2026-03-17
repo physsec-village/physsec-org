@@ -16,6 +16,10 @@
 
     <body>
         <header>{% include 'navbar.html' %}</header>
+        <header class="page-header">
+            {% block page_header %}
+            {% endblock %}
+        </header>
 
         <main>{% block main %} {% endblock %}</main>
 

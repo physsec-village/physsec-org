@@ -41,7 +41,6 @@ footer {
 .footer-links a:hover {
     color: var(--accent);
 }
-
 /* RESPONSIVE */
 @media (max-width: 600px) {
     .footer-inner {
@@ -49,11 +48,9 @@ footer {
         align-items: flex-start;
         gap: 1rem;
     }
-
     .footer-links {
         gap: 0.75rem 1.25rem;
     }
-
     .footer-links a {
         min-height: 36px;
         font-size: 0.85rem;

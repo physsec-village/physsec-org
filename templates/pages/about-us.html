@@ -1,10 +1,18 @@
 {% extends "base.html" %} {% block styles %}
 <link href="/static/pages/about-us.css" rel="stylesheet" />
-{% endblock %} {% block main %}
-<section id="about">
-    <div class="section-inner">
-        <p class="section-label">// Who We Are</p>
-        <h2 class="section-title">About the Village</h2>
+{% endblock %}
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">PSV</a>
+            <span>/</span>
+            <span style="color: var(--text)">About Us</span>
+        </div>
+        <h1 class="page-title">About<br /><em>the Village</em></h1>
+    </div>
+{% endblock %}
+{% block main %}
+    <div class="about-inner">
         <div class="about-grid">
             <div class="about-text">
                 <p>
@@ -43,7 +51,7 @@
                     <h4>Our Values</h4>
                     <p>
                         Openness, ethics, curiosity, and responsible disclosure.
-                        We operate under the hacker ethos - learn everything,
+                        We operate under the hacker ethos — learn everything,
                         break things safely, share knowledge freely.
                     </p>
                 </div>
@@ -58,5 +66,4 @@
             </div>
         </div>
     </div>
-</section>
 {% endblock %}

@@ -17,7 +17,6 @@ nav {
 [data-theme="light"] nav {
     background: rgba(244, 241, 235, 0.92);
 }
-
 .nav-logo {
     font-family: "Bebas Neue", sans-serif;
     font-size: 1.45rem;
@@ -44,7 +43,6 @@ nav {
     height: 20px;
     fill: #0b0d0f;
 }
-
 .nav-links {
     display: flex;
     align-items: center;
@@ -68,7 +66,6 @@ nav {
     color: var(--accent);
     background: rgba(21, 161, 74, 0.08);
 }
-
 /* DROPDOWN */
 .dropdown {
     position: relative;
@@ -131,20 +128,17 @@ nav {
     color: var(--accent);
     background: rgba(21, 161, 74, 0.08);
 }
-
 /* NAV RIGHT */
 .nav-right {
     display: flex;
     align-items: center;
     gap: 0.75rem;
 }
-
 .nav-divider {
     width: 1px;
     height: 22px;
     background: var(--border);
 }
-
 .social-icons {
     display: flex;
     align-items: center;
@@ -176,7 +170,6 @@ nav {
     height: 16px;
     fill: currentColor;
 }
-
 /* MOBILE MENU */
 .hamburger {
     display: none;
@@ -211,7 +204,6 @@ nav {
 .hamburger.active svg {
     stroke: var(--accent);
 }
-
 .mobile-menu {
     position: fixed;
     top: var(--nav-h);
@@ -248,17 +240,14 @@ nav {
 .mobile-menu a:active {
     color: var(--accent);
 }
-
 /* RESPONSIVE */
 @media (max-width: 900px) {
     :root { --nav-h: 60px; }
-
     .nav-links  { display: none; }
     .hamburger  { display: flex; }
     .social-icons { display: none; }
     .nav-divider  { display: none; }
 }
-
 @media (max-width: 600px) {
     :root { --nav-h: 56px; }
 }

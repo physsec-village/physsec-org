@@ -1,12 +1,19 @@
-#about {
-    background: var(--surface2);
+/* MAIN */
+.about-inner {
+    max-width: 1200px;
+    margin: 0 auto;
 }
+/* GRID */
 .about-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 5rem;
     align-items: center;
-    margin-top: 3rem;
+}
+.about-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
 }
 .about-text p {
     font-size: 1rem;
@@ -17,11 +24,7 @@
     color: var(--text);
     font-weight: 500;
 }
-.about-text {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-}
+/* CARDS */
 .about-cards {
     display: flex;
     flex-direction: column;
@@ -42,8 +45,9 @@
     box-shadow: -6px 0 30px rgba(21, 161, 74, 0.08);
 }
 .about-card h4 {
-    font-size: 0.85rem;
-    letter-spacing: 0.1em;
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.67rem;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--accent);
     margin-bottom: 0.5rem;
@@ -53,41 +57,33 @@
     color: var(--muted);
     line-height: 1.6;
 }
-
-/*  RESPONSIVE  */
+/* RESPONSIVE */
 @media (max-width: 900px) {
     .about-grid {
         grid-template-columns: 1fr;
         gap: 2.5rem;
     }
-
     .about-cards {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 1rem;
     }
-
     .about-card:hover {
         transform: translateY(-4px);
         box-shadow: 0 6px 24px rgba(21, 161, 74, 0.08);
     }
 }
-
 @media (max-width: 600px) {
     .about-grid {
-        margin-top: 2rem;
         gap: 2rem;
     }
-
     .about-cards {
         grid-template-columns: 1fr;
     }
-
     .about-card:hover {
         transform: translateX(4px);
         box-shadow: -4px 0 20px rgba(21, 161, 74, 0.08);
     }
-
     .about-text p {
         font-size: 0.95rem;
     }
