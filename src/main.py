@@ -3,8 +3,13 @@ from fastapi.staticfiles import StaticFiles
 
 from .forms.router import router as form_router
 from .router import router as root_router
+from .router import not_found
 
-app = FastAPI()
+exceptions = {
+    404: not_found,
+}
+
+app = FastAPI(exception_handlers=exceptions)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

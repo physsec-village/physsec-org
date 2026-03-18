@@ -1,0 +1,43 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/404.css" rel="stylesheet" />
+{% endblock %} {% block main %}
+    <main class="not-found-body">
+        <div class="not-found-inner">
+            <div class="nf-terminal">// Access Denied</div>
+            <div class="nf-code">404</div>
+            <div class="nf-terminal">Breach Attempt Logged<span class="nf-cursor"></span></div>
+            <h1 class="nf-title">Page Not Found</h1>
+            <p class="nf-desc">
+                The resource at <span class="nf-path" id="nfPath">/unknown</span>
+                could not be located. It may have been moved, removed, or the
+                access credential you used is invalid.
+            </p>
+            <div class="nf-actions">
+                <a href="{{ url_for('home_page') }}" class="btn btn-primary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                    Return Home
+                </a>
+                <a href="{{ url_for('contact_us_page') }}" class="btn btn-outline">Report Issue</a>
+            </div>
+            <div class="nf-log">
+                <div class="nf-log-line"><span class="ok">[ OK ]</span> &nbsp;Navigation subsystem nominal</div>
+                <div class="nf-log-line"><span class="ok">[ OK ]</span> &nbsp;Authentication layer active</div>
+                <div class="nf-log-line"><span class="warn">[ WARN ]</span> Route resolver returned no match</div>
+                <div class="nf-log-line"><span class="err">[ ERR ]</span> &nbsp;HTTP 404 — resource not found</div>
+            </div>
+        </div>
+    </main>
+    <script>
+        // Reflect actual path in the error display
+        document.getElementById("nfPath").textContent = window.location.pathname;
+
+        // Navbar scroll tint
+        const nav = document.querySelector("nav");
+        window.addEventListener("scroll", () => {
+            nav.style.borderBottomColor =
+                window.scrollY > 20 ? "rgba(21,161,74,0.1)" : "var(--border)";
+        });
+    </script>
+{% endblock %}

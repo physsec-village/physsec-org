@@ -1,0 +1,192 @@
+@keyframes fade-up {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes glitch-1 {
+    0%, 100% { clip-path: inset(0 0 95% 0); transform: translate(-3px, 0); }
+    20%       { clip-path: inset(30% 0 50% 0); transform: translate(3px, 0); }
+    40%       { clip-path: inset(60% 0 20% 0); transform: translate(-2px, 0); }
+    60%       { clip-path: inset(80% 0 5%  0); transform: translate(2px, 0); }
+    80%       { clip-path: inset(10% 0 70% 0); transform: translate(-1px, 0); }
+}
+@keyframes glitch-2 {
+    0%, 100% { clip-path: inset(50% 0 30% 0); transform: translate(3px, 0);  }
+    25%       { clip-path: inset(15% 0 60% 0); transform: translate(-3px, 0); }
+    50%       { clip-path: inset(75% 0 10% 0); transform: translate(2px, 0);  }
+    75%       { clip-path: inset(40% 0 45% 0); transform: translate(-2px, 0); }
+}
+@keyframes blink {
+    0%, 100% { opacity: 1; } 50% { opacity: 0; }
+}
+@keyframes scan {
+    0%   { transform: translateY(-100%); }
+    100% { transform: translateY(100vh); }
+}
+
+.not-found-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: calc(var(--nav-h) + 3rem) clamp(1.5rem, 6vw, 5rem) 4rem;
+    position: relative;
+    overflow: hidden;
+    min-height: 80vh;
+}
+
+/* Grid background */
+.not-found-body::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(21, 161, 74, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(21, 161, 74, 0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
+}
+
+/* Scanline sweep */
+.not-found-body::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, rgba(21,161,74,0.15), transparent);
+    animation: scan 6s linear infinite;
+    pointer-events: none;
+}
+
+.not-found-inner {
+    max-width: 700px;
+    width: 100%;
+    position: relative;
+    z-index: 1;
+    animation: fade-up 0.6s ease both;
+    text-align: center;
+}
+
+/* Giant glitching 404 */
+.nf-code {
+    position: relative;
+    font-family: "Bebas Neue", sans-serif;
+    font-size: clamp(8rem, 25vw, 18rem);
+    line-height: 0.85;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    user-select: none;
+    margin-bottom: 0.15em;
+}
+.nf-code::before,
+.nf-code::after {
+    content: "404";
+    position: absolute;
+    inset: 0;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+    pointer-events: none;
+}
+.nf-code::before {
+    color: var(--accent);
+    animation: glitch-1 4s steps(1) infinite;
+    opacity: 0.6;
+}
+.nf-code::after {
+    color: #c0392b;
+    animation: glitch-2 4s steps(1) infinite 0.15s;
+    opacity: 0.4;
+}
+
+/* Terminal label */
+.nf-terminal {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+.nf-terminal::before,
+.nf-terminal::after {
+    content: "";
+    display: block;
+    height: 1px;
+    width: 40px;
+    background: rgba(21,161,74,0.3);
+}
+
+.nf-title {
+    font-family: "Bebas Neue", sans-serif;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    letter-spacing: 0.04em;
+    color: var(--text);
+    margin-bottom: 1rem;
+    line-height: 1.1;
+}
+
+.nf-desc {
+    font-size: 0.92rem;
+    color: var(--muted);
+    line-height: 1.75;
+    max-width: 460px;
+    margin: 0 auto 2.5rem;
+    font-weight: 300;
+}
+
+/* Inline code chip */
+.nf-path {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.82rem;
+    color: var(--accent);
+    background: rgba(21,161,74,0.08);
+    border: 1px solid rgba(21,161,74,0.2);
+    border-radius: var(--radius);
+    padding: 0.1em 0.45em;
+}
+
+.nf-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+/* Blinking cursor on the terminal line */
+.nf-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 1em;
+    background: var(--accent);
+    vertical-align: middle;
+    margin-left: 2px;
+    animation: blink 1s step-end infinite;
+    border-radius: 1px;
+}
+
+/* Status log */
+.nf-log {
+    margin-top: 3rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    padding: 1rem 1.25rem;
+    text-align: left;
+    animation: fade-up 0.6s 0.25s ease both;
+}
+.nf-log-line {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    line-height: 2;
+}
+.nf-log-line .ok   { color: var(--accent); }
+.nf-log-line .err  { color: #c0392b; }
+.nf-log-line .warn { color: #e8c14a; }
