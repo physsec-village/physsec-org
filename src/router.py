@@ -40,15 +40,20 @@ def talks_page(request: Request):
 def games_page(request: Request):
     return templates.TemplateResponse(request=request, name="pages/games.html")
 
+@router.get("/shop", response_class=HTMLResponse)
+async def shop_page(request: Request):
+    return templates.TemplateResponse(request=request, name="pages/shop.html")
 
 @router.get("/materials", response_class=HTMLResponse)
 def materials_page(request: Request):
-    return templates.TemplateResponse(request=request, name="pages/materials.html")
+    # return templates.TemplateResponse(request=request, name="pages/materials.html")
+    return templates.TemplateResponse(request=request, name="404.html")
 
 
 @router.get("/archives", response_class=HTMLResponse)
 def archives_page(request: Request):
-    return templates.TemplateResponse(request=request, name="pages/archives.html")
+    # return templates.TemplateResponse(request=request, name="pages/archives.html")
+    return templates.TemplateResponse(request=request, name="404.html")
 
 async def not_found(request, exc):
     return templates.TemplateResponse(request=request, name="404.html")

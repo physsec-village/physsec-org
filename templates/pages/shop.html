@@ -1,0 +1,314 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/shop.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+<header class="page-header">
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="{{ url_for('home_page') }}">PSV</a>
+            <span>/</span>
+            <span style="color: var(--text)">Store</span>
+        </div>
+        <h1 class="page-title">PSV<br /><em>Store</em></h1>
+        <p class="page-desc" style="margin-top: 1rem;">
+            Apparel, accessories, and tools from the Physical Security Village.
+            All proceeds support free community education.
+        </p>
+    </div>
+</header>
+{% endblock %}
+
+{% block main %}
+<main class="shop-body">
+    <div class="shop-inner">
+
+        <!-- FILTER + SORT BAR -->
+        <div class="shop-filter-bar">
+            <span class="shop-filter-label">Category:</span>
+            <button class="shop-filter-btn active" data-cat="all">All</button>
+            <button class="shop-filter-btn" data-cat="Apparel">Apparel</button>
+            <button class="shop-filter-btn" data-cat="Accessories">Accessories</button>
+            <button class="shop-filter-btn" data-cat="Stickers">Stickers</button>
+            <button class="shop-filter-btn" data-cat="Tools">Tools</button>
+            <div class="shop-sort">
+                <span class="shop-sort-label">Sort:</span>
+                <select id="shopSort">
+                    <option value="default">Featured</option>
+                    <option value="price-asc">Price: Low → High</option>
+                    <option value="price-desc">Price: High → Low</option>
+                    <option value="name">Name A–Z</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- RESULTS COUNT -->
+        <div class="shop-results-bar">
+            <div class="shop-results-count" id="shopCount"><strong>0</strong> items</div>
+        </div>
+
+        <!-- PRODUCT GRID -->
+        <div class="shop-grid" id="shopGrid"></div>
+        <div class="shop-empty" id="shopEmpty">
+            <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            <p>No items in this category.</p>
+        </div>
+        <div class="shop-grid" id="shopGrid"></div>
+        <div class="shop-empty" id="shopEmpty">...</div>
+        <div class="shop-pagination" id="shopPagination" style="display:none"></div>
+        <div class="shop-pagination-info" id="shopPaginationInfo"></div>
+    </div>
+</main>
+
+<!-- CART TOAST -->
+<div class="cart-toast" id="cartToast">
+    <div class="cart-toast-icon">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="cart-toast-text">
+        <strong id="toastName">Item</strong> added to cart
+    </div>
+</div>
+
+<script>
+    const products = [
+        {
+            id: 1, cat: "Apparel", name: "PSV Logo Tee", badge: "new",
+            price: 28, desc: "100% cotton unisex tee with the PSV shield logo screen-printed on the chest. Available in black and olive.",
+            icon: `<svg viewBox="0 0 24 24"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/></svg>`
+        },
+        {
+            id: 2, cat: "Apparel", name: "PSV Hoodie", badge: null,
+            price: 55, desc: "Heavyweight pullover hoodie. Embroidered PSV wordmark on the left chest, screen-printed back graphic.",
+            icon: `<svg viewBox="0 0 24 24"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/></svg>`
+        },
+        {
+            id: 3, cat: "Apparel", name: "Bypass Crew Neck", badge: "ltd",
+            price: 42, desc: 'Limited run sweatshirt. Front reads "BYPASS" in Bebas Neue — back features a wiring diagram of a door contact sensor.',
+            icon: `<svg viewBox="0 0 24 24"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/></svg>`
+        },
+        {
+            id: 4, cat: "Accessories", name: "PSV Enamel Pin", badge: "new",
+            price: 12, desc: "Hard enamel lapel pin, 1.5\" wide. PSV running-man logo with green and black fill. Butterfly clutch back.",
+            icon: `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>`
+        },
+        {
+            id: 5, cat: "Accessories", name: "DEF CON 32 Lanyard", badge: "ltd",
+            price: 8, wasSale: 14, badge: "sale",
+            desc: "Woven polyester lanyard from DEF CON 32. PSV branding, green on black. Badge clip included. While supplies last.",
+            icon: `<svg viewBox="0 0 24 24"><path d="M12 22V12m0 0C12 6 6 4 6 4m6 8c0-6 6-8 6-8"/><rect x="9" y="2" width="6" height="4" rx="1"/></svg>`
+        },
+        {
+            id: 6, cat: "Accessories", name: "Patch — Bypass Certified", badge: null,
+            price: 7, desc: "Embroidered iron-on / sew-on patch. 3\" wide. \"BYPASS CERTIFIED\" arched over a lock shim graphic.",
+            icon: `<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
+        },
+        {
+            id: 7, cat: "Accessories", name: "Tote Bag", badge: null,
+            price: 18, desc: "Heavy canvas tote. \"PHYSICAL SECURITY VILLAGE\" printed in Bebas Neue across the front. 15L capacity.",
+            icon: `<svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`
+        },
+        {
+            id: 8, cat: "Stickers", name: "Holographic Shield Sticker", badge: "new",
+            price: 4, desc: "Die-cut holographic vinyl sticker, 3\" tall. PSV shield logo with prismatic foil finish. Weather- and UV-resistant.",
+            icon: `<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`
+        },
+        {
+            id: 9, cat: "Stickers", name: "Sticker Pack (10×)", badge: null,
+            price: 10, desc: "Ten assorted PSV stickers: shield, running man, bypass wordmark, wiring diagram, lock shim, and more. Vinyl, dishwasher-safe.",
+            icon: `<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`
+        },
+        {
+            id: 10, cat: "Stickers", name: '"Bypassed" Die-Cut', badge: null,
+            price: 3, desc: 'Die-cut sticker reading "BYPASSED" in distressed type over a crossed-out padlock. 4" wide.',
+            icon: `<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`
+        },
+        {
+            id: 11, cat: "Tools", name: "Under-Door Tool Kit", badge: "ltd",
+            price: 65, desc: "Compact UDT set for lever handle bypass demos. Anodised aluminium construction. Includes carry sleeve and usage guide. For educational use.",
+            icon: `<svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`
+        },
+        {
+            id: 12, cat: "Tools", name: "Shim Set (Brass)", badge: null,
+            price: 22, desc: "Set of 10 brass padlock shims in three sizes (S/M/L). Packaged in a labelled zip wallet. For competitive locksport use.",
+            icon: `<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`
+        },
+        {
+            id: 13, cat: "Tools", name: "Practice Padlock", badge: null,
+            price: 19, desc: "Transparent acrylic practice padlock exposing the pin stack. Comes with two picks. Ideal for beginners and demos.",
+            icon: `<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>`
+        },
+        {
+            id: 14, cat: "Tools", name: "RFID Workshop Card Set", badge: "sold",
+            price: 0, desc: "A set of blank and pre-programmed cards used in our RFID cloning workshops. Mifare Classic 1K. Currently out of stock.",
+            icon: `<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>`
+        },
+    ];
+
+    let activeFilter = "all";
+    let toastTimer = null;
+
+    function sortProducts(arr) {
+        const val = document.getElementById("shopSort").value;
+        const sorted = [...arr];
+        if (val === "price-asc") sorted.sort((a, b) => (a.price || 999) - (b.price || 999));
+        else if (val === "price-desc") sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
+        else if (val === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
+        return sorted;
+    }
+
+    const ITEMS_PER_PAGE = 25;
+    let currentPage = 1;
+
+    function renderShop() {
+        const filtered = activeFilter === "all"
+            ? products
+            : products.filter(p => p.cat === activeFilter);
+        const sorted = sortProducts(filtered);
+        const total = sorted.length;
+        const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
+
+        // Clamp currentPage if filter reduced total
+        if (currentPage > totalPages) currentPage = 1;
+
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        const page  = sorted.slice(start, start + ITEMS_PER_PAGE);
+
+        document.getElementById("shopCount").innerHTML =
+            `<strong>${total}</strong> item${total !== 1 ? "s" : ""}`;
+
+        const grid  = document.getElementById("shopGrid");
+        const empty = document.getElementById("shopEmpty");
+        const pag   = document.getElementById("shopPagination");
+        const info  = document.getElementById("shopPaginationInfo");
+
+        if (total === 0) {
+            grid.innerHTML = "";
+            empty.style.display = "block";
+            pag.style.display = "none";
+            info.textContent = "";
+            return;
+        }
+        empty.style.display = "none";
+
+        grid.innerHTML = page.map((p, i) => {
+            const isSold = p.badge === "sold";
+            const badgeHtml = p.badge
+                ? `<span class="product-badge badge-${p.badge === "sold" ? "sold" : p.badge === "sale" ? "sale" : p.badge === "ltd" ? "ltd" : "new"}">${p.badge === "new" ? "New" : p.badge === "sale" ? "Sale" : p.badge === "ltd" ? "Limited" : "Sold Out"}</span>`
+                : "";
+            const priceHtml = isSold
+                ? `<div class="product-price sold-out">Sold Out</div>`
+                : p.wasSale
+                    ? `<div class="product-price"><span class="price-was">Was $${p.wasSale}</span>$${p.price}</div>`
+                    : `<div class="product-price">$${p.price}</div>`;
+            const ctaHtml = isSold
+                ? `<button class="product-cta sold-out-btn" disabled>Unavailable</button>`
+                : `<button class="product-cta" onclick="addToCart(${p.id})">
+                        <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                        Add to Cart
+                </button>`;
+            return `
+                <div class="product-card" style="animation-delay:${i * 0.04}s">
+                    <div class="product-thumb">
+                        <div class="product-thumb-placeholder">${p.icon}</div>
+                        ${badgeHtml}
+                    </div>
+                    <div class="product-info">
+                        <div class="product-category">${p.cat}</div>
+                        <div class="product-name">${p.name}</div>
+                        <div class="product-desc">${p.desc}</div>
+                        <div class="product-footer">${priceHtml}${ctaHtml}</div>
+                    </div>
+                </div>`;
+        }).join("");
+
+        // Pagination bar — only show if more than one page
+        if (totalPages <= 1) {
+            pag.style.display = "none";
+            info.textContent = "";
+            return;
+        }
+
+        pag.style.display = "flex";
+        info.textContent = `Showing ${start + 1}–${Math.min(start + ITEMS_PER_PAGE, total)} of ${total} items`;
+
+        // Build page number buttons with ellipsis compression
+        function pageButtons() {
+            const btns = [];
+            const delta = 1; // pages either side of current to always show
+            const range = [];
+            for (let p = Math.max(2, currentPage - delta); p <= Math.min(totalPages - 1, currentPage + delta); p++) {
+                range.push(p);
+            }
+            // Always show first + last
+            const pages = [1, ...range, totalPages];
+            const unique = [...new Set(pages)].sort((a, b) => a - b);
+            let prev = 0;
+            unique.forEach(p => {
+                if (p - prev > 1) btns.push("…");
+                btns.push(p);
+                prev = p;
+            });
+            return btns;
+        }
+
+        const buttons = pageButtons();
+        pag.innerHTML = `
+            <button class="page-btn page-arrow" ${currentPage === 1 ? "disabled" : ""} onclick="goToPage(${currentPage - 1})">←</button>
+            ${buttons.map(b =>
+                b === "…"
+                    ? `<span class="page-ellipsis">…</span>`
+                    : `<button class="page-btn ${b === currentPage ? "active" : ""}" onclick="goToPage(${b})">${b}</button>`
+            ).join("")}
+            <button class="page-btn page-arrow" ${currentPage === totalPages ? "disabled" : ""} onclick="goToPage(${currentPage + 1})">→</button>
+        `;
+    }
+
+    function goToPage(n) {
+        currentPage = n;
+        renderShop();
+        document.querySelector(".shop-body").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function addToCart(id) {
+        const p = products.find(x => x.id === id);
+        if (!p) return;
+        const toast = document.getElementById("cartToast");
+        document.getElementById("toastName").textContent = p.name;
+        toast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove("show"), 3000);
+    }
+
+    document.querySelectorAll(".shop-filter-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".shop-filter-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            activeFilter = btn.dataset.cat;
+            currentPage = 1; // reset
+            renderShop();
+        });
+    });
+    document.getElementById("shopSort").addEventListener("change", () => {
+        currentPage = 1; // reset
+        renderShop();
+    });
+
+    renderShop();
+
+    // Theme + nav (shared boilerplate)
+    document.getElementById("themeToggle").addEventListener("click", () => {
+        document.documentElement.dataset.theme =
+            document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    });
+    const hamburger = document.getElementById("hamburger");
+    const mobileMenu = document.getElementById("mobileMenu");
+    hamburger.addEventListener("click", () => mobileMenu.classList.toggle("open"));
+    function closeMobile() { mobileMenu.classList.remove("open"); }
+    const nav = document.querySelector("nav");
+    window.addEventListener("scroll", () => {
+        nav.style.borderBottomColor =
+            window.scrollY > 20 ? "rgba(21,161,74,0.1)" : "var(--border)";
+    });
+</script>
+{% endblock %}

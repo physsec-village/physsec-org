@@ -1,0 +1,423 @@
+@keyframes fade-up {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* SHOP BODY */
+.shop-body {
+    padding: 0 clamp(1.5rem, 6vw, 5rem) 6rem;
+}
+.shop-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* FILTER BAR */
+.shop-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 2.5rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+}
+.shop-filter-label {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: 0.25rem;
+}
+.shop-filter-btn {
+    font-family: "DM Sans", sans-serif;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.45rem 0.9rem;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+.shop-filter-btn:hover {
+    border-color: rgba(21, 161, 74, 0.4);
+    color: var(--text);
+}
+.shop-filter-btn.active {
+    background: rgba(21, 161, 74, 0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.shop-sort {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+.shop-sort-label {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+}
+.shop-sort select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.45rem 2.2rem 0.45rem 0.75rem;
+    font-family: "DM Sans", sans-serif;
+    font-size: 0.8rem;
+    color: var(--text);
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='https://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237a7f88' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    transition: border-color var(--transition);
+}
+.shop-sort select:focus {
+    border-color: var(--accent);
+}
+
+/* RESULTS COUNT */
+.shop-results-bar {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+.shop-results-count {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.shop-results-count strong { color: var(--accent); }
+
+/* PRODUCT GRID */
+.shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+/* PRODUCT CARD */
+.product-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition:
+        border-color var(--transition),
+        transform var(--transition),
+        box-shadow var(--transition);
+    animation: fade-up 0.4s ease both;
+}
+.product-card:hover {
+    border-color: rgba(21, 161, 74, 0.35);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Product image area */
+.product-thumb {
+    position: relative;
+    aspect-ratio: 4/3;
+    background: var(--surface2);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.product-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+    display: block;
+}
+.product-card:hover .product-thumb img {
+    transform: scale(1.04);
+}
+.product-thumb-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+.product-thumb-placeholder svg {
+    width: 48px;
+    height: 48px;
+    color: var(--muted);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.2;
+    opacity: 0.2;
+}
+
+/* Badges on thumb */
+.product-badge {
+    position: absolute;
+    top: 0.6rem;
+    left: 0.6rem;
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border-radius: 2px;
+    font-weight: 700;
+    pointer-events: none;
+}
+.badge-new   { background: rgba(21, 161, 74, 0.88);  color: #fff; }
+.badge-sale  { background: rgba(192, 57, 43, 0.88);  color: #fff; }
+.badge-ltd   { background: rgba(232, 193, 74, 0.88); color: #0b0d0f; }
+.badge-sold  { background: rgba(80, 80, 80, 0.88);   color: #fff; }
+
+/* Card body */
+.product-info {
+    padding: 1.2rem 1.35rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+.product-category {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.67rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+.product-name {
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+}
+.product-desc {
+    font-size: 0.83rem;
+    color: var(--muted);
+    line-height: 1.7;
+    flex: 1;
+}
+.product-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border);
+    gap: 0.75rem;
+}
+.product-price {
+    font-family: "Bebas Neue", sans-serif;
+    font-size: 1.55rem;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    line-height: 1;
+}
+.product-price .price-was {
+    font-family: "DM Sans", sans-serif;
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-decoration: line-through;
+    font-weight: 400;
+    letter-spacing: 0;
+    display: block;
+    line-height: 1.2;
+    margin-bottom: 0.1rem;
+}
+.product-price.sold-out {
+    color: var(--muted);
+    font-size: 1rem;
+    font-family: "Share Tech Mono", monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* Add to cart button */
+.product-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-decoration: none;
+    background: rgba(21, 161, 74, 0.08);
+    border: 1px solid rgba(21, 161, 74, 0.2);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.9rem;
+    cursor: pointer;
+    transition:
+        background var(--transition),
+        border-color var(--transition),
+        transform var(--transition);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.product-cta:hover:not(:disabled) {
+    background: rgba(21, 161, 74, 0.15);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+.product-cta:disabled,
+.product-cta.sold-out-btn {
+    color: var(--muted);
+    background: var(--surface2);
+    border-color: var(--border);
+    cursor: not-allowed;
+    transform: none;
+}
+.product-cta svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    flex-shrink: 0;
+}
+
+/* EMPTY STATE */
+.shop-empty {
+    display: none;
+    text-align: center;
+    padding: 5rem 1rem;
+    color: var(--muted);
+}
+.shop-empty svg {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 1rem;
+    display: block;
+    opacity: 0.25;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+}
+.shop-empty p { font-size: 0.95rem; }
+
+/* CART TOAST */
+.cart-toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--surface);
+    border: 1px solid rgba(21, 161, 74, 0.35);
+    border-radius: var(--radius);
+    padding: 0.85rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--text);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    z-index: 2000;
+    transform: translateY(120%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    max-width: 320px;
+}
+.cart-toast.show { transform: translateY(0); }
+.cart-toast-icon {
+    width: 28px;
+    height: 28px;
+    background: rgba(21, 161, 74, 0.12);
+    border: 1px solid rgba(21, 161, 74, 0.25);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--accent);
+}
+.cart-toast-icon svg {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+}
+.cart-toast-text strong { color: var(--accent); }
+
+@media (max-width: 600px) {
+    .shop-sort { width: 100%; }
+    .shop-sort select { flex: 1; }
+    .cart-toast { left: 1rem; right: 1rem; bottom: 1rem; max-width: unset; }
+}
+
+/* PAGINATION */
+.shop-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+.page-btn {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem;
+    min-width: 36px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all var(--transition);
+    text-align: center;
+    line-height: 1;
+}
+.page-btn:hover:not(:disabled) {
+    border-color: rgba(21, 161, 74, 0.4);
+    color: var(--text);
+}
+.page-btn.active {
+    background: rgba(21, 161, 74, 0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.page-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+.page-btn.page-arrow {
+    font-size: 0.9rem;
+    letter-spacing: 0;
+}
+.page-ellipsis {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    padding: 0.5rem 0.25rem;
+    user-select: none;
+}
+.shop-pagination-info {
+    width: 100%;
+    text-align: center;
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 0.75rem;
+}

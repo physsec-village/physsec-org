@@ -22,7 +22,7 @@
                 <a href="{{ url_for('materials_page') }}">Other Materials</a>
             </div>
         </li>
-        <li><a>PSV Store</a></li>
+        <li><a href="{{ url_for('shop_page') }}">PSV Store</a></li>
         <li><a href="{{ url_for('contact_us_page') }}">Contact Us</a></li>
     </ul>
 
@@ -58,7 +58,6 @@
         </div>
 
         <div class="nav-divider"></div>
-
         <!-- Dark mode toggle -->
         <button
             class="theme-toggle"
@@ -80,6 +79,7 @@
                 <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
             </svg>
         </button>
+        <a href="{{ url_for('login_page') }}" class="btn btn-primary" style="padding: 0.5rem 1.1rem; font-size: 0.78rem;">Login</a>
 
         <button class="hamburger" id="hamburger" aria-label="Menu">
             <svg viewBox="0 0 24 24">
@@ -104,4 +104,5 @@
     <a href="{{ url_for('contact_us_page') }}" onclick="closeMobile()"
         >Contact Us</a
     >
+    <a href="{{ url_for('login_page') }}" class="btn btn-primary" style="padding: 0.5rem 1.1rem; font-size: 0.78rem;">Login</a>
 </div>
