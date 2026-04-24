@@ -19,11 +19,10 @@
 .content-card,
 .resource-card {
     height: 100%;
-    min-height: 18rem;
     padding: 1.45rem;
     display: grid;
+    grid-template-rows: auto 1fr auto;
     gap: 1rem;
-    align-content: start;
     background: linear-gradient(180deg, rgba(31, 179, 90, 0.05), transparent 35%), var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -38,37 +37,6 @@
     transform: translateY(-2px);
     border-color: var(--border-strong);
     box-shadow: var(--shadow);
-}
-
-.content-card-media,
-.resource-card-media {
-    min-height: 7rem;
-    border-radius: var(--radius-sm);
-    background:
-        linear-gradient(135deg, rgba(31, 179, 90, 0.1), transparent 60%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent),
-        var(--bg-elevated);
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    padding: 1rem;
-    overflow: hidden;
-}
-
-.content-card-media svg,
-.resource-card-media svg {
-    width: 1.75rem;
-    height: 1.75rem;
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 1.8;
-}
-
-.content-card-media span,
-.resource-card-media span {
-    color: rgba(163, 176, 167, 0.78);
-    font-size: 0.82rem;
 }
 
 .content-card h3,

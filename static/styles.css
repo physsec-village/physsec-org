@@ -147,7 +147,7 @@ img {
     color: var(--muted);
     font-size: 0.82rem;
     letter-spacing: 0.03em;
-    order: 3;
+    order: -1;
 }
 
 .breadcrumb a {
