@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,6 +8,7 @@
             href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap"
             rel="stylesheet"
         />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
         <link href="/static/styles.css" rel="stylesheet" />
         <link href="/static/nav.css" rel="stylesheet" />
         <link href="/static/footer.css" rel="stylesheet" />
@@ -15,43 +16,61 @@
     </head>
 
     <body>
-        <header>{% include 'navbar.html' %}</header>
-        <header class="page-header">
-            {% block page_header %}
-            {% endblock %}
-        </header>
+        {% set page_header_content %}{% block page_header %}{% endblock %}{% endset %}
+        <header class="site-nav-shell">{% include 'navbar.html' %}</header>
+        {% if page_header_content|trim %}
+            <header class="page-header">{{ page_header_content | safe }}</header>
+        {% endif %}
 
         <main>{% block main %} {% endblock %}</main>
 
         <footer>{% include 'footer.html' %}</footer>
 
         <script>
-            // Theme toggle
-            const toggle = document.getElementById("themeToggle");
             const html = document.documentElement;
-            toggle.addEventListener("click", () => {
-                html.dataset.theme =
-                    html.dataset.theme === "dark" ? "light" : "dark";
-            });
-
-            // Hamburger
-            const hamburger = document.getElementById("hamburger");
-            const mobileMenu = document.getElementById("mobileMenu");
-            hamburger.addEventListener("click", () =>
-                mobileMenu.classList.toggle("open"),
-            );
-            function closeMobile() {
-                mobileMenu.classList.remove("open");
+            const storedTheme = window.localStorage.getItem("psv-theme");
+            if (storedTheme === "dark" || storedTheme === "light") {
+                html.dataset.theme = storedTheme;
             }
 
-            // Navbar background on scroll
+            const toggle = document.getElementById("themeToggle");
+            if (toggle) {
+                toggle.addEventListener("click", () => {
+                    html.dataset.theme =
+                        html.dataset.theme === "dark" ? "light" : "dark";
+                    window.localStorage.setItem("psv-theme", html.dataset.theme);
+                });
+            }
+
+            const hamburger = document.getElementById("hamburger");
+            const mobileMenu = document.getElementById("mobileMenu");
+            if (hamburger && mobileMenu) {
+                hamburger.addEventListener("click", () =>
+                    mobileMenu.classList.toggle("open"),
+                );
+            }
+
+            function closeMobile() {
+                if (mobileMenu) {
+                    mobileMenu.classList.remove("open");
+                }
+            }
+
+            if (window.location.pathname === "/") {
+                const navHomeLink = document.getElementById("nav-home-link");
+                const mobileHomeLink = document.getElementById("mobile-home-link");
+                if (navHomeLink) navHomeLink.style.display = "none";
+                if (mobileHomeLink) mobileHomeLink.style.display = "none";
+            }
+
             const nav = document.querySelector("nav");
-            window.addEventListener("scroll", () => {
-                nav.style.borderBottomColor =
-                    window.scrollY > 20
-                        ? "rgba(232,193,74,0.1)"
-                        : "var(--border)";
-            });
+            const updateNavState = () => {
+                if (nav) {
+                    nav.classList.toggle("is-scrolled", window.scrollY > 16);
+                }
+            };
+            updateNavState();
+            window.addEventListener("scroll", updateNavState);
         </script>
     </body>
 </html>

@@ -1,0 +1,62 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/content.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('content_page') }}">Content</a>
+            <span>/</span>
+            <span>Resources</span>
+        </div>
+        <h1 class="page-title">Materials &<br /><em>Resources</em></h1>
+        <p class="page-summary">
+            Written reference material is being expanded. For now, use these
+            paths to continue learning, request information, or keep up with
+            new releases from the village.
+        </p>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="resource-inner">
+        <div class="resource-grid">
+            <a href="{{ url_for('contact_us_page') }}" class="resource-card-link">
+                <article class="resource-card">
+                    <h3>Request material directly</h3>
+                    <p>
+                        If you are looking for a specific talk deck, topic
+                        reference, or supporting write-up, use the contact form
+                        and the team can point you in the right direction.
+                    </p>
+                    <div class="resource-card-footer">
+                        Contact PSV
+                        <svg viewBox="0 0 24 24">
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                        </svg>
+                    </div>
+                </article>
+            </a>
+            <a href="https://discord.gg/csYBJPMv4D" class="resource-card-link">
+                <article class="resource-card">
+                    <h3>Join the Discord</h3>
+                    <p>
+                        The Discord is the fastest place to hear when new
+                        written resources, slides, or training material are
+                        posted or refreshed.
+                    </p>
+                    <div class="resource-card-footer">
+                        Open Discord
+                        <svg viewBox="0 0 24 24">
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                        </svg>
+                    </div>
+                </article>
+            </a>
+        </div>
+    </div>
+{% endblock %}

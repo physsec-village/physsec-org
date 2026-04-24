@@ -7,10 +7,13 @@
                 height="35px"
             />
         </div>
-        PSV
+        <div class="logo-wordmark">
+            <span>Physical Security Village</span>
+        </div>
     </a>
 
     <ul class="nav-links">
+        <li id="nav-home-link"><a href="{{ url_for('home_page') }}">Home</a></li>
         <li><a href="{{ url_for('about_us_page') }}">About Us</a></li>
         <li><a href="{{ url_for('get_involved_page') }}">Get Involved</a></li>
         <li class="dropdown">
@@ -22,7 +25,17 @@
                 <a href="{{ url_for('materials_page') }}">Other Materials</a>
             </div>
         </li>
-        <li><a>PSV Store</a></li>
+        <li>
+            <span
+                class="nav-disabled store-option-1"
+                tabindex="0"
+                aria-disabled="true"
+                data-tooltip="PSV Store coming soon"
+            >
+                <span class="disabled-label">Store</span>
+                <span class="disabled-state">Soon</span>
+            </span>
+        </li>
         <li><a href="{{ url_for('contact_us_page') }}">Contact Us</a></li>
     </ul>
 
@@ -57,9 +70,6 @@
             </a>
         </div>
 
-        <div class="nav-divider"></div>
-
-        <!-- Dark mode toggle -->
         <button
             class="theme-toggle"
             id="themeToggle"
@@ -93,6 +103,7 @@
 
 <!-- MOBILE MENU -->
 <div class="mobile-menu" id="mobileMenu">
+    <a id="mobile-home-link" href="{{ url_for('home_page') }}" onclick="closeMobile()">Home</a>
     <a href="{{ url_for('about_us_page') }}" onclick="closeMobile()"
         >About Us</a
     >
@@ -100,7 +111,15 @@
         >Get Involved</a
     >
     <a href="{{ url_for('content_page') }}" onclick="closeMobile()">Content</a>
-    <a onclick="closeMobile()">PSV Store</a>
+    <span
+        class="menu-disabled store-option-1"
+        tabindex="0"
+        aria-disabled="true"
+        data-tooltip="Store coming soon"
+    >
+        <span class="disabled-label">Store</span>
+        <span class="disabled-state">Soon</span>
+    </span>
     <a href="{{ url_for('contact_us_page') }}" onclick="closeMobile()"
         >Contact Us</a
     >

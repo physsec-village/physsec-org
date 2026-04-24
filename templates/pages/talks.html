@@ -1,84 +1,46 @@
 {% extends "base.html" %} {% block styles %}
 <link href="/static/pages/talks.css" rel="stylesheet" />
-{% endblock %} 
+{% endblock %}
 
 {% block page_header %}
     <div class="page-header-inner">
         <div class="breadcrumb">
-            <a href="/">PSV</a>
+            <a href="/">Home</a>
             <span>/</span>
             <a href="/content">Content</a>
             <span>/</span>
-            <span style="color: var(--text)">Talks Archive</span>
+            <span>Talks Archive</span>
         </div>
         <h1 class="page-title">Talks &<br /><em>Presentations</em></h1>
+        <p class="page-summary">
+            A searchable archive of PSV talk topics and presentation history
+            while recordings and external links are still being catalogued.
+        </p>
     </div>
 {% endblock %}
 
 {% block main %}
     <div class="archive-inner">
-        <div class="featured-card">
-            <div class="featured-thumb">
-                <div class="thumb-placeholder">
-                    <svg viewBox="0 0 24 24">
-                        <rect x="2" y="3" width="20" height="14" rx="2" />
-                        <path d="M8 21h8M12 17v4" />
-                    </svg>
-                </div>
-                <div class="featured-play">
-                    <a href="#" class="featured-play-btn">
-                        <svg viewBox="0 0 24 24">
-                            <polygon points="5 3 19 12 5 21 5 3" />
-                        </svg>
-                    </a>
-                </div>
-                <span class="conf-badge conf-defcon">Conference</span>
-            </div>
-            <div class="featured-info">
-                <div class="featured-eyebrow">// Featured Talk</div>
-                <div class="featured-title">Example Video Title</div>
-                <div class="featured-speaker">Speakers</div>
-                <div class="featured-desc">
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                    Maecenas ut nisi nec dolor feugiat ornare. Nullam tincidunt
-                    felis non ligula dignissim, eget ullamcorper enim gravida.
-                    Vestibulum commodo rutrum convallis. Proin sed dolor id mi
-                    convallis euismod et eget enim. Mauris vestibulum viverra
-                    efficitur.
-                </div>
-                <div class="featured-meta">
-                    <span>⏱ 48 min</span>
-                    <span>📅 Aug 2024</span>
-                    <span>🏷 RFID · Redteam · Access Control</span>
-                </div>
-            </div>
-        </div>
-
         <div class="filter-bar">
-            <span class="filter-bar-label">Filter:</span>
-            <button class="filter-btn active" data-filter="all">All</button>
-            <button class="filter-btn" data-filter="DEF CON">DEF CON</button>
-            <button class="filter-btn" data-filter="RSAC">RSAC</button>
-            <button class="filter-btn" data-filter="HOPE">HOPE</button>
-            <button class="filter-btn" data-filter="Ekoparty">Ekoparty</button>
+            <span class="filter-label">Filter talks</span>
+            <div class="filter-group">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="DEF CON">DEF CON</button>
+                <button class="filter-btn" data-filter="RSAC">RSAC</button>
+                <button class="filter-btn" data-filter="HOPE">HOPE</button>
+                <button class="filter-btn" data-filter="Ekoparty">Ekoparty</button>
+            </div>
             <div class="search-wrap">
                 <svg viewBox="0 0 24 24">
                     <circle cx="11" cy="11" r="8" />
                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
-                <input
-                    type="text"
-                    id="searchInput"
-                    placeholder="Search talks…"
-                />
+                <input type="text" id="searchInput" placeholder="Search talks" />
             </div>
         </div>
 
-        <!-- RESULTS COUNT -->
         <div class="results-bar">
-            <div class="results-count" id="resultsCount">
-                <strong>0</strong> talks
-            </div>
+            <div class="results-count" id="resultsCount"><strong>0</strong> talks</div>
         </div>
 
         <div id="videoOutput"></div>
@@ -88,17 +50,15 @@
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <p>No talks match your search or filter.</p>
+            <p>No talks match your current search or conference filter.</p>
         </div>
     </div>
     <script>
         const talks = [
-            // 2024
             {
                 id: 1,
                 year: 2024,
                 conf: "DEF CON",
-                confClass: "conf-defcon",
                 title: "Lock Mechanisms Under the Microscope: Vulnerabilities in High-Security Cylinders",
                 speaker: "Jordan Hale",
                 date: "Aug 2024",
@@ -110,7 +70,6 @@
                 id: 2,
                 year: 2024,
                 conf: "DEF CON",
-                confClass: "conf-defcon",
                 title: "The State of Hotel Key Card Security in 2024",
                 speaker: "Priya Nair",
                 date: "Aug 2024",
@@ -122,7 +81,6 @@
                 id: 3,
                 year: 2024,
                 conf: "RSAC",
-                confClass: "conf-rsac",
                 title: "Physical Security as Part of the Modern Threat Model",
                 speaker: "Danielle Wu",
                 date: "May 2024",
@@ -134,7 +92,6 @@
                 id: 4,
                 year: 2024,
                 conf: "Northsec",
-                confClass: "conf-northsec",
                 title: "Open Source Tools for Physical Pen Testers",
                 speaker: "Marco Silva",
                 date: "May 2024",
@@ -142,12 +99,10 @@
                 tags: ["Tools", "Open Source", "Redteam"],
                 desc: "A survey of freely available hardware and software tools for physical security assessment, from Proxmark to Flipper Zero.",
             },
-            // 2023
             {
                 id: 5,
                 year: 2023,
                 conf: "DEF CON",
-                confClass: "conf-defcon",
                 title: "Tailgating at Scale: Social Engineering in Large Enterprises",
                 speaker: "Chris Evans",
                 date: "Aug 2023",
@@ -159,7 +114,6 @@
                 id: 6,
                 year: 2023,
                 conf: "DEF CON",
-                confClass: "conf-defcon",
                 title: "Wiegand Is Dead, Long Live Wiegand",
                 speaker: "Sofia Reyes",
                 date: "Aug 2023",
@@ -171,19 +125,17 @@
                 id: 7,
                 year: 2023,
                 conf: "HOPE",
-                confClass: "conf-hope",
                 title: "Community Locksport: Building the Next Generation of Physical Security Researchers",
                 speaker: "Amir Khalil",
                 date: "Jul 2023",
                 duration: "25 min",
                 tags: ["Locksport", "Community", "Education"],
-                desc: "How the locksport community serves as an on-ramp into physical security research — and what the industry can learn from it.",
+                desc: "How the locksport community serves as an on-ramp into physical security research and what the industry can learn from it.",
             },
             {
                 id: 8,
                 year: 2023,
                 conf: "Ekoparty",
-                confClass: "conf-eko",
                 title: "Attacking Parking Garage Access Systems",
                 speaker: "Valentina Cruz",
                 date: "Oct 2023",
@@ -191,12 +143,10 @@
                 tags: ["RFID", "Infrastructure", "Urban"],
                 desc: "A look at commonly deployed parking and barrier systems across Latin America and their susceptibility to credential replay attacks.",
             },
-            // 2022
             {
                 id: 9,
                 year: 2022,
                 conf: "DEF CON",
-                confClass: "conf-defcon",
                 title: "Impressioning Techniques for Modern Locks",
                 speaker: "Lee Jordan",
                 date: "Aug 2022",
@@ -208,62 +158,56 @@
                 id: 10,
                 year: 2022,
                 conf: "RSAC",
-                confClass: "conf-rsac",
                 title: "When the Firewall Is Made of Glass: Physical Breach Case Studies",
                 speaker: "Natasha Brooks",
                 date: "Jun 2022",
                 duration: "26 min",
                 tags: ["Case Study", "Redteam"],
-                desc: "Real-world examples of physical breaches that enabled digital compromise — and how defenders can close these gaps.",
+                desc: "Real-world examples of physical breaches that enabled digital compromise and how defenders can close these gaps.",
             },
             {
                 id: 11,
                 year: 2022,
                 conf: "Northsec",
-                confClass: "conf-northsec",
                 title: "Under-Door Attacks: Bypassing Lever Handles Without a Key",
                 speaker: "Kevin Park",
                 date: "May 2022",
                 duration: "22 min",
                 tags: ["Bypass", "Hardware", "Doors"],
-                desc: 'Exploring the class of "under-door" attacks that defeat lever handle locks without touching the cylinder, and what countermeasures exist.',
+                desc: 'Exploring the class of "under-door" attacks that defeat lever handle locks without touching the cylinder and what countermeasures exist.',
             },
             {
                 id: 12,
                 year: 2022,
                 conf: "HOPE",
-                confClass: "conf-hope",
                 title: "A History of Lock Picking: From Ancient Egypt to Sport Picking",
                 speaker: "Dr. Rachel Green",
                 date: "Jul 2022",
                 duration: "45 min",
                 tags: ["History", "Locksport", "Education"],
-                desc: "A fascinating tour through thousands of years of lock technology, how each era's locks were defeated, and how that lineage shapes modern locksport.",
+                desc: "A tour through thousands of years of lock technology, how each era's locks were defeated, and how that lineage shapes modern locksport.",
             },
-            // 2021
             {
                 id: 13,
                 year: 2021,
                 conf: "DEF CON",
-                confClass: "conf-defcon",
                 title: "RFID Implants and Physical Access: A Hacker's Perspective",
                 speaker: "Zoe Kim",
                 date: "Aug 2021",
                 duration: "29 min",
                 tags: ["RFID", "Implants", "Biohacking"],
-                desc: "First-hand experience using NFC implants for physical access — what works, what doesn't, and the privacy implications.",
+                desc: "First-hand experience using NFC implants for physical access, including what works, what does not, and the privacy implications.",
             },
             {
                 id: 14,
                 year: 2021,
                 conf: "Ekoparty",
-                confClass: "conf-eko",
                 title: "Simulated Physical Red Team Exercises on a Budget",
                 speaker: "Carlos Mendez",
                 date: "Oct 2021",
                 duration: "36 min",
                 tags: ["Redteam", "Budget", "Training"],
-                desc: "Practical guidance on designing physical red team scenarios for organisations without large security budgets.",
+                desc: "Practical guidance on designing physical red team scenarios for organizations without large security budgets.",
             },
         ];
 
@@ -281,16 +225,14 @@
         }
 
         function renderTalks() {
-            const query = document
-                .getElementById("searchInput")
-                .value.toLowerCase();
-            const filtered = talks.filter((t) => {
-                const matchConf = activeFilter === "all" || t.conf === activeFilter;
+            const query = document.getElementById("searchInput").value.toLowerCase();
+            const filtered = talks.filter((talk) => {
+                const matchConf = activeFilter === "all" || talk.conf === activeFilter;
                 const matchSearch =
                     !query ||
-                    t.title.toLowerCase().includes(query) ||
-                    t.speaker.toLowerCase().includes(query) ||
-                    t.tags.some((tag) => tag.toLowerCase().includes(query));
+                    talk.title.toLowerCase().includes(query) ||
+                    talk.speaker.toLowerCase().includes(query) ||
+                    talk.tags.some((tag) => tag.toLowerCase().includes(query));
                 return matchConf && matchSearch;
             });
 
@@ -298,87 +240,79 @@
                 `<strong>${filtered.length}</strong> talk${filtered.length !== 1 ? "s" : ""}`;
 
             const byYear = {};
-            filtered.forEach((t) => {
-                if (!byYear[t.year]) byYear[t.year] = [];
-                byYear[t.year].push(t);
+            filtered.forEach((talk) => {
+                if (!byYear[talk.year]) byYear[talk.year] = [];
+                byYear[talk.year].push(talk);
             });
-            const years = Object.keys(byYear).sort((a, b) => b - a);
 
+            const years = Object.keys(byYear).sort((a, b) => b - a);
             const output = document.getElementById("videoOutput");
             const empty = document.getElementById("emptyState");
 
             if (filtered.length === 0) {
                 output.innerHTML = "";
-                empty.style.display = "block";
+                empty.style.display = "grid";
                 return;
             }
-            empty.style.display = "none";
 
+            empty.style.display = "none";
             output.innerHTML = years
                 .map(
                     (year) => `
-        <div class="year-group">
-            <div class="year-heading">
-            <div class="year-label">${year}</div>
-            <div class="year-line"></div>
-            <div class="year-count">${byYear[year].length} talk${byYear[year].length !== 1 ? "s" : ""}</div>
-            </div>
-            <div class="video-grid">
-            ${byYear[year]
-                .map(
-                    (t) => `
-                <div class="video-card">
-                <div class="video-thumb">
-                    <div class="thumb-placeholder">
-                    <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                    </div>
-                    <div class="play-overlay">
-                    <div class="play-btn">
-                        <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                    </div>
-                    </div>
-                    <span class="conf-badge ${confBadgeClass(t.conf)}">${t.conf}</span>
-                    <span class="duration-badge">${t.duration}</span>
-                </div>
-                <div class="video-info">
-                    <div class="video-tags">${t.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
-                    <div class="video-title">${t.title}</div>
-                    <div class="video-speaker">${t.speaker}</div>
-                    <div class="video-desc">${t.desc}</div>
-                    <div class="video-footer">
-                    <span class="video-date">${t.date}</span>
-                    <a href="#" class="watch-link">
-                        Watch
-                        <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                    </a>
-                    </div>
-                </div>
-                </div>
-            `,
-                )
-                .join("")}
-            </div>
-        </div>
-        `,
+                        <section class="year-group">
+                            <div class="year-heading">
+                                <div class="year-label">${year}</div>
+                                <div class="year-line"></div>
+                                <div class="year-count">${byYear[year].length} talk${byYear[year].length !== 1 ? "s" : ""}</div>
+                            </div>
+                            <div class="video-grid">
+                                ${byYear[year]
+                                    .map(
+                                        (talk) => `
+                                            <article class="video-card">
+                                                <div class="video-thumb">
+                                                    <div class="thumb-placeholder">
+                                                        <svg viewBox="0 0 24 24">
+                                                            <rect x="2" y="3" width="20" height="14" rx="2" />
+                                                            <path d="M8 21h8M12 17v4" />
+                                                        </svg>
+                                                    </div>
+                                                    <div class="thumb-meta">
+                                                        <span class="conf-badge ${confBadgeClass(talk.conf)}">${talk.conf}</span>
+                                                        <span class="duration-badge">${talk.duration}</span>
+                                                    </div>
+                                                </div>
+                                                <div class="video-info">
+                                                    <div class="video-title">${talk.title}</div>
+                                                    <div class="video-speaker">${talk.speaker}</div>
+                                                    <div class="video-desc">${talk.desc}</div>
+                                                    <div class="video-tags">${talk.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
+                                                    <div class="video-footer">
+                                                        <span>${talk.date}</span>
+                                                        <span>Archive entry</span>
+                                                    </div>
+                                                </div>
+                                            </article>
+                                        `,
+                                    )
+                                    .join("")}
+                            </div>
+                        </section>
+                    `,
                 )
                 .join("");
         }
 
-        document.querySelectorAll(".filter-btn").forEach((btn) => {
-            btn.addEventListener("click", () => {
-                document
-                    .querySelectorAll(".filter-btn")
-                    .forEach((b) => b.classList.remove("active"));
-                btn.classList.add("active");
-                activeFilter = btn.dataset.filter;
+        document.querySelectorAll(".filter-btn").forEach((button) => {
+            button.addEventListener("click", () => {
+                document.querySelectorAll(".filter-btn").forEach((item) => item.classList.remove("active"));
+                button.classList.add("active");
+                activeFilter = button.dataset.filter;
                 renderTalks();
             });
         });
 
-        document
-            .getElementById("searchInput")
-            .addEventListener("input", renderTalks);
-
+        document.getElementById("searchInput").addEventListener("input", renderTalks);
         renderTalks();
     </script>
 {% endblock %}

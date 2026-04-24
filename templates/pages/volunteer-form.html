@@ -1,18 +1,24 @@
 {% extends "base.html" %} {% block styles %}
 <link href="/static/pages/forms.css" rel="stylesheet" />
-{% endblock %} {% block main %}
-
-<section id="volunteer">
-    <div class="section-inner">
-        <p class="section-label">// Volunteer with us</p>
-        <h2 class="section-title">Volunteer With Us</h2>
-        <p class="section-desc">
-            Interested in volunteering with the Physical Security Village? From
-            setup and breakdown, to staffing stations and guiding attendees,
-            we're always in need of passionate people. Fill out the form below
-            and we'll be in touch ahead of the next event.
+{% endblock %}
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('calls_page') }}">Open Calls</a>
+            <span>/</span>
+            <span>Volunteer Form</span>
+        </div>
+        <h1 class="page-title">Volunteer<br /><em>With PSV</em></h1>
+        <p class="page-summary">
+            Share where you can help, which events interest you, and anything
+            the team should know before the next conference cycle opens.
         </p>
-
+    </div>
+{% endblock %}
+{% block main %}
+    <div class="forms-inner">
         <div class="vol-form-wrap">
             <form id="volForm">
                 <div class="form-grid">
@@ -257,7 +263,6 @@
             </div>
         </div>
     </div>
-</section>
 
 <script>
     function submitVolForm() {

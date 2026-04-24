@@ -1,58 +1,69 @@
 footer {
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    padding: 2.5rem clamp(1.25rem, 5vw, 5rem) 2rem;
+    margin-top: auto;
+    padding: 1.5rem clamp(1rem, 4vw, 3rem) 2rem;
 }
+
 .footer-inner {
-    max-width: 1200px;
+    width: min(1180px, 100%);
     margin: 0 auto;
-    display: flex;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 1rem 2rem;
     align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 1.5rem;
 }
+
+.footer-brand {
+    display: block;
+}
+
 .footer-logo {
     font-family: "Bebas Neue", sans-serif;
-    font-size: 1.2rem;
-    letter-spacing: 0.08em;
-    color: var(--accent);
+    font-size: 1.25rem;
+    letter-spacing: 0.06em;
 }
+
 .footer-copy {
-    font-family: "Share Tech Mono", monospace;
-    font-size: 0.72rem;
+    font-size: 0.84rem;
     color: var(--muted);
-    letter-spacing: 0.05em;
 }
+
 .footer-links {
     display: flex;
     flex-wrap: wrap;
-    gap: 1.5rem;
-}
-.footer-links a {
-    font-size: 0.8rem;
-    color: var(--muted);
-    text-decoration: none;
-    transition: color var(--transition);
-    min-height: 44px;
-    display: flex;
+    gap: 0.3rem;
     align-items: center;
+    justify-content: center;
 }
+
+.footer-links a,
+.footer-disabled {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    text-decoration: none;
+    color: var(--muted);
+    transition:
+        color var(--transition),
+        background var(--transition);
+    font-size: 0.88rem;
+}
+
 .footer-links a:hover {
-    color: var(--accent);
+    color: var(--text);
+    background: var(--accent-soft);
 }
-/* RESPONSIVE */
-@media (max-width: 600px) {
+
+@media (max-width: 780px) {
     .footer-inner {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1rem;
+        grid-template-columns: 1fr;
+        justify-items: start;
     }
+
     .footer-links {
-        gap: 0.75rem 1.25rem;
-    }
-    .footer-links a {
-        min-height: 36px;
-        font-size: 0.85rem;
+        justify-content: flex-start;
     }
 }

@@ -1,51 +1,51 @@
 {% extends "base.html" %} {% block styles %}
 <link href="/static/pages/calls.css" rel="stylesheet" />
-{% endblock %} {% block main %}
-<!-- PAGE HERO -->
-<div class="page-hero">
-    <div class="page-hero-inner">
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
         <div class="breadcrumb">
             <a href="/">Home</a>
-            <span class="sep">/</span>
-            <span>Get Involved</span>
+            <span>/</span>
+            <a href="{{ url_for('get_involved_page') }}">Get Involved</a>
+            <span>/</span>
+            <span>Open Calls</span>
         </div>
-        <div class="hero-tag">Open Opportunities</div>
-        <h1 class="page-title">Get <em>Involved</em></h1>
-        <p class="page-desc">
-            From staffing a table to speaking on stage - there's a place for you
-            at the Physical Security Village. Browse open calls below and apply
-            to join the community.
+        <h1 class="page-title">Open<br /><em>Calls</em></h1>
+        <p class="page-summary">
+            Browse current ways to volunteer, propose material, or stay ready
+            for event-specific opportunities as upcoming conferences are
+            scheduled.
         </p>
     </div>
-</div>
+{% endblock %}
 
-<!-- FILTER BAR -->
-<div class="filter-bar">
-    <div class="filter-inner">
-        <span class="filter-label">Filter:</span>
-        <button class="filter-btn active" data-filter="all">All</button>
-        <button class="filter-btn" data-filter="volunteer">Volunteer</button>
-        <button class="filter-btn" data-filter="cfp">Call for Exhibits</button>
-        <button class="filter-btn" data-filter="cfp">Call for Talks</button>
-        <button class="filter-btn" data-filter="member">Membership</button>
-        <div class="filter-count">
-            Showing <span id="visibleCount">2</span> of 2 opportunities
+{% block main %}
+    <div class="calls-inner">
+        <div class="filter-bar">
+            <span class="filter-label">Filter opportunities</span>
+            <div class="filter-group">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="volunteer">Volunteer</button>
+                <button class="filter-btn" data-filter="talks">Talks</button>
+                <button class="filter-btn" data-filter="exhibits">Exhibits</button>
+            </div>
+            <div class="filter-meta">
+                Showing <span id="visibleCount">4</span> opportunities
+            </div>
         </div>
-    </div>
-</div>
 
-<!-- CARDS -->
-<div class="opportunities-section">
-    <div class="opportunities-inner">
-        <!-- GROUP: VOLUNTEER -->
-        <div class="group-header">
-            <span class="group-label">// Volunteer Opportunities</span>
-            <div class="group-line"></div>
-            <span class="group-count" id="volunteerCount">2 open</span>
+        <div class="calls-heading">
+            <h2>Current opportunities</h2>
+            <p>
+                Some calls stay open year-round, while others are announced per
+                event. Use the filters to jump directly to the type of
+                contribution you are interested in.
+            </p>
         </div>
 
         <div class="cards-grid" id="cardsGrid">
-            <div class="opp-card" data-category="volunteer">
+            <article class="opp-card" data-category="volunteer">
                 <div class="card-header">
                     <div class="card-type-icon">
                         <svg viewBox="0 0 24 24">
@@ -55,21 +55,17 @@
                     </div>
                     <span class="status-badge badge-open">Open</span>
                 </div>
-                <div class="card-category">General Volunteer Pool</div>
-                <div class="card-title">
-                    PSV Volunteer Roster - Any Conference
-                </div>
+                <div class="card-category">General volunteer pool</div>
+                <div class="card-title">Join the standing volunteer roster</div>
                 <p class="card-desc">
-                    Join our standing volunteer list. When PSV appears at a new
-                    event, we reach out from this pool first. Ideal if you can't
-                    commit to a specific conference right now but want to help
-                    at future ones.
+                    Add your name to the list PSV uses when new conference
+                    opportunities open. This is the best starting point if you
+                    want to help but are not tied to one specific event yet.
                 </p>
-
                 <div class="card-meta">
-                    <span class="meta-tag">Multiple locations</span>
-                    <span class="meta-tag">Rolling basis</span>
+                    <span class="meta-tag">Rolling intake</span>
                     <span class="meta-tag">All skill levels</span>
+                    <span class="meta-tag">Multiple locations</span>
                 </div>
                 <div class="card-deadline">
                     <svg viewBox="0 0 24 24">
@@ -79,70 +75,168 @@
                     Always accepting
                 </div>
                 <hr class="card-divider" />
-                <a
-                    href="{{ url_for('volunteer_form_page') }}"
-                    class="card-action"
-                    >Join the roster →</a
-                >
-            </div>
+                <a href="{{ url_for('volunteer_form_page') }}" class="card-action">
+                    Join the roster
+                </a>
+            </article>
 
-            <div class="opp-card" data-category="volunteer">
+            <article class="opp-card" data-category="volunteer">
                 <div class="card-header">
                     <div class="card-type-icon">
-                        <!-- person icon -->
                         <svg viewBox="0 0 24 24">
-                            <circle cx="12" cy="8" r="4" />
-                            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+                            <path d="M5 4h14v4H5z" />
+                            <path d="M7 8v12" />
+                            <path d="M17 8v12" />
+                            <path d="M7 14h10" />
                         </svg>
                     </div>
-                    <span class="status-badge badge-open">Open</span>
+                    <span class="status-badge badge-soon">Seasonal</span>
                 </div>
-                <div class="card-category">Conference Volunteer</div>
-                <div class="card-title">DEF CON 33 Village Staff</div>
+                <div class="card-category">Conference staffing</div>
+                <div class="card-title">Event-specific volunteer openings</div>
                 <p class="card-desc">
-                    Help run the village floor at DEF CON. Tasks include
-                    setup/breakdown, staffing activity stations, guiding
-                    attendees, and supporting presenters. No prior experience
-                    required - just enthusiasm.
+                    Floor staffing, setup, teardown, attendee support, and
+                    presenter assistance are announced as each conference cycle
+                    is finalized.
                 </p>
                 <div class="card-meta">
-                    <span class="meta-tag highlight">Las Vegas, NV</span>
-                    <span class="meta-tag highlight">Aug 7–10</span>
-                    <span class="meta-tag">All skill levels</span>
+                    <span class="meta-tag highlight">Dates published per event</span>
+                    <span class="meta-tag">Travel varies</span>
                 </div>
                 <div class="card-deadline">
                     <svg viewBox="0 0 24 24">
                         <circle cx="12" cy="12" r="10" />
                         <polyline points="12 6 12 12 16 14" />
                     </svg>
-                    Closes June 15, 2025
+                    Announced through Discord and mailing outreach
                 </div>
                 <hr class="card-divider" />
-                <a href="{{ url_for('volunteer_form_page') }}" class="card-action">Apply to volunteer →</a>
+                <a href="{{ url_for('volunteer_form_page') }}" class="card-action">
+                    Register interest
+                </a>
+            </article>
+
+            <article class="opp-card" data-category="talks">
+                <div class="card-header">
+                    <div class="card-type-icon">
+                        <svg viewBox="0 0 24 24">
+                            <rect x="3" y="5" width="18" height="12" rx="2" />
+                            <path d="M8 21h8" />
+                            <path d="M12 17v4" />
+                        </svg>
+                    </div>
+                    <span class="status-badge badge-soon">Upcoming</span>
+                </div>
+                <div class="card-category">Talks and workshops</div>
+                <div class="card-title">Call for talks and teaching sessions</div>
+                <p class="card-desc">
+                    Pitch presentations, workshops, demos, or case studies that
+                    help attendees understand physical attack paths, defensive
+                    lessons, or new research.
+                </p>
+                <div class="card-meta">
+                    <span class="meta-tag">Beginner to advanced</span>
+                    <span class="meta-tag">Talks and workshops</span>
+                </div>
+                <div class="card-deadline">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    Published when the next CFP window opens
+                </div>
+                <hr class="card-divider" />
+                <a href="{{ url_for('contact_us_page') }}" class="card-action">
+                    Ask about speaking
+                </a>
+            </article>
+
+            <article class="opp-card" data-category="exhibits">
+                <div class="card-header">
+                    <div class="card-type-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M4 7h16v10H4z" />
+                            <path d="M9 7V5h6v2" />
+                            <path d="M8 12h8" />
+                        </svg>
+                    </div>
+                    <span class="status-badge badge-soon">Upcoming</span>
+                </div>
+                <div class="card-category">Exhibits and demos</div>
+                <div class="card-title">Call for exhibits and hands-on stations</div>
+                <p class="card-desc">
+                    Bring a practical teaching setup, demo rig, or interactive
+                    walkthrough that shows an attack technique, failure mode, or
+                    remediation strategy in a safe educational format.
+                </p>
+                <div class="card-meta">
+                    <span class="meta-tag">Interactive demos</span>
+                    <span class="meta-tag">Hands-on friendly</span>
+                </div>
+                <div class="card-deadline">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    Coordinated around each conference build plan
+                </div>
+                <hr class="card-divider" />
+                <a href="{{ url_for('contact_us_page') }}" class="card-action">
+                    Ask about exhibits
+                </a>
+            </article>
+        </div>
+
+        <div class="empty-state" id="emptyState" style="display: none">
+            <svg viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <p>No opportunities match that filter right now.</p>
+        </div>
+
+        <div class="bottom-cta">
+            <div class="bottom-cta-inner">
+                <div class="bottom-cta-text">
+                    <h3>Want the announcements first?</h3>
+                    <p>
+                        Join the Discord to hear when conference-specific
+                        volunteer and speaker calls open.
+                    </p>
+                </div>
+                <a href="https://discord.gg/csYBJPMv4D" class="btn btn-outline">
+                    Join Discord
+                </a>
             </div>
         </div>
-
-        <div class="empty-state" id="emptyState">
-            <p>
-                No opportunities match that filter. Try another category or
-                check back soon.
-            </p>
-        </div>
     </div>
-</div>
 
-<div class="bottom-cta">
-    <div class="bottom-cta-inner">
-        <div class="bottom-cta-text">
-            <h3>Not Ready to Commit? Join the Discord.</h3>
-            <p>
-                Stay in the loop, ask questions, and connect with the PSV
-                community year-round.
-            </p>
-        </div>
-        <a href="https://discord.gg/csYBJPMv4D" class="btn btn-outline"
-            >Join Discord →</a
-        >
-    </div>
-</div>
+    <script>
+        const callButtons = document.querySelectorAll(".filter-btn");
+        const cards = document.querySelectorAll(".opp-card");
+        const visibleCount = document.getElementById("visibleCount");
+        const emptyState = document.getElementById("emptyState");
+
+        function filterCalls(category) {
+            let visible = 0;
+
+            cards.forEach((card) => {
+                const show =
+                    category === "all" || card.dataset.category === category;
+                card.style.display = show ? "grid" : "none";
+                if (show) visible += 1;
+            });
+
+            visibleCount.textContent = visible;
+            emptyState.style.display = visible === 0 ? "grid" : "none";
+        }
+
+        callButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+                callButtons.forEach((item) => item.classList.remove("active"));
+                button.classList.add("active");
+                filterCalls(button.dataset.filter);
+            });
+        });
+    </script>
 {% endblock %}

@@ -1,90 +1,55 @@
-/* MAIN */
 .about-inner {
-    max-width: 1200px;
+    width: min(1180px, 100%);
     margin: 0 auto;
 }
-/* GRID */
+
 .about-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 5rem;
-    align-items: center;
+    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+    gap: clamp(2rem, 5vw, 4rem);
+    align-items: start;
 }
+
 .about-text {
-    display: flex;
-    flex-direction: column;
+    display: grid;
     gap: 1.25rem;
 }
+
 .about-text p {
-    font-size: 1rem;
     color: var(--muted);
-    line-height: 1.85;
+    font-size: 1.03rem;
+    line-height: 1.9;
 }
-.about-text p strong {
+
+.about-text strong {
     color: var(--text);
-    font-weight: 500;
 }
-/* CARDS */
+
 .about-cards {
-    display: flex;
-    flex-direction: column;
+    display: grid;
     gap: 1rem;
 }
+
 .about-card {
+    padding: 1.45rem;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
-    border-radius: var(--radius);
-    padding: 1.25rem 1.5rem;
-    transition:
-        transform var(--transition),
-        box-shadow var(--transition);
+    border-radius: var(--radius-sm);
 }
-.about-card:hover {
-    transform: translateX(6px);
-    box-shadow: -6px 0 30px rgba(21, 161, 74, 0.08);
+
+.about-card h3 {
+    font-size: 1.08rem;
+    margin-bottom: 0.6rem;
 }
-.about-card h4 {
-    font-family: "Share Tech Mono", monospace;
-    font-size: 0.67rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 0.5rem;
-}
+
 .about-card p {
-    font-size: 0.9rem;
     color: var(--muted);
-    line-height: 1.6;
+    font-size: 0.95rem;
+    line-height: 1.7;
 }
-/* RESPONSIVE */
+
 @media (max-width: 900px) {
     .about-grid {
         grid-template-columns: 1fr;
-        gap: 2.5rem;
-    }
-    .about-cards {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1rem;
-    }
-    .about-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 6px 24px rgba(21, 161, 74, 0.08);
-    }
-}
-@media (max-width: 600px) {
-    .about-grid {
-        gap: 2rem;
-    }
-    .about-cards {
-        grid-template-columns: 1fr;
-    }
-    .about-card:hover {
-        transform: translateX(4px);
-        box-shadow: -4px 0 20px rgba(21, 161, 74, 0.08);
-    }
-    .about-text p {
-        font-size: 0.95rem;
     }
 }
