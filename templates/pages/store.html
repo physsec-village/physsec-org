@@ -1,0 +1,128 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/store.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <span>Store</span>
+        </div>
+        <h1 class="page-title">PSV <em>Store</em></h1>
+        <p class="page-summary">
+            Bypass tools, RFID gear, and branded merch from the Physical Security
+            Village. Everything you need for hands-on security research and training.
+        </p>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="store-inner">
+        <div class="filter-bar">
+            <span class="filter-label">Browse by category</span>
+            <div class="filter-group">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="Tools">Tools</button>
+                <button class="filter-btn" data-filter="Electronics">Electronics</button>
+                <button class="filter-btn" data-filter="Merch">Merch</button>
+            </div>
+            <div class="search-wrap">
+                <svg viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input type="text" id="searchInput" placeholder="Search products" />
+            </div>
+        </div>
+
+        <div class="results-bar">
+            <div class="results-count" id="resultsCount"><strong>0</strong> products</div>
+        </div>
+
+        <div class="product-grid" id="productOutput"></div>
+
+        <div class="empty-state" id="emptyState">
+            <svg viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <p>No products match your current search or category filter.</p>
+        </div>
+    </div>
+    <script>
+        const products = {{ products | tojson }};
+        let activeFilter = "all";
+
+        const categoryIcons = {
+            Tools: '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+            Electronics: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>',
+            Merch: '<svg viewBox="0 0 24 24"><path d="M20.38 3.46L16 2 12 5.5 8 2 3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>',
+        };
+
+        function renderProducts() {
+            const query = document.getElementById("searchInput").value.toLowerCase();
+            const filtered = products.filter((p) => {
+                const matchCat = activeFilter === "all" || p.category === activeFilter;
+                const matchSearch =
+                    !query ||
+                    p.name.toLowerCase().includes(query) ||
+                    p.description_short.toLowerCase().includes(query) ||
+                    p.category.toLowerCase().includes(query);
+                return matchCat && matchSearch;
+            });
+
+            document.getElementById("resultsCount").innerHTML =
+                `<strong>${filtered.length}</strong> product${filtered.length !== 1 ? "s" : ""}`;
+
+            const output = document.getElementById("productOutput");
+            const empty = document.getElementById("emptyState");
+
+            if (filtered.length === 0) {
+                output.innerHTML = "";
+                empty.style.display = "grid";
+                return;
+            }
+
+            empty.style.display = "none";
+            output.innerHTML = filtered
+                .map(
+                    (p) => `
+                        <a href="/store/${p.slug}" class="product-card-link">
+                            <article class="product-card">
+                                <div class="product-thumb">
+                                    <div class="product-thumb-placeholder">
+                                        ${categoryIcons[p.category] || categoryIcons.Tools}
+                                    </div>
+                                    <div class="product-meta">
+                                        <span class="category-badge cat-${p.category.toLowerCase()}">${p.category}</span>
+                                    </div>
+                                </div>
+                                <div class="product-info">
+                                    <div class="product-name">${p.name}</div>
+                                    <div class="product-desc">${p.description_short}</div>
+                                    <div class="product-footer">
+                                        <span class="product-price">${p.price_display}</span>
+                                        <span class="product-cta">View details &rarr;</span>
+                                    </div>
+                                </div>
+                            </article>
+                        </a>
+                    `,
+                )
+                .join("");
+        }
+
+        document.querySelectorAll(".filter-btn").forEach((button) => {
+            button.addEventListener("click", () => {
+                document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
+                button.classList.add("active");
+                activeFilter = button.dataset.filter;
+                renderProducts();
+            });
+        });
+
+        document.getElementById("searchInput").addEventListener("input", renderProducts);
+        renderProducts();
+    </script>
+{% endblock %}

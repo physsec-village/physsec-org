@@ -1,0 +1,60 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/store-cart.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="/store">Store</a>
+            <span>/</span>
+            <span>Order Confirmed</span>
+        </div>
+        <h1 class="page-title">Order <em>Confirmed</em></h1>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="cart-inner">
+        <div class="cart-wrap">
+            <div class="cart-empty">
+                <div class="success-icon">
+                    <svg viewBox="0 0 24 24">
+                        <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                </div>
+                <p>
+                    Thank you for your order! We've received your payment and will
+                    be in touch with shipping details.
+                </p>
+                <a href="/store" class="btn btn-primary">Continue Shopping</a>
+            </div>
+        </div>
+    </div>
+    <style>
+        .success-icon {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 1rem;
+            border-radius: 50%;
+            background: var(--accent-soft);
+            border: 1px solid var(--accent-strong);
+            color: var(--accent);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .success-icon svg {
+            width: 1.6rem;
+            height: 1.6rem;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2.4;
+        }
+    </style>
+    <script>
+        if (window.PSVCart) PSVCart.clear();
+    </script>
+{% endblock %}
