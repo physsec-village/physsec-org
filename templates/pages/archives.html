@@ -1,0 +1,60 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/content.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('content_page') }}">Content</a>
+            <span>/</span>
+            <span>Conference Archives</span>
+        </div>
+        <h1 class="page-title">Conference<br /><em>Archives</em></h1>
+        <p class="page-summary">
+            Event recaps and supporting archive material are still being
+            organized. In the meantime, the pages below are the best ways to
+            browse what is already published.
+        </p>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="resource-inner">
+        <div class="resource-grid">
+            <a href="{{ url_for('talks_page') }}" class="resource-card-link">
+                <article class="resource-card">
+                    <h3>Talks & Media</h3>
+                    <p>
+                        Start with the talk archive to review presentation
+                        themes, speaker topics, and past subject matter.
+                    </p>
+                    <div class="resource-card-footer">
+                        Open talks
+                        <svg viewBox="0 0 24 24">
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                        </svg>
+                    </div>
+                </article>
+            </a>
+            <a href="{{ url_for('games_page') }}" class="resource-card-link">
+                <article class="resource-card">
+                    <h3>Bypass Simulator Games</h3>
+                    <p>
+                        Explore the online simulator set if you want the most
+                        direct example of the village's hands-on teaching style.
+                    </p>
+                    <div class="resource-card-footer">
+                        Open games
+                        <svg viewBox="0 0 24 24">
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                        </svg>
+                    </div>
+                </article>
+            </a>
+        </div>
+    </div>
+{% endblock %}

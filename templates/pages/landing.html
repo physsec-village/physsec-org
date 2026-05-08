@@ -7,31 +7,19 @@
 <section class="hero" id="home">
     <div class="hero-inner">
         <div class="hero-content">
-            <div class="hero-tag">Canada based · Est. 2018</div>
             <h1 class="hero-title">
                 Physical<br />
                 <em>Security</em>
                 Village
             </h1>
             <p class="hero-desc">
-                The Physical Security Village (PSV) is a security awareness initiative
-                that makes appearances at security conferences and other educational functions.
-                You can find some of the content we’ve created below.
+                Physical Security Village appears at conferences and community
+                events to teach practical physical security through hands-on
+                exhibits, talks, and approachable demonstrations.
             </p>
             <div class="hero-ctas">
                 <a href="{{ url_for('about_us_page') }}" class="btn btn-primary">
-                    <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                    >
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
+                    <i class="fa-solid fa-circle-info"></i>
                     About Us
                 </a>
                 <a href="{{ url_for('calls_page') }}" class="btn btn-outline">
@@ -54,45 +42,18 @@
                 </a>
             </div>
         </div>
-
-        <div class="hero-visual">
-            <div class="logo-ring">
-                <img
-                    src="{{ url_for('static', path='/psv-compact-logo.png') }}"
-                    alt="Running man symbol like one would see in an exit sign, with Physical Security Village written on the side"
-                    height="200px"
-                >
-        </div>
     </div>
 </section>
 
-<div class="stats-bar">
-    <div class="stats-inner">
-        <div class="stat">
-            <div class="stat-num">5K+</div>
-            <div class="stat-label">Annual Attendees</div>
-        </div>
-        <div class="stat">
-            <div class="stat-num">100+</div>
-            <div class="stat-label">Volunteers</div>
-        </div>
-        <div class="stat">
-            <div class="stat-num">8</div>
-            <div class="stat-label">Years Running</div>
-        </div>
-        <div class="stat">
-            <div class="stat-num">20+</div>
-            <div class="stat-label">Talks & Workshops</div>
-        </div>
+<section class="faq-section" id="faq">
+    <div class="section-heading">
+        <h2>Frequently Asked Questions</h2>
+        <p>
+            The quick version of what PSV is, what you can learn with the
+            village, and how to get involved if you want to help run it.
+        </p>
     </div>
-</div>
-
-<section id="faq">
-    <div class="section-inner">
-        <p class="section-label">// Common Questions</p>
-        <h2 class="section-title">FAQ</h2>
-        <div class="faq-list">
-
+    <div class="faq-list">
             <div class="faq-item">
                 <button class="faq-q" onclick="toggleFAQ(this)">
                     What is the Physical Security Village?
@@ -239,7 +200,6 @@
             </div>
 
         </div>
-    </div>
 </section>
 
 <script>

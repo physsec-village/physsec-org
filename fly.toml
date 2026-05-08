@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for psv-website on 2026-03-08T04:38:52-04:00
+# fly.toml app configuration file generated for physsec-org on 2026-04-24T02:32:41Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'psv-website'
+app = 'physsec-org'
 primary_region = 'yyz'
 
 [build]

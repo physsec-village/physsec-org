@@ -4,64 +4,72 @@
 {% block page_header %}
     <div class="page-header-inner">
         <div class="breadcrumb">
-            <a href="/">PSV</a>
+            <a href="/">Home</a>
             <span>/</span>
-            <span style="color: var(--text)">Get Involved</span>
+            <span>Get Involved</span>
         </div>
         <h1 class="page-title">Get<br /><em>Involved</em></h1>
+        <p class="page-summary">
+            Support the village by volunteering, hosting us at an event,
+            sponsoring community education, or staying close to the team
+            between conferences.
+        </p>
     </div>
 {% endblock %}
 {% block main %}
     <div class="involve-inner">
-        <div class="involve-grid">
-            <div class="involve-card">
-                <div class="card-num">01</div>
-                <h3>Volunteer with us</h3>
+        <div class="involve-list">
+            <section class="involve-section">
+                <h2>Volunteer</h2>
                 <p>
-                    Want to contribute to PSV? You can volunteer to help with
-                    setup, breakdown, and staffing stations, or share your work
-                    with the community by submitting a talk or exhibit proposal
-                    through our Call for Papers!
+                    Help with setup, teardown, attendee guidance, staffing
+                    stations, or supporting presenters when PSV appears at
+                    conferences and community events.
                 </p>
-                <div class="card-action-wrap">
-                    <a href="{{ url_for('calls_page') }}" class="card-action">Join us →</a>
-                </div>
-            </div>
-            <div class="involve-card">
-                <div class="card-num">02</div>
-                <h3>Host the Village</h3>
+                <a href="{{ url_for('calls_page') }}" class="involve-link"
+                    >Browse open calls</a
+                >
+            </section>
+
+            <section class="involve-section">
+                <h2>Host the village</h2>
                 <p>
-                    Want to feature the Physical Security Village at your
-                    conference? We bring interactive exhibits, talks, and
-                    hands-on education about physical security vulnerabilities
-                    and remediations.
+                    If you want PSV at your event, get in touch. The village can
+                    bring talks, hands-on exhibits, and practical demonstrations
+                    focused on physical security failures and remediations.
                 </p>
-                <div class="card-action-wrap">
-                    <a href="{{ url_for('contact_us_page') }}" class="card-action">Contact us →</a>
-                </div>
-            </div>
-            <div class="involve-card">
-                <div class="card-num">03</div>
-                <h3>Sponsor Us</h3>
+                <a href="{{ url_for('contact_us_page') }}" class="involve-link"
+                    >Contact us</a
+                >
+            </section>
+
+            <section class="involve-section">
+                <h2>Sponsorship</h2>
                 <p>
-                    Support community-driven security education. Sponsorship
-                    keeps the village free, accessible, and growing every year.
+                    Sponsorship helps keep the village free, accessible, and
+                    sustainable as we build new exhibits and expand community
+                    education.
                 </p>
-                <div class="card-action-wrap">
-                    <a class="card-action">Sponsor the village →</a>
-                </div>
-            </div>
-            <div class="involve-card">
-                <div class="card-num">04</div>
-                <h3>Join the Discord</h3>
+                <span
+                    class="involve-link-disabled"
+                    tabindex="0"
+                    data-tooltip="Sponsorship details coming soon"
+                >
+                    Sponsorship details coming soon
+                </span>
+            </section>
+
+            <section class="involve-section">
+                <h2>Join the Discord</h2>
                 <p>
-                    Connect with the PSV community year-round. Share projects,
-                    ask questions, and stay up to date with announcements.
+                    Stay close to the community between conferences, ask
+                    questions, and hear about new talks, calls, and resources as
+                    they are announced.
                 </p>
-                <div class="card-action-wrap">
-                    <a href="https://discord.gg/csYBJPMv4D" class="card-action">Join Discord →</a>
-                </div>
-            </div>
+                <a href="https://discord.gg/csYBJPMv4D" class="involve-link"
+                    >Join Discord</a
+                >
+            </section>
         </div>
     </div>
 {% endblock %}
