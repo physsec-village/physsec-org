@@ -3,6 +3,123 @@
     margin: 0 auto;
 }
 
+/* ── Featured Section ─────────────────────────────────────────── */
+
+.featured-section {
+    margin-bottom: 3.5rem;
+}
+
+.featured-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+.featured-card-link {
+    text-decoration: none;
+    color: inherit;
+}
+
+.featured-card {
+    display: grid;
+    height: 100%;
+    background:
+        linear-gradient(145deg, rgba(31, 179, 90, 0.06), transparent 60%),
+        var(--surface);
+    border: 1px solid var(--accent-strong);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    transition:
+        transform var(--transition),
+        border-color var(--transition),
+        box-shadow var(--transition);
+}
+
+.featured-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    box-shadow:
+        var(--shadow),
+        0 0 20px rgba(31, 179, 90, 0.08);
+}
+
+.featured-thumb {
+    position: relative;
+    min-height: 7.5rem;
+    padding: 1rem;
+    background:
+        linear-gradient(135deg, rgba(31, 179, 90, 0.12), transparent 65%),
+        var(--bg-elevated);
+    border-bottom: 1px solid var(--accent-strong);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+}
+
+.featured-thumb-placeholder {
+    width: 2.7rem;
+    height: 2.7rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(31, 179, 90, 0.08);
+}
+
+.featured-thumb-placeholder svg {
+    width: 1.45rem;
+    height: 1.45rem;
+    color: var(--accent);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+}
+
+.featured-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3rem 0.6rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #09100c;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.featured-info {
+    display: grid;
+    gap: 0.65rem;
+    padding: 1.15rem;
+}
+
+.featured-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.featured-desc {
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.7;
+}
+
+.featured-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: auto;
+}
+
+.featured-card:hover .product-cta {
+    color: var(--accent);
+}
+
+/* ── All Products Section ─────────────────────────────────────── */
+
 .results-bar {
     margin-bottom: 1.2rem;
     color: var(--muted);
@@ -82,6 +199,8 @@
     justify-content: flex-end;
 }
 
+/* ── Category Badges ──────────────────────────────────────────── */
+
 .category-badge {
     display: inline-flex;
     align-items: center;
@@ -92,12 +211,17 @@
     font-weight: 600;
 }
 
-.cat-tools {
+.cat-bypass-tools {
     background: var(--accent-soft);
     color: var(--accent);
 }
 
-.cat-electronics {
+.cat-keys {
+    color: #eab96d;
+    background: rgba(234, 185, 109, 0.12);
+}
+
+.cat-rfid {
     color: #6ac3ff;
     background: rgba(106, 195, 255, 0.12);
 }
@@ -106,6 +230,13 @@
     color: #d69eff;
     background: rgba(214, 158, 255, 0.12);
 }
+
+.cat-misc {
+    color: var(--muted);
+    background: rgba(163, 176, 167, 0.12);
+}
+
+/* ── Product Info ─────────────────────────────────────────────── */
 
 .product-info {
     display: grid;
@@ -150,4 +281,18 @@
 
 #emptyState {
     display: none;
+}
+
+/* ── Responsive ───────────────────────────────────────────────── */
+
+@media (max-width: 1020px) {
+    .featured-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 680px) {
+    .featured-grid {
+        grid-template-columns: 1fr;
+    }
 }

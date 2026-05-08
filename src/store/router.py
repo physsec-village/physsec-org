@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from starlette.responses import JSONResponse
 
 from ..dependencies import templates
-from .products import get_all_products, get_categories, get_product_by_slug
+from .products import get_all_products, get_categories, get_featured_products, get_product_by_slug
 from .stripe import create_checkout_session
 
 router = APIRouter(prefix="/store")
@@ -27,6 +27,7 @@ def store_page(request: Request):
         context={
             "products": get_all_products(),
             "categories": get_categories(),
+            "featured": get_featured_products(),
         },
     )
 
