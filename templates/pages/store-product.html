@@ -38,7 +38,7 @@
                         <span class="category-badge cat-{{ product.category | lower | replace(' ', '-') }}">{{ product.category }}</span>
                     </div>
                     <div class="product-detail-name">{{ product.name }}</div>
-                    <div class="product-detail-price">{{ product.price_display }}</div>
+                    <div class="product-detail-price" data-price-usd-cents="{{ product.price_cents }}">{{ product.price_display }}</div>
                 </div>
 
                 <div class="product-detail-desc">
@@ -48,7 +48,17 @@
                 <div class="product-detail-actions">
                     {% if product.in_stock %}
                     <button
-                        class="btn btn-primary add-to-cart-btn"
+                        class="btn btn-primary buy-now-btn"
+                        id="buyNowBtn"
+                        onclick="handleBuyNow()"
+                    >
+                        <svg viewBox="0 0 24 24">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                        </svg>
+                        Buy Now
+                    </button>
+                    <button
+                        class="btn btn-outline add-to-cart-btn"
                         id="addToCartBtn"
                         onclick="handleAddToCart()"
                     >
@@ -72,9 +82,33 @@
     <script>
         const product = {{ product | tojson }};
 
+        async function handleBuyNow() {
+            const btn = document.getElementById("buyNowBtn");
+            btn.disabled = true;
+            const orig = btn.innerHTML;
+            btn.innerHTML = "Processing…";
+            try {
+                const currency = window.PSVCart ? PSVCart.getDisplayCurrency() : "usd";
+                const res = await fetch("/store/checkout", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        items: [{ slug: product.slug, quantity: 1 }],
+                        currency,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Checkout failed");
+                window.location.href = data.checkout_url;
+            } catch {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+
         function handleAddToCart() {
             if (window.PSVCart) {
-                PSVCart.addItem(product.slug, product.name, product.price_cents, product.price_display);
+                PSVCart.addItem(product.slug, product.name, product.price_cents);
                 const btn = document.getElementById("addToCartBtn");
                 btn.innerHTML = `
                     <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>

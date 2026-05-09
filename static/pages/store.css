@@ -279,6 +279,36 @@
     color: var(--accent);
 }
 
+.btn-card-buy {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.9rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #09100c;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition:
+        box-shadow var(--transition),
+        transform var(--transition),
+        opacity var(--transition);
+}
+
+.btn-card-buy:hover {
+    box-shadow: 0 6px 16px rgba(31, 179, 90, 0.32);
+    transform: translateY(-1px);
+}
+
+.btn-card-buy:disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
 #emptyState {
     display: none;
 }

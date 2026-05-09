@@ -1,9 +1,12 @@
+from typing import Literal
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
 
 from ..dependencies import templates
+from .currency import convert_usd_cents_to_cad_cents, get_usd_cad_rate
 from .products import get_all_products, get_categories, get_featured_products, get_product_by_slug
 from .stripe import create_checkout_session
 
@@ -17,6 +20,7 @@ class CartItem(BaseModel):
 
 class CheckoutRequest(BaseModel):
     items: list[CartItem]
+    currency: Literal["usd", "cad"] = "usd"
 
 
 @router.get("", response_class=HTMLResponse)
@@ -44,20 +48,35 @@ def store_success_page(request: Request):
 
 @router.post("/checkout")
 async def store_checkout(request: Request, checkout: CheckoutRequest):
+    usd_cad_rate = None
+    if checkout.currency == "cad":
+        try:
+            usd_cad_rate = get_usd_cad_rate()
+        except Exception:
+            return JSONResponse(
+                status_code=502,
+                content={"error": "Unable to fetch the current USD/CAD exchange rate"},
+            )
+
     line_items = []
     for item in checkout.items:
         product = get_product_by_slug(item.slug)
-        if not product or not product["in_stock"]:
+        if not product or not product["in_stock"] or item.quantity < 1:
             return JSONResponse(
                 status_code=400,
                 content={"error": f"Product '{item.slug}' not available"},
             )
+
+        unit_amount = product["price_cents"]
+        if checkout.currency == "cad":
+            unit_amount = convert_usd_cents_to_cad_cents(unit_amount, usd_cad_rate)
+
         line_items.append(
             {
                 "price_data": {
-                    "currency": "usd",
+                    "currency": checkout.currency,
                     "product_data": {"name": product["name"]},
-                    "unit_amount": product["price_cents"],
+                    "unit_amount": unit_amount,
                 },
                 "quantity": item.quantity,
             }

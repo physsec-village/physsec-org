@@ -4,10 +4,17 @@
 
 {% block page_header %}
     <div class="page-header-inner">
-        <div class="breadcrumb">
-            <a href="/">Home</a>
-            <span>/</span>
-            <span>Store</span>
+        <div class="page-header-toprow">
+            <div class="breadcrumb">
+                <a href="/">Home</a>
+                <span>/</span>
+                <span>Store</span>
+            </div>
+            <div class="currency-header-pill" aria-label="Currency">
+                <button class="currency-opt" data-currency-set="usd" data-currency-toggle="true" aria-pressed="false"><span aria-hidden="true">🇺🇸</span> USD</button>
+                <span class="currency-sep" aria-hidden="true">·</span>
+                <button class="currency-opt" data-currency-set="cad" data-currency-toggle="true" aria-pressed="false"><span aria-hidden="true">🇨🇦</span> CAD</button>
+            </div>
         </div>
         <h1 class="page-title">PSV Store</h1>
         <p class="page-summary">
@@ -50,8 +57,8 @@
                             <div class="featured-name">{{ p.name }}</div>
                             <div class="featured-desc">{{ p.description_short }}</div>
                             <div class="featured-footer">
-                                <span class="product-price">{{ p.price_display }}</span>
-                                <span class="product-cta">View details &rarr;</span>
+                                <span class="product-price" data-price-usd-cents="{{ p.price_cents }}">{{ p.price_display }}</span>
+                                <button class="btn-card-buy" onclick="event.stopPropagation(); event.preventDefault(); cardBuyNow('{{ p.slug }}', this)">Buy Now</button>
                             </div>
                         </div>
                     </article>
@@ -153,8 +160,8 @@
                                     <div class="product-name">${p.name}</div>
                                     <div class="product-desc">${p.description_short}</div>
                                     <div class="product-footer">
-                                        <span class="product-price">${p.price_display}</span>
-                                        <span class="product-cta">View details &rarr;</span>
+                                        <span class="product-price" data-price-usd-cents="${p.price_cents}">${window.PSVCart ? PSVCart.formatUsdCents(p.price_cents) : p.price_display}</span>
+                                        <button class="btn-card-buy" onclick="event.stopPropagation(); event.preventDefault(); cardBuyNow('${p.slug}', this)">Buy Now</button>
                                     </div>
                                 </div>
                             </article>
@@ -162,6 +169,26 @@
                     `,
                 )
                 .join("");
+        }
+
+        async function cardBuyNow(slug, btn) {
+            btn.disabled = true;
+            const orig = btn.textContent;
+            btn.textContent = "…";
+            try {
+                const currency = window.PSVCart ? PSVCart.getDisplayCurrency() : "usd";
+                const res = await fetch("/store/checkout", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ items: [{ slug, quantity: 1 }], currency }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Checkout failed");
+                window.location.href = data.checkout_url;
+            } catch {
+                btn.disabled = false;
+                btn.textContent = orig;
+            }
         }
 
         document.querySelectorAll(".filter-btn").forEach((button) => {
@@ -175,5 +202,6 @@
 
         document.getElementById("searchInput").addEventListener("input", renderProducts);
         renderProducts();
+        document.addEventListener("psv:currencychange", renderProducts);
     </script>
 {% endblock %}

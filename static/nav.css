@@ -143,6 +143,70 @@ nav.is-scrolled {
     gap: 0.65rem;
 }
 
+/* ── Store currency switcher (page header) ────────────────────── */
+
+.page-header-toprow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.currency-header-pill {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.currency-sep {
+    color: rgba(163, 176, 167, 0.28);
+    font-size: 0.7rem;
+    pointer-events: none;
+    user-select: none;
+}
+
+.currency-opt {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    padding: 0.15rem 0.4rem;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: rgba(163, 176, 167, 0.45);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color var(--transition);
+}
+
+.currency-opt span {
+    font-size: 0.82em;
+    line-height: 1;
+}
+
+.currency-opt:hover {
+    color: var(--muted);
+}
+
+.currency-opt.is-active {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.currency-opt:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.currency-header-pill .currency-opt:not(.is-active),
+.currency-header-pill .currency-sep {
+    display: none;
+}
+
 .social-icons {
     display: flex;
     align-items: center;
@@ -487,6 +551,7 @@ nav.is-scrolled {
     border: 1px solid var(--border);
 }
 
+
 .nav-disabled:hover,
 .nav-disabled:focus-visible,
 .menu-disabled:hover,
@@ -522,6 +587,10 @@ nav.is-scrolled {
 @media (max-width: 1020px) {
     .nav-links,
     .social-icons {
+        display: none;
+    }
+
+    .currency-switcher {
         display: none;
     }
 
