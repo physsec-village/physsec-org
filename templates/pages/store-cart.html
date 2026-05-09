@@ -50,14 +50,14 @@
                             <div class="cart-item-name">
                                 <a href="/store/${item.slug}">${item.name}</a>
                             </div>
-                            <div class="cart-item-unit-price">${item.price_display} each</div>
+                            <div class="cart-item-unit-price">${PSVCart.formatUsdCents(item.price_cents)} each</div>
                         </div>
                         <div class="qty-control">
                             <button class="qty-btn" onclick="updateQty('${item.slug}', ${item.quantity - 1})" aria-label="Decrease quantity">&minus;</button>
                             <span class="qty-value">${item.quantity}</span>
                             <button class="qty-btn" onclick="updateQty('${item.slug}', ${item.quantity + 1})" aria-label="Increase quantity">+</button>
                         </div>
-                        <div class="cart-item-total">${PSVCart.formatCents(item.price_cents * item.quantity)}</div>
+                        <div class="cart-item-total">${PSVCart.formatUsdCents(item.price_cents * item.quantity)}</div>
                         <button class="cart-item-remove" onclick="removeItem('${item.slug}')" aria-label="Remove item">
                             <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         </button>
@@ -70,7 +70,7 @@
                 <div class="cart-items">${itemsHtml}</div>
                 <div class="cart-summary">
                     <span class="cart-subtotal-label">Subtotal</span>
-                    <span class="cart-subtotal-value">${PSVCart.formatCents(PSVCart.getSubtotalCents())}</span>
+                    <span class="cart-subtotal-value">${PSVCart.formatUsdCents(PSVCart.getSubtotalCents())}</span>
                 </div>
                 <div class="cart-actions">
                     <a href="/store" class="btn btn-outline">Continue Shopping</a>
@@ -97,12 +97,6 @@
         }
 
         async function checkout() {
-            const items = PSVCart.getItems().map((i) => ({
-                slug: i.slug,
-                quantity: i.quantity,
-            }));
-            if (items.length === 0) return;
-
             const btn = document.getElementById("checkoutBtn");
             const errEl = document.getElementById("cartError");
             btn.disabled = true;
@@ -110,11 +104,8 @@
             errEl.style.display = "none";
 
             try {
-                const res = await fetch("/store/checkout", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ items }),
-                });
+                const res = await PSVCart.checkout();
+                if (!res) return;
                 const data = await res.json();
                 if (!res.ok) {
                     throw new Error(data.error || "Checkout failed");
@@ -132,5 +123,6 @@
         }
 
         if (window.PSVCart) renderCartPage();
+        document.addEventListener("psv:currencychange", renderCartPage);
     </script>
 {% endblock %}
