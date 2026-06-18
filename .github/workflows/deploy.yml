@@ -22,4 +22,4 @@ jobs:
             cd ${{ secrets.DEPLOY_PATH }}
             git pull origin main
             sudo systemctl daemon-reload
-            sudo systemctl restart psv-website
+            sudo systemctl restart psv-website.service
