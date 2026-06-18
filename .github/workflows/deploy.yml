@@ -21,4 +21,5 @@ jobs:
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
             git pull origin main
-            docker compose up -d --build --force-recreate
+            sudo systemctl daemon-reload
+            sudo systemctl restart psv-website.service
