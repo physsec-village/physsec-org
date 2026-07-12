@@ -19,8 +19,15 @@
         <li class="dropdown">
             <a href="{{ url_for('content_page') }}">Content</a>
             <div class="dropdown-menu">
-                <a href="{{ url_for('archives_page') }}">Conference Archives</a>
-                <a href="{{ url_for('talks_page') }}">Talks & Media</a>
+                <span
+                    class="dropdown-disabled"
+                    tabindex="0"
+                    aria-disabled="true"
+                    data-tooltip="Conference archives coming soon"
+                >
+                    <span class="disabled-label">Conference Archives</span>
+                    <span class="disabled-state">Soon</span>
+                </span>
                 <a href="{{ url_for('games_page') }}">Bypass Games</a>
                 <a href="{{ url_for('materials_page') }}">Other Materials</a>
             </div>

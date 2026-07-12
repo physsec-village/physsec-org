@@ -63,6 +63,25 @@
     font-weight: 600;
 }
 
+.content-card-disabled {
+    cursor: not-allowed;
+}
+
+.content-card-disabled .content-card {
+    opacity: 0.55;
+}
+
+.content-card-disabled .content-card:hover {
+    transform: none;
+    border-color: var(--border);
+    box-shadow: none;
+}
+
+.content-card h3 .disabled-state {
+    margin-left: 0.45rem;
+    vertical-align: middle;
+}
+
 .content-card-footer svg,
 .resource-card-footer svg {
     width: 1rem;

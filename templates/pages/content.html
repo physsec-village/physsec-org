@@ -19,40 +19,20 @@
 {% block main %}
     <div class="content-inner">
         <div class="content-grid">
-            <a href="{{ url_for('archives_page') }}" class="content-card-link">
+            <div class="content-card-link content-card-disabled" aria-disabled="true">
                 <article class="content-card">
-                    <h3>Conference Archives</h3>
+                    <h3>
+                        Conference Archives
+                        <span class="disabled-state">Soon</span>
+                    </h3>
                     <p>
                         Recaps, highlights, exhibit notes, and conference
                         context from the events where PSV has taught, demoed,
                         or presented.
                     </p>
-                    <div class="content-card-footer">
-                        Open archives
-                        <svg viewBox="0 0 24 24">
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                            <polyline points="12 5 19 12 12 19" />
-                        </svg>
-                    </div>
+                    <div class="content-card-footer">Coming soon</div>
                 </article>
-            </a>
-            <a href="{{ url_for('talks_page') }}" class="content-card-link">
-                <article class="content-card">
-                    <h3>Talks & Media</h3>
-                    <p>
-                        Recorded presentations, interview appearances, and talk
-                        subjects covering bypass techniques, RFID, access
-                        control, red teaming, and more.
-                    </p>
-                    <div class="content-card-footer">
-                        Browse talks
-                        <svg viewBox="0 0 24 24">
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                            <polyline points="12 5 19 12 12 19" />
-                        </svg>
-                    </div>
-                </article>
-            </a>
+            </div>
             <a href="{{ url_for('games_page') }}" class="content-card-link">
                 <article class="content-card">
                     <h3>Games</h3>

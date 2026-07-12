@@ -206,6 +206,7 @@ nav.is-scrolled {
 
 .nav-disabled,
 .menu-disabled,
+.dropdown-disabled,
 .footer-disabled {
     position: relative;
     display: inline-flex;
@@ -233,6 +234,16 @@ nav.is-scrolled {
     display: none;
 }
 
+.dropdown-disabled {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.65rem 0.8rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    border-color: transparent;
+    background: transparent;
+}
+
 .disabled-label {
     color: inherit;
 }
@@ -254,6 +265,7 @@ nav.is-scrolled {
 
 .nav-disabled::after,
 .menu-disabled::after,
+.dropdown-disabled::after,
 .footer-disabled::after {
     content: attr(data-tooltip);
     position: absolute;
@@ -282,6 +294,8 @@ nav.is-scrolled {
 .nav-disabled:focus-visible::after,
 .menu-disabled:hover::after,
 .menu-disabled:focus-visible::after,
+.dropdown-disabled:hover::after,
+.dropdown-disabled:focus-visible::after,
 .footer-disabled:hover::after,
 .footer-disabled:focus-visible::after {
     opacity: 1;
