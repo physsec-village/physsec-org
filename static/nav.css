@@ -108,7 +108,7 @@ nav.is-scrolled {
     position: absolute;
     top: 100%;
     left: 50%;
-    min-width: 220px;
+    min-width: 250px;
     transform: translateX(-50%);
     padding: 0.5rem;
     padding-top: 1rem;
@@ -240,6 +240,7 @@ nav.is-scrolled {
     padding: 0.65rem 0.8rem;
     border-radius: 10px;
     font-size: 0.9rem;
+    white-space: nowrap;
     border-color: transparent;
     background: transparent;
 }
