@@ -4,6 +4,16 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Physical Security Village</title>
+        <script>
+            // Apply the stored theme before first paint to avoid a flash of
+            // the default dark theme when light mode is selected.
+            (() => {
+                const storedTheme = window.localStorage.getItem("psv-theme");
+                if (storedTheme === "dark" || storedTheme === "light") {
+                    document.documentElement.dataset.theme = storedTheme;
+                }
+            })();
+        </script>
         <link
             href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap"
             rel="stylesheet"
@@ -28,10 +38,6 @@
 
         <script>
             const html = document.documentElement;
-            const storedTheme = window.localStorage.getItem("psv-theme");
-            if (storedTheme === "dark" || storedTheme === "light") {
-                html.dataset.theme = storedTheme;
-            }
 
             const toggle = document.getElementById("themeToggle");
             if (toggle) {
