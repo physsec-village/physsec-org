@@ -1,7 +1,8 @@
 import html
 import logging
+from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from starlette.responses import JSONResponse
 from fastapi_mail import FastMail, MessageSchema, MessageType
@@ -28,35 +29,20 @@ def calls_page(request: Request):
     return templates.TemplateResponse(request=request, name="pages/calls.html")
 
 
-async def send_contact_email(message: MessageSchema, form: FormSchema) -> None:
-    try:
-        await FastMail(get_mail_config()).send_message(message)
-    except Exception:
-        # Log the full submission so a mail outage doesn't lose it
-        logger.exception(
-            "Failed to send contact email from %s <%s> (subject: %r); message text:\n%s",
-            form.name,
-            form.email,
-            form.subject,
-            form.message,
-        )
-    else:
-        logger.info(
-            "Sent contact email from %s <%s> (subject: %r)",
-            form.name,
-            form.email,
-            form.subject,
-        )
+async def send_contact_email(message: MessageSchema) -> None:
+    """Send a contact email, raising when SMTP delivery fails."""
+    await FastMail(get_mail_config()).send_message(message)
 
 
 @router.post("/email")
 @limiter.limit("5/hour")
 async def simple_send(
-    request: Request, email: FormSchema, background_tasks: BackgroundTasks
+    request: Request, email: FormSchema
 ) -> JSONResponse:
+    submission_id = uuid4().hex
     if email.website:
         # Honeypot field was filled in; pretend success so bots can't tell
-        logger.warning("Honeypot triggered by %s <%s>", email.name, email.email)
+        logger.warning("Honeypot triggered for submission %s", submission_id)
         return JSONResponse(status_code=200, content={"message": "email has been sent"})
 
     client_ip = request.client.host if request.client else None
@@ -66,12 +52,7 @@ async def simple_send(
             content={"detail": "CAPTCHA verification failed. Please try again."},
         )
 
-    logger.info(
-        "Contact form submission from %s <%s> (subject: %r)",
-        email.name,
-        email.email,
-        email.subject,
-    )
+    logger.info("Processing contact submission %s", submission_id)
 
     body = f"""
     <html>
@@ -95,5 +76,14 @@ async def simple_send(
         reply_to=[email.email],
     )
 
-    background_tasks.add_task(send_contact_email, message, email)
+    try:
+        await send_contact_email(message)
+    except Exception:
+        logger.exception("Email delivery failed for submission %s", submission_id)
+        return JSONResponse(
+            status_code=502,
+            content={"detail": "Message delivery failed. Please try again later."},
+        )
+
+    logger.info("Email delivered for submission %s", submission_id)
     return JSONResponse(status_code=200, content={"message": "email has been sent"})

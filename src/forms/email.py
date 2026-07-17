@@ -9,10 +9,12 @@ class MailSettings(BaseSettings):
 
     mail_username: str
     mail_password: str
+    mail_from: str = ""
     receiver_email: str
     mail_server: str = "smtp.gmail.com"
     mail_port: int = 587
     mail_starttls: bool = True
+    mail_ssl_tls: bool = False
     mail_validate_certs: bool = True
 
 
@@ -27,11 +29,11 @@ def get_mail_config() -> ConnectionConfig:
     return ConnectionConfig(
         MAIL_USERNAME=settings.mail_username,
         MAIL_PASSWORD=settings.mail_password,
-        MAIL_FROM=settings.mail_username,
+        MAIL_FROM=settings.mail_from or settings.mail_username,
         MAIL_PORT=settings.mail_port,
         MAIL_SERVER=settings.mail_server,
         MAIL_FROM_NAME="PSV No Reply",
         MAIL_STARTTLS=settings.mail_starttls,
-        MAIL_SSL_TLS=False,
+        MAIL_SSL_TLS=settings.mail_ssl_tls,
         VALIDATE_CERTS=settings.mail_validate_certs,
     )

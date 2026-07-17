@@ -16,6 +16,15 @@ class TurnstileSettings(BaseSettings):
     # Both empty (the default) disables Turnstile entirely
     turnstile_site_key: str = ""
     turnstile_secret_key: str = ""
+    turnstile_allowed_hostnames: str = "physsec.org,www.physsec.org"
+
+    @property
+    def allowed_hostnames(self) -> frozenset[str]:
+        return frozenset(
+            hostname.strip().lower()
+            for hostname in self.turnstile_allowed_hostnames.split(",")
+            if hostname.strip()
+        )
 
     @model_validator(mode="after")
     def require_both_keys(self) -> "TurnstileSettings":
@@ -23,6 +32,8 @@ class TurnstileSettings(BaseSettings):
             raise ValueError(
                 "TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY must both be set"
             )
+        if self.turnstile_secret_key and not self.allowed_hostnames:
+            raise ValueError("TURNSTILE_ALLOWED_HOSTNAMES must not be empty")
         return self
 
 
@@ -61,5 +72,9 @@ async def verify_turnstile_token(token: str, remote_ip: str | None) -> bool:
         return False
     if outcome.get("action") != "contact":
         logger.warning("Turnstile returned unexpected action: %r", outcome.get("action"))
+        return False
+    hostname = outcome.get("hostname")
+    if not isinstance(hostname, str) or hostname.lower() not in settings.allowed_hostnames:
+        logger.warning("Turnstile returned an unapproved hostname")
         return False
     return True

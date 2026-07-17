@@ -66,6 +66,7 @@ The contact form depends on SMTP settings supplied through `.env` and loaded by 
 
 - `MAIL_USERNAME`
 - `MAIL_PASSWORD`
+- `MAIL_FROM`
 - `RECEIVER_EMAIL`
 
 These optional values override the Gmail SMTP defaults:
@@ -73,11 +74,16 @@ These optional values override the Gmail SMTP defaults:
 - `MAIL_SERVER` (default: `smtp.gmail.com`)
 - `MAIL_PORT` (default: `587`)
 - `MAIL_STARTTLS` (default: `true`)
+- `MAIL_SSL_TLS` (default: `false`)
 - `MAIL_VALIDATE_CERTS` (default: `true`)
 
-The compose file also sets `FORWARDED_ALLOW_IPS=*` so uvicorn trusts
-`X-Forwarded-For` from the reverse proxy; per-IP rate limiting on the contact
-form depends on it.
+Turnstile uses `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and an optional
+comma-separated `TURNSTILE_ALLOWED_HOSTNAMES` allowlist (default:
+`physsec.org,www.physsec.org`).
+
+The compose file restricts Uvicorn's trusted proxy headers to Docker bridge
+networks. The reverse proxy must replace any client-supplied `X-Forwarded-For`
+header rather than append to it; per-IP rate limiting depends on this boundary.
 
 ## Deployment Notes
 
