@@ -259,6 +259,12 @@
     color: var(--warning);
 }
 
+.status-pill.refunded,
+.status-pill.partially_refunded {
+    border-color: var(--warning);
+    color: var(--warning);
+}
+
 @media (max-width: 760px) {
     .form-grid,
     .variant-header,

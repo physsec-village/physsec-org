@@ -11,3 +11,11 @@ dependencies = [
     "pydantic-settings>=2.13.1",
     "stripe>=14.0.0",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

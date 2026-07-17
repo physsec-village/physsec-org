@@ -93,8 +93,10 @@ It keeps product, variant, image, checkout cart, order, and order item data in
 SQLite using stdlib `sqlite3`; there is no ORM and no browser framework. The
 public cart lives in `localStorage` as `psv-cart` and is revalidated against the
 database before checkout. Stripe Checkout Sessions are created with inline
-prices from the local database, while the webhook records an order snapshot and
-decrements stock in one SQLite transaction.
+prices from the local database, while the webhook records an order snapshot,
+decrements stock in one SQLite transaction, and tracks partial or full refunds
+from Stripe `charge.refunded` events. Refunds do not automatically restock
+inventory because they do not necessarily represent returned merchandise.
 
 For local testing:
 

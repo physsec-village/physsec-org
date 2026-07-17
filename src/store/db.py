@@ -94,6 +94,7 @@ def init_db() -> None:
                 amount_shipping_cents INTEGER,
                 amount_tax_cents INTEGER,
                 amount_total_cents INTEGER,
+                amount_refunded_cents INTEGER NOT NULL DEFAULT 0,
                 currency TEXT,
                 shipping_json TEXT,
                 status TEXT NOT NULL,
@@ -118,8 +119,19 @@ def init_db() -> None:
                 ON products(published, featured);
             CREATE INDEX IF NOT EXISTS idx_order_items_order
                 ON order_items(order_id);
+            CREATE INDEX IF NOT EXISTS idx_orders_payment_intent
+                ON orders(payment_intent);
             """
         )
+        # Additive migration for databases created before refund tracking.
+        order_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(orders)").fetchall()
+        }
+        if "amount_refunded_cents" not in order_columns:
+            conn.execute(
+                "ALTER TABLE orders ADD COLUMN amount_refunded_cents "
+                "INTEGER NOT NULL DEFAULT 0"
+            )
 
 
 def products_count() -> int:
@@ -561,6 +573,47 @@ def record_order_from_session(session: Any, cart_items: list[dict[str, Any]]) ->
         if status != "paid":
             conn.execute("UPDATE orders SET status = ? WHERE id = ?", (status, order_id))
         return status
+
+
+def record_refund_from_charge(charge: Any) -> str | None:
+    """Apply a Stripe ``charge.refunded`` snapshot to its local order.
+
+    Returns the new order status, or ``None`` when the checkout order has not
+    been recorded yet. Callers can use the latter to ask Stripe to retry an
+    out-of-order delivery.
+    """
+    payment_intent = _session_value(charge, "payment_intent")
+    if not isinstance(payment_intent, str):
+        payment_intent = _session_value(payment_intent, "id")
+    if not payment_intent:
+        return None
+
+    amount_refunded = max(0, int(_session_value(charge, "amount_refunded") or 0))
+    amount_charged = max(0, int(_session_value(charge, "amount") or 0))
+    with connection() as conn:
+        order = conn.execute(
+            "SELECT amount_refunded_cents FROM orders WHERE payment_intent = ?",
+            (payment_intent,),
+        ).fetchone()
+        if order is None:
+            return None
+        # Stripe retries and event ordering are not guaranteed. Never let an
+        # older snapshot reduce the total or regress a full refund to partial.
+        amount_refunded = max(amount_refunded, int(order["amount_refunded_cents"]))
+        status = (
+            "refunded"
+            if amount_charged and amount_refunded >= amount_charged
+            else "partially_refunded"
+        )
+        conn.execute(
+            """
+            UPDATE orders
+            SET amount_refunded_cents = ?, status = ?
+            WHERE payment_intent = ?
+            """,
+            (amount_refunded, status, payment_intent),
+        )
+    return status
 
 
 def _cart_rows_for_order(conn: sqlite3.Connection, items: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -131,6 +131,19 @@ async def store_webhook(request: Request):
     except (StripeNotConfigured, SignatureVerificationError, ValueError):
         return JSONResponse(status_code=400, content={"detail": "Invalid Stripe webhook."})
 
+    if event["type"] == "charge.refunded":
+        status = await run_in_threadpool(
+            db.record_refund_from_charge, event["data"]["object"]
+        )
+        if status is None:
+            # A refund can race the checkout event. A non-2xx response asks
+            # Stripe to retry instead of permanently dropping the update.
+            return JSONResponse(
+                status_code=409,
+                content={"detail": "Checkout order has not been recorded yet."},
+            )
+        return {"received": True}
+
     # async_payment_succeeded covers delayed payment methods (e.g. bank
     # debits) that complete after checkout.session.completed fires unpaid.
     if event["type"] not in {

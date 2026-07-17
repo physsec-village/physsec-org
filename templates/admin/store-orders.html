@@ -40,7 +40,12 @@
                             <td>{{ order.created_at }}</td>
                             <td>{{ order.email or "—" }}</td>
                             <td>{{ cents(order.amount_total_cents or 0) }}</td>
-                            <td><span class="status-pill {{ order.status }}">{{ order.status }}</span></td>
+                            <td>
+                                <span class="status-pill {{ order.status }}">{{ order.status }}</span>
+                                {% if order.amount_refunded_cents %}
+                                    <div>{{ cents(order.amount_refunded_cents) }} refunded</div>
+                                {% endif %}
+                            </td>
                             <td>
                                 {# order is a dict, so order.items would be the dict method #}
                                 {% for item in order["items"] %}
