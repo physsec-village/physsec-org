@@ -5,7 +5,6 @@ import httpx
 
 from src.forms.turnstile import (
     TurnstileSettings,
-    get_turnstile_settings,
     verify_turnstile_token,
 )
 
@@ -34,11 +33,14 @@ class TurnstileSettingsTests(unittest.TestCase):
 
 
 class TurnstileVerificationTests(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        get_turnstile_settings.cache_clear()
-
-    def tearDown(self):
-        get_turnstile_settings.cache_clear()
+    @staticmethod
+    def _enabled_settings():
+        return TurnstileSettings(
+            turnstile_site_key="site",
+            turnstile_secret_key="secret",
+            turnstile_allowed_hostnames="physsec.org,www.physsec.org",
+            _env_file=None,
+        )
 
     @staticmethod
     def _client_with_response(payload):
@@ -61,10 +63,9 @@ class TurnstileVerificationTests(unittest.IsolatedAsyncioTestCase):
             {"success": True, "action": "contact", "hostname": "physsec.org"}
         )
         with (
-            patch.dict(
-                "os.environ",
-                {"TURNSTILE_SITE_KEY": "site", "TURNSTILE_SECRET_KEY": "secret"},
-                clear=True,
+            patch(
+                "src.forms.turnstile.get_turnstile_settings",
+                return_value=self._enabled_settings(),
             ),
             patch("src.forms.turnstile.httpx.AsyncClient", return_value=client),
         ):
@@ -81,10 +82,9 @@ class TurnstileVerificationTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_missing_token_is_rejected_when_enabled(self):
-        with patch.dict(
-            "os.environ",
-            {"TURNSTILE_SITE_KEY": "site", "TURNSTILE_SECRET_KEY": "secret"},
-            clear=True,
+        with patch(
+            "src.forms.turnstile.get_turnstile_settings",
+            return_value=self._enabled_settings(),
         ):
             self.assertFalse(await verify_turnstile_token("", None))
 
@@ -93,10 +93,9 @@ class TurnstileVerificationTests(unittest.IsolatedAsyncioTestCase):
             {"success": True, "action": "other", "hostname": "physsec.org"}
         )
         with (
-            patch.dict(
-                "os.environ",
-                {"TURNSTILE_SITE_KEY": "site", "TURNSTILE_SECRET_KEY": "secret"},
-                clear=True,
+            patch(
+                "src.forms.turnstile.get_turnstile_settings",
+                return_value=self._enabled_settings(),
             ),
             patch("src.forms.turnstile.httpx.AsyncClient", return_value=client),
         ):
@@ -107,10 +106,9 @@ class TurnstileVerificationTests(unittest.IsolatedAsyncioTestCase):
             {"success": True, "action": "contact", "hostname": "attacker.example"}
         )
         with (
-            patch.dict(
-                "os.environ",
-                {"TURNSTILE_SITE_KEY": "site", "TURNSTILE_SECRET_KEY": "secret"},
-                clear=True,
+            patch(
+                "src.forms.turnstile.get_turnstile_settings",
+                return_value=self._enabled_settings(),
             ),
             patch("src.forms.turnstile.httpx.AsyncClient", return_value=client),
         ):
@@ -120,10 +118,9 @@ class TurnstileVerificationTests(unittest.IsolatedAsyncioTestCase):
         client = AsyncMock()
         client.__aenter__.return_value.post.side_effect = httpx.ConnectError("offline")
         with (
-            patch.dict(
-                "os.environ",
-                {"TURNSTILE_SITE_KEY": "site", "TURNSTILE_SECRET_KEY": "secret"},
-                clear=True,
+            patch(
+                "src.forms.turnstile.get_turnstile_settings",
+                return_value=self._enabled_settings(),
             ),
             patch("src.forms.turnstile.httpx.AsyncClient", return_value=client),
         ):
