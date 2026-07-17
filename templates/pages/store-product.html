@@ -175,7 +175,9 @@
                 const stock = Number(variant?.dataset.stock || 0);
                 if (!variant || stock <= 0) return;
                 const sku = variant.dataset.sku;
-                const qty = Math.min(Math.max(Number(qtyInput.value || 1), 1), stock);
+                const parsedQty = Number(qtyInput.value);
+                const normalizedQty = Number.isFinite(parsedQty) ? Math.max(1, Math.floor(parsedQty)) : 1;
+                const qty = Math.min(normalizedQty, stock);
                 const cart = window.PSVCart.read();
                 const existing = cart.find((item) => item.sku === sku);
                 if (existing) {

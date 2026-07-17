@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 # opened directly, and the admin has no auth yet.
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_IMAGE_FILES = 12
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
 def admin_gate() -> None:
@@ -103,6 +105,9 @@ def admin_store_create(
     except (ValueError, ValidationError, sqlite3.IntegrityError) as exc:
         _delete_upload_files(images)
         return _render_form(request, product_data, "New product", _clean_error(exc))
+    except Exception:
+        _delete_upload_files(images)
+        raise
     return RedirectResponse(
         request.url_for("admin_store_edit_page", product_id=product_id).include_query_params(saved=1),
         status_code=303,
@@ -176,6 +181,9 @@ def admin_store_update(
     except (ValueError, ValidationError, sqlite3.IntegrityError) as exc:
         _delete_upload_files(images)
         return _render_form(request, product_data, "Edit product", _clean_error(exc))
+    except Exception:
+        _delete_upload_files(images)
+        raise
     return RedirectResponse(
         request.url_for("admin_store_edit_page", product_id=product_id).include_query_params(saved=1),
         status_code=303,
@@ -359,22 +367,27 @@ def _image_signature_matches(ext: str, data: bytes) -> bool:
 
 def _save_uploads(files: list[UploadFile]) -> list[dict[str, Any]]:
     images = []
+    uploads = [upload for upload in files or [] if upload and upload.filename]
+    if len(uploads) > MAX_IMAGE_FILES:
+        raise ValueError(f"Upload no more than {MAX_IMAGE_FILES} images at once.")
+    total_bytes = 0
     try:
-        for position, upload in enumerate(files or []):
-            if not upload or not upload.filename:
-                continue
+        for position, upload in enumerate(uploads):
             ext = Path(upload.filename).suffix.lower()
             if ext not in ALLOWED_IMAGE_EXTENSIONS:
                 raise ValueError("Images must be png, jpg, jpeg, or webp files.")
             data = upload.file.read(MAX_IMAGE_BYTES + 1)
             if len(data) > MAX_IMAGE_BYTES:
                 raise ValueError("Images must be 10 MB or smaller.")
+            total_bytes += len(data)
+            if total_bytes > MAX_UPLOAD_BYTES:
+                raise ValueError("Image uploads must total 25 MB or less.")
             if not _image_signature_matches(ext, data):
                 raise ValueError("Image content does not match its file extension.")
             filename = f"{uuid.uuid4().hex}{ext}"
             (db.MEDIA_DIR / filename).write_bytes(data)
             images.append({"filename": filename, "alt": "", "position": position})
-    except ValueError:
+    except Exception:
         _delete_upload_files(images)
         raise
     return images
@@ -383,7 +396,10 @@ def _save_uploads(files: list[UploadFile]) -> list[dict[str, Any]]:
 def _delete_upload_files(images: list[dict[str, Any]]) -> None:
     for image in images or []:
         if image.get("filename"):
-            (db.MEDIA_DIR / image["filename"]).unlink(missing_ok=True)
+            try:
+                (db.MEDIA_DIR / image["filename"]).unlink(missing_ok=True)
+            except OSError:
+                logger.exception("Could not remove uploaded image after failure")
 
 
 def _at(values: list[Any], index: int) -> Any:

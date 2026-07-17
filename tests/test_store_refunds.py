@@ -59,7 +59,8 @@ def test_refund_for_unknown_order_requests_retry(tmp_path, monkeypatch):
     )
 
     class Request:
-        headers = {"stripe-signature": "test"}
+        def __init__(self):
+            self.headers = {"stripe-signature": "test"}
 
         async def body(self):
             return b"{}"
@@ -91,3 +92,18 @@ def test_init_db_migrates_existing_orders_table(tmp_path, monkeypatch):
             row["name"] for row in conn.execute("PRAGMA table_info(orders)").fetchall()
         }
     assert "amount_refunded_cents" in columns
+
+
+def test_checkout_cart_cleanup_is_bounded(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "store.db")
+    db.init_db()
+    with db.connection() as conn:
+        conn.executemany(
+            "INSERT INTO checkout_carts(id, cart_json, created_at) VALUES(?, '[]', ?)",
+            [("old-1", "2020-01-01T00:00:00Z"), ("old-2", "2020-01-02T00:00:00Z")],
+        )
+
+    assert db.cleanup_expired_checkout_carts(limit=1) == 1
+    with db.connection() as conn:
+        remaining = conn.execute("SELECT COUNT(*) FROM checkout_carts").fetchone()[0]
+    assert remaining == 1

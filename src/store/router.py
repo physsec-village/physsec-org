@@ -165,4 +165,5 @@ async def store_webhook(request: Request):
     if cart is None:
         return {"received": True}
     await run_in_threadpool(db.record_order_from_session, session, cart)
+    await run_in_threadpool(db.delete_checkout_cart, cart_id)
     return {"received": True}

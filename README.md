@@ -75,7 +75,7 @@ The store uses SQLite under `data/store.db`, uploaded product images under
 - `STRIPE_WEBHOOK_SECRET`: webhook signing secret for `/store/webhook`.
 - `STRIPE_SHIPPING_RATE_IDS`: optional comma-separated Stripe shipping rate IDs.
 - `STORE_SHIP_COUNTRIES`: comma-separated shipping country codes, default `US,CA`.
-- `STORE_PUBLIC_ORIGIN`: public site origin (e.g. `https://physsec.org`) used for Stripe redirect URLs; set in production.
+- `STORE_PUBLIC_ORIGIN`: required public site origin (e.g. `https://physsec.org`) used for Stripe redirect URLs.
 - `STORE_AUTOMATIC_TAX`: set to `true` to enable Stripe automatic tax calculation (requires Stripe Tax enabled on the account).
 - `STORE_SEED_MOCK_DATA`: set to `true` in development to seed mock products when the database is empty.
 - `ADMIN_UNPROTECTED`: set to `true` to expose `/admin/store` without authentication for local development only.

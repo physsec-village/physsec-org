@@ -4,7 +4,7 @@ import json
 import sqlite3
 import uuid
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -121,6 +121,8 @@ def init_db() -> None:
                 ON order_items(order_id);
             CREATE INDEX IF NOT EXISTS idx_orders_payment_intent
                 ON orders(payment_intent);
+            CREATE INDEX IF NOT EXISTS idx_checkout_carts_created_at
+                ON checkout_carts(created_at);
             """
         )
         # Additive migration for databases created before refund tracking.
@@ -449,6 +451,7 @@ def get_variants_for_checkout(items: list[dict[str, Any]]) -> tuple[list[dict[st
 
 
 def create_checkout_cart(items: list[dict[str, Any]]) -> str:
+    cleanup_expired_checkout_carts()
     cart_id = uuid.uuid4().hex
     # Snapshot names/prices at checkout time so the webhook records what was
     # actually sold even if the catalog changes before the event arrives.
@@ -482,6 +485,31 @@ def get_checkout_cart(cart_id: str) -> list[dict[str, Any]] | None:
         if row is None:
             return None
         return json.loads(row["cart_json"])
+
+
+def delete_checkout_cart(cart_id: str) -> None:
+    with connection() as conn:
+        conn.execute("DELETE FROM checkout_carts WHERE id = ?", (cart_id,))
+
+
+def cleanup_expired_checkout_carts(max_age_hours: int = 24, limit: int = 100) -> int:
+    cutoff = (
+        datetime.now(UTC) - timedelta(hours=max_age_hours)
+    ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    with connection() as conn:
+        result = conn.execute(
+            """
+            DELETE FROM checkout_carts
+            WHERE id IN (
+                SELECT id FROM checkout_carts
+                WHERE created_at < ?
+                ORDER BY created_at
+                LIMIT ?
+            )
+            """,
+            (cutoff, max(1, limit)),
+        )
+        return result.rowcount
 
 
 def record_order_from_session(session: Any, cart_items: list[dict[str, Any]]) -> str:

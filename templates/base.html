@@ -23,10 +23,13 @@
                         const parsed = JSON.parse(window.localStorage.getItem(this.key) || "[]");
                         if (!Array.isArray(parsed)) return [];
                         return parsed
-                            .map((item) => ({
-                                sku: String(item.sku || "").toUpperCase(),
-                                qty: Math.max(1, Number(item.qty || 1)),
-                            }))
+                            .map((item) => {
+                                const parsedQty = Number(item.qty);
+                                return {
+                                    sku: String(item.sku || "").toUpperCase(),
+                                    qty: Number.isFinite(parsedQty) ? Math.max(1, Math.floor(parsedQty)) : 1,
+                                };
+                            })
                             .filter((item) => item.sku);
                     } catch {
                         return [];

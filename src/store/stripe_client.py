@@ -1,4 +1,3 @@
-import logging
 import os
 from typing import Any
 
@@ -7,24 +6,15 @@ from fastapi import Request
 
 from . import db
 
-logger = logging.getLogger(__name__)
-
-
 class StripeNotConfigured(RuntimeError):
     pass
 
 
 def _base_url(request: Request) -> str:
-    # Prefer the configured public origin so redirect URLs cannot be
-    # influenced by a spoofed Host header behind the proxy.
     origin = os.getenv("STORE_PUBLIC_ORIGIN", "").strip()
-    if origin:
-        return origin.rstrip("/")
-    logger.warning(
-        "STORE_PUBLIC_ORIGIN is not set; deriving Stripe redirect URLs from "
-        "the request host. Set it in production."
-    )
-    return str(request.base_url).rstrip("/")
+    if not origin:
+        raise StripeNotConfigured("Store public origin is not configured.")
+    return origin.rstrip("/")
 
 
 def create_checkout_session(request: Request, items: list[dict[str, Any]]) -> stripe.checkout.Session:
