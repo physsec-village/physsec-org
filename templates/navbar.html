@@ -32,17 +32,7 @@
                 <a href="{{ url_for('materials_page') }}">Other Materials</a>
             </div>
         </li>
-        <li>
-            <span
-                class="nav-disabled store-option-1"
-                tabindex="0"
-                aria-disabled="true"
-                data-tooltip="PSV Store coming soon"
-            >
-                <span class="disabled-label">Store</span>
-                <span class="disabled-state">Soon</span>
-            </span>
-        </li>
+        <li><a href="{{ url_for('store_page') }}">Store</a></li>
         <li><a href="{{ url_for('contact_us_page') }}">Contact Us</a></li>
     </ul>
 
@@ -76,6 +66,11 @@
                 </svg>
             </a>
         </div>
+
+        <a class="cart-link" href="{{ url_for('store_cart_page') }}" aria-label="Shopping cart">
+            <i class="fa-solid fa-bag-shopping"></i>
+            <span class="cart-count" data-cart-count hidden>0</span>
+        </a>
 
         <button
             class="theme-toggle"
@@ -118,15 +113,7 @@
         >Get Involved</a
     >
     <a href="{{ url_for('content_page') }}" onclick="closeMobile()">Content</a>
-    <span
-        class="menu-disabled store-option-1"
-        tabindex="0"
-        aria-disabled="true"
-        data-tooltip="Store coming soon"
-    >
-        <span class="disabled-label">Store</span>
-        <span class="disabled-state">Soon</span>
-    </span>
+    <a href="{{ url_for('store_page') }}" onclick="closeMobile()">Store</a>
     <a href="{{ url_for('contact_us_page') }}" onclick="closeMobile()"
         >Contact Us</a
     >

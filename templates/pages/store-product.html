@@ -1,0 +1,197 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/store.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('store_page') }}">Store</a>
+            <span>/</span>
+            <span>{{ product.name }}</span>
+        </div>
+        <h1 class="page-title">{{ product.name }}</h1>
+        <p class="page-summary">{{ product.description }}</p>
+    </div>
+{% endblock %}
+
+{% macro placeholder(product) %}
+    <div class="product-placeholder">
+        {% if product.category_code == "MRC" %}
+            <svg viewBox="0 0 24 24">
+                <path d="M7 4 4 6l3 4v10h10V10l3-4-3-2-3 2h-4L7 4z" />
+                <path d="M10 6c.4 1.2 1.1 1.8 2 1.8S13.6 7.2 14 6" />
+            </svg>
+        {% else %}
+            <svg viewBox="0 0 24 24">
+                <circle cx="7.5" cy="14.5" r="3.5" />
+                <path d="M10 12 21 1" />
+                <path d="m15 7 2 2" />
+                <path d="m18 4 2 2" />
+            </svg>
+        {% endif %}
+    </div>
+{% endmacro %}
+
+{% block main %}
+    <div class="product-detail page-shell" data-product-detail>
+        <div class="gallery surface-card">
+            <div class="main-image" id="mainImage">
+                {% if product.images %}
+                    <img src="{{ product.images[0].url }}" alt="{{ product.images[0].alt or product.name }}" />
+                {% else %}
+                    {{ placeholder(product) }}
+                {% endif %}
+            </div>
+            {% if product.images|length > 1 %}
+                <div class="thumb-row">
+                    {% for image in product.images %}
+                        <button class="thumb-button {% if loop.first %}active{% endif %}" type="button" data-src="{{ image.url }}" data-alt="{{ image.alt or product.name }}">
+                            <img src="{{ image.url }}" alt="{{ image.alt or product.name }}" />
+                        </button>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <section class="product-panel surface-card">
+            <div class="store-category">{{ product.category_label }}</div>
+            <h2>{{ product.name }}</h2>
+            <div class="detail-price" id="detailPrice">{{ product_price(product) }}</div>
+            <p>{{ product.description }}</p>
+
+            <form class="purchase-form" id="purchaseForm">
+                {% if product.variants|length > 1 %}
+                    <fieldset class="variant-options">
+                        <legend>Variant</legend>
+                        {% set differs = product.price_varies %}
+                        {% for variant in product.variants %}
+                            <label class="variant-pill {% if variant.stock <= 0 %}disabled{% endif %}">
+                                <input
+                                    type="radio"
+                                    name="variant"
+                                    value="{{ variant.sku }}"
+                                    data-price="{{ variant.price_cents }}"
+                                    data-stock="{{ variant.stock }}"
+                                    data-sku="{{ variant.sku }}"
+                                    {% if loop.first and variant.stock > 0 %}checked{% endif %}
+                                    {% if variant.stock <= 0 %}disabled{% endif %}
+                                />
+                                <span>{{ variant.name or variant.sku }}</span>
+                                {% if differs %}<small>{{ cents(variant.price_cents) }}</small>{% endif %}
+                                {% if variant.stock <= 0 %}<small>Sold out</small>{% endif %}
+                            </label>
+                        {% endfor %}
+                    </fieldset>
+                {% else %}
+                    {% set variant = product.variants[0] %}
+                    <input
+                        type="hidden"
+                        name="variant"
+                        value="{{ variant.sku }}"
+                        data-price="{{ variant.price_cents }}"
+                        data-stock="{{ variant.stock }}"
+                        data-sku="{{ variant.sku }}"
+                    />
+                {% endif %}
+
+                <div class="quantity-row">
+                    <label for="qtyInput">Quantity</label>
+                    <div class="qty-stepper">
+                        <button type="button" data-qty="-1" aria-label="Decrease quantity">−</button>
+                        <input id="qtyInput" type="number" min="1" value="1" />
+                        <button type="button" data-qty="1" aria-label="Increase quantity">+</button>
+                    </div>
+                </div>
+
+                <div class="sku-line">SKU <span id="selectedSku"></span></div>
+                <button class="btn btn-primary" id="addToCart" type="submit">
+                    <i class="fa-solid fa-bag-shopping"></i>
+                    <span id="addToCartLabel">Add to cart</span>
+                </button>
+                <p class="cart-feedback" id="cartFeedback" role="status"></p>
+            </form>
+        </section>
+    </div>
+
+    <script>
+        (() => {
+            const mainImage = document.getElementById("mainImage");
+            document.querySelectorAll(".thumb-button").forEach((button) => {
+                button.addEventListener("click", () => {
+                    document.querySelectorAll(".thumb-button").forEach((b) => b.classList.remove("active"));
+                    button.classList.add("active");
+                    const img = document.createElement("img");
+                    img.src = button.dataset.src;
+                    img.alt = button.dataset.alt;
+                    mainImage.replaceChildren(img);
+                });
+            });
+
+            const form = document.getElementById("purchaseForm");
+            const qtyInput = document.getElementById("qtyInput");
+            const addButton = document.getElementById("addToCart");
+            const addButtonLabel = document.getElementById("addToCartLabel");
+            const selectedSku = document.getElementById("selectedSku");
+            const detailPrice = document.getElementById("detailPrice");
+            const feedback = document.getElementById("cartFeedback");
+
+            function currentVariant() {
+                return form.querySelector("input[name='variant']:checked") || form.querySelector("input[name='variant']");
+            }
+
+            function money(cents) {
+                return `$${(Number(cents) / 100).toFixed(2)}`;
+            }
+
+            function syncVariant() {
+                const variant = currentVariant();
+                const stock = Number(variant?.dataset.stock || 0);
+                selectedSku.textContent = variant?.dataset.sku || "";
+                detailPrice.textContent = money(variant?.dataset.price || 0);
+                qtyInput.max = Math.max(stock, 1);
+                qtyInput.disabled = stock <= 0;
+                addButton.disabled = stock <= 0;
+                addButtonLabel.textContent = stock <= 0 ? "Sold out" : "Add to cart";
+                if (Number(qtyInput.value) > stock) qtyInput.value = stock || 1;
+            }
+
+            form.querySelectorAll("input[name='variant']").forEach((input) => {
+                input.addEventListener("change", syncVariant);
+            });
+
+            form.querySelectorAll("[data-qty]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    const max = Number(qtyInput.max || 1);
+                    const next = Number(qtyInput.value || 1) + Number(button.dataset.qty);
+                    qtyInput.value = Math.min(Math.max(next, 1), max);
+                });
+            });
+
+            form.addEventListener("submit", (event) => {
+                event.preventDefault();
+                const variant = currentVariant();
+                const stock = Number(variant?.dataset.stock || 0);
+                if (!variant || stock <= 0) return;
+                const sku = variant.dataset.sku;
+                const qty = Math.min(Math.max(Number(qtyInput.value || 1), 1), stock);
+                const cart = window.PSVCart.read();
+                const existing = cart.find((item) => item.sku === sku);
+                if (existing) {
+                    existing.qty = Math.min(existing.qty + qty, stock);
+                } else {
+                    cart.push({ sku, qty });
+                }
+                window.PSVCart.write(cart);
+                feedback.textContent = "Added to cart.";
+            });
+
+            const firstAvailable = form.querySelector("input[name='variant']:not(:disabled)");
+            if (firstAvailable && firstAvailable.type === "radio" && !form.querySelector("input[name='variant']:checked")) {
+                firstAvailable.checked = true;
+            }
+            syncVariant();
+        })();
+    </script>
+{% endblock %}

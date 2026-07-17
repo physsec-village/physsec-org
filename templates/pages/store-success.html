@@ -1,0 +1,47 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/store.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('store_page') }}">Store</a>
+            <span>/</span>
+            <span>Success</span>
+        </div>
+        <h1 class="page-title">Thank <em>You</em></h1>
+        <p class="page-summary">
+            {% if confirmed %}
+                Your checkout is complete. A Stripe receipt will be sent to the
+                email address used during payment.
+            {% else %}
+                Head back to the store to keep browsing.
+            {% endif %}
+        </p>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="page-shell success-panel surface-card">
+        {% if confirmed %}
+            <h2>Order received</h2>
+            <p>Thanks for supporting Physical Security Village.</p>
+        {% else %}
+            <h2>No completed checkout found</h2>
+            <p>
+                We couldn't verify a completed checkout for this visit. If you
+                believe you completed payment, check the email address you used
+                at checkout for a Stripe receipt, or contact us.
+            </p>
+        {% endif %}
+        <a class="btn btn-outline" href="{{ url_for('store_page') }}">Return to store</a>
+    </div>
+    {% if confirmed %}
+        <script>
+            // Server verified the Stripe session, so the purchase is real.
+            window.PSVCart.write([]);
+        </script>
+    {% endif %}
+{% endblock %}

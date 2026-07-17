@@ -13,6 +13,42 @@
                     document.documentElement.dataset.theme = storedTheme;
                 }
             })();
+
+            // Defined in <head> so inline page scripts (cart, checkout
+            // success) can use it before the end-of-body script runs.
+            window.PSVCart = {
+                key: "psv-cart",
+                read() {
+                    try {
+                        const parsed = JSON.parse(window.localStorage.getItem(this.key) || "[]");
+                        if (!Array.isArray(parsed)) return [];
+                        return parsed
+                            .map((item) => ({
+                                sku: String(item.sku || "").toUpperCase(),
+                                qty: Math.max(1, Number(item.qty || 1)),
+                            }))
+                            .filter((item) => item.sku);
+                    } catch {
+                        return [];
+                    }
+                },
+                write(items) {
+                    window.localStorage.setItem(this.key, JSON.stringify(items));
+                    window.dispatchEvent(new CustomEvent("psv-cart-change"));
+                    this.updateBadge();
+                },
+                updateBadge() {
+                    const total = this.read().reduce((sum, item) => sum + Number(item.qty || 0), 0);
+                    document.querySelectorAll("[data-cart-count]").forEach((badge) => {
+                        badge.hidden = total <= 0;
+                        badge.textContent = total;
+                    });
+                },
+            };
+            window.addEventListener("storage", (event) => {
+                if (event.key === window.PSVCart.key) window.PSVCart.updateBadge();
+            });
+            window.addEventListener("psv-cart-change", () => window.PSVCart.updateBadge());
         </script>
         <link
             href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap"
@@ -77,6 +113,8 @@
             };
             updateNavState();
             window.addEventListener("scroll", updateNavState);
+
+            window.PSVCart.updateBadge();
         </script>
     </body>
 </html>

@@ -68,11 +68,54 @@ The contact form depends on SMTP settings supplied through `.env` and loaded by 
 - `MAIL_PASSWORD`
 - `RECEIVER_EMAIL`
 
+The store uses SQLite under `data/store.db`, uploaded product images under
+`data/media/`, and Stripe Checkout for payment. Relevant values are:
+
+- `STRIPE_SECRET_KEY`: Stripe secret key used when creating Checkout Sessions.
+- `STRIPE_WEBHOOK_SECRET`: webhook signing secret for `/store/webhook`.
+- `STRIPE_SHIPPING_RATE_IDS`: optional comma-separated Stripe shipping rate IDs.
+- `STORE_SHIP_COUNTRIES`: comma-separated shipping country codes, default `US,CA`.
+- `STORE_PUBLIC_ORIGIN`: public site origin (e.g. `https://physsec.org`) used for Stripe redirect URLs; set in production.
+- `STORE_AUTOMATIC_TAX`: set to `true` to enable Stripe automatic tax calculation (requires Stripe Tax enabled on the account).
+- `STORE_SEED_MOCK_DATA`: set to `true` in development to seed mock products when the database is empty.
+- `ADMIN_UNPROTECTED`: set to `true` to expose `/admin/store` without authentication for local development only.
+
 Current mail behavior assumes Gmail SMTP:
 
 - server: `smtp.gmail.com`
 - port: `587`
 - STARTTLS enabled
+
+## Store
+
+The merch store is a server-rendered FastAPI/Jinja module under `src/store/`.
+It keeps product, variant, image, checkout cart, order, and order item data in
+SQLite using stdlib `sqlite3`; there is no ORM and no browser framework. The
+public cart lives in `localStorage` as `psv-cart` and is revalidated against the
+database before checkout. Stripe Checkout Sessions are created with inline
+prices from the local database, while the webhook records an order snapshot and
+decrements stock in one SQLite transaction.
+
+For local testing:
+
+```bash
+uv sync
+STORE_SEED_MOCK_DATA=true uv run fastapi dev src/main.py
+```
+
+Checkout creation requires Stripe test credentials:
+
+```bash
+STRIPE_SECRET_KEY=sk_test_... uv run fastapi dev src/main.py
+stripe listen --forward-to localhost:8000/store/webhook
+```
+
+Copy the webhook signing secret printed by `stripe listen` into
+`STRIPE_WEBHOOK_SECRET`. With `STRIPE_SECRET_KEY` unset, `/store/cart` shows the
+friendly "Store checkout is not configured yet." response from the checkout
+endpoint. Enable local product management with `ADMIN_UNPROTECTED=true`; that
+admin section deliberately returns the site 404 unless the variable is exactly
+`true`.
 
 ## Deployment Notes
 
@@ -96,8 +139,6 @@ The repository still contains several stubbed or provisional values that should 
 
 | File | Current placeholder | What should replace it |
 | --- | --- | --- |
-| `templates/navbar.html` | Store nav item disabled with `PSV Store coming soon` / `Store coming soon` | Real store URL or remove the nav item |
-| `templates/footer.html` | Store footer item disabled with `Store coming soon` | Real store URL or remove the footer item |
 | `templates/pages/get-involved.html` | `Sponsorship details coming soon` | Real sponsorship workflow, package, or contact path |
 
 ### Pages with intentionally incomplete content

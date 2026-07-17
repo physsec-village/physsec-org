@@ -1,0 +1,75 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/admin.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <span>Admin Store</span>
+        </div>
+        <h1 class="page-title">Store <em>Admin</em></h1>
+        <p class="page-summary">Product inventory, publishing, and order review.</p>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="admin-shell page-shell">
+        <div class="admin-warning">⚠ Admin is running without authentication (ADMIN_UNPROTECTED=true). Do not expose this in production — auth (Clerk) is planned.</div>
+        {% if saved %}<div class="admin-saved">Changes saved.</div>{% endif %}
+        <div class="admin-toolbar">
+            <a class="btn btn-primary" href="{{ url_for('admin_store_new_page') }}">New product</a>
+            <a class="btn btn-outline" href="{{ url_for('admin_store_orders_page') }}">Orders</a>
+        </div>
+        <div class="admin-table-wrap surface-card">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Base SKU</th>
+                        <th>Category</th>
+                        <th>Variants</th>
+                        <th>Stock</th>
+                        <th>Price</th>
+                        <th>Featured</th>
+                        <th>Published</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                        <tr>
+                            <td>{{ product.name }}</td>
+                            <td><code>{{ product.base_sku }}</code></td>
+                            <td>{{ product.category_label }}</td>
+                            <td>{{ product.variant_count }}</td>
+                            <td>{{ product.total_stock }}</td>
+                            <td>{{ product_price(product) }}</td>
+                            <td>
+                                <form method="post" action="{{ url_for('admin_store_toggle', product_id=product.id, flag='featured') }}">
+                                    <button class="mini-toggle {% if product.featured %}on{% endif %}" type="submit">{{ "Yes" if product.featured else "No" }}</button>
+                                </form>
+                            </td>
+                            <td>
+                                <form method="post" action="{{ url_for('admin_store_toggle', product_id=product.id, flag='published') }}">
+                                    <button class="mini-toggle {% if product.published %}on{% endif %}" type="submit">{{ "Yes" if product.published else "No" }}</button>
+                                </form>
+                            </td>
+                            <td class="admin-actions">
+                                <a href="{{ url_for('admin_store_edit_page', product_id=product.id) }}">Edit</a>
+                                <form method="post" action="{{ url_for('admin_store_delete', product_id=product.id) }}" onsubmit="return confirm('Delete this product?');">
+                                    <button type="submit">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="9">No products yet.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

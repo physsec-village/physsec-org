@@ -1,0 +1,97 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/store.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <span>Store</span>
+        </div>
+        <h1 class="page-title">PSV <em>Store</em></h1>
+        <p class="page-summary">
+            Event merch, training keys, and village gear for supervised demos,
+            workshop tables, and community support.
+        </p>
+    </div>
+{% endblock %}
+
+{% macro placeholder(product) %}
+    <div class="store-thumb-placeholder">
+        {% if product.category_code == "MRC" %}
+            <svg viewBox="0 0 24 24">
+                <path d="M7 4 4 6l3 4v10h10V10l3-4-3-2-3 2h-4L7 4z" />
+                <path d="M10 6c.4 1.2 1.1 1.8 2 1.8S13.6 7.2 14 6" />
+            </svg>
+        {% else %}
+            <svg viewBox="0 0 24 24">
+                <circle cx="7.5" cy="14.5" r="3.5" />
+                <path d="M10 12 21 1" />
+                <path d="m15 7 2 2" />
+                <path d="m18 4 2 2" />
+            </svg>
+        {% endif %}
+    </div>
+{% endmacro %}
+
+{% macro product_card(product, featured=False) %}
+    <a class="store-card {% if featured %}store-card-featured{% endif %}" href="{{ url_for('store_product_page', slug=product.slug) }}">
+        <div class="store-thumb">
+            {% if product.primary_image %}
+                <img src="{{ product.primary_image.url }}" alt="{{ product.primary_image.alt or product.name }}" />
+            {% else %}
+                {{ placeholder(product) }}
+            {% endif %}
+            {% if product.all_sold_out %}
+                <span class="stock-badge">Sold out</span>
+            {% endif %}
+        </div>
+        <div class="store-info">
+            <div class="store-category">{{ product.category_label }}</div>
+            <div class="store-title">{{ product.name }}</div>
+            <div class="store-price">{{ product_price(product) }}</div>
+        </div>
+    </a>
+{% endmacro %}
+
+{% block main %}
+    <div class="store-shell page-shell">
+        {% if featured_products %}
+            <section class="store-section">
+                <div class="section-heading">
+                    <h2>Featured</h2>
+                    <p>Commonly requested items from village demos and merch tables.</p>
+                </div>
+                <div class="featured-grid">
+                    {% for product in featured_products %}
+                        {{ product_card(product, True) }}
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        <section class="store-section">
+            <div class="section-heading">
+                <h2>All products</h2>
+                <p>Published store inventory with live stock checks before checkout.</p>
+            </div>
+            {% if products %}
+                <div class="store-grid">
+                    {% for product in products %}
+                        {{ product_card(product) }}
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                        <path d="M3 6h18" />
+                        <path d="M16 10a4 4 0 0 1-8 0" />
+                    </svg>
+                    <p>No products are published right now.</p>
+                </div>
+            {% endif %}
+        </section>
+    </div>
+{% endblock %}

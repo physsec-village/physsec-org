@@ -1,0 +1,199 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/store.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('store_page') }}">Store</a>
+            <span>/</span>
+            <span>Cart</span>
+        </div>
+        <h1 class="page-title">Your <em>Cart</em></h1>
+        <p class="page-summary">
+            Review quantities before checkout. Shipping and tax are calculated
+            by Stripe during payment.
+        </p>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="cart-shell page-shell">
+        <div class="cart-notice" id="cartNotice" hidden></div>
+        <div class="cart-layout">
+            <section class="cart-items surface-card" id="cartItems"></section>
+            <aside class="cart-summary surface-card">
+                <h2>Summary</h2>
+                <div class="summary-line">
+                    <span>Subtotal</span>
+                    <strong id="subtotal">$0.00</strong>
+                </div>
+                <p>Shipping and tax are calculated at checkout.</p>
+                <button class="btn btn-primary" id="checkoutButton" type="button">
+                    <i class="fa-solid fa-credit-card"></i>
+                    Checkout
+                </button>
+            </aside>
+        </div>
+    </div>
+
+    <template id="emptyTemplate">
+        <div class="empty-state cart-empty">
+            <svg viewBox="0 0 24 24">
+                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                <path d="M3 6h18" />
+                <path d="M16 10a4 4 0 0 1-8 0" />
+            </svg>
+            <p>Your cart is empty.</p>
+            <a class="btn btn-outline" href="{{ url_for('store_page') }}">Browse the store</a>
+        </div>
+    </template>
+
+    <script>
+        (() => {
+            const itemsEl = document.getElementById("cartItems");
+            const notice = document.getElementById("cartNotice");
+            const subtotal = document.getElementById("subtotal");
+            const checkoutButton = document.getElementById("checkoutButton");
+            const emptyTemplate = document.getElementById("emptyTemplate");
+            let hydrated = [];
+
+            function money(cents) {
+                return `$${(Number(cents) / 100).toFixed(2)}`;
+            }
+
+            function esc(value) {
+                const el = document.createElement("span");
+                el.textContent = String(value ?? "");
+                return el.innerHTML;
+            }
+
+            function showNotice(message) {
+                notice.hidden = !message;
+                notice.textContent = message || "";
+            }
+
+            async function refresh() {
+                const cart = window.PSVCart.read();
+                if (!cart.length) {
+                    hydrated = [];
+                    itemsEl.innerHTML = emptyTemplate.innerHTML;
+                    subtotal.textContent = "$0.00";
+                    checkoutButton.disabled = true;
+                    showNotice("");
+                    return;
+                }
+                const response = await fetch("/store/api/cart-info", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ items: cart }),
+                });
+                const data = await response.json();
+                hydrated = data.items.filter((item) => item.qty > 0);
+                window.PSVCart.write(hydrated.map((item) => ({ sku: item.sku, qty: item.qty })));
+                const notices = [];
+                if (data.removed.length) notices.push("Some unavailable items were removed from your cart.");
+                if (data.items.some((item) => item.qty <= 0)) {
+                    notices.push("Sold-out items were removed from your cart.");
+                }
+                const bySku = new Map(cart.map((item) => [item.sku, item.qty]));
+                if (hydrated.some((item) => item.qty < bySku.get(item.sku))) {
+                    notices.push("Some quantities were reduced to match available stock.");
+                }
+                showNotice(notices.join(" "));
+                render();
+            }
+
+            function render() {
+                if (!hydrated.length) {
+                    itemsEl.innerHTML = emptyTemplate.innerHTML;
+                    subtotal.textContent = "$0.00";
+                    checkoutButton.disabled = true;
+                    return;
+                }
+                itemsEl.innerHTML = hydrated.map((item) => `
+                    <article class="cart-row" data-sku="${esc(item.sku)}">
+                        <div class="cart-thumb">
+                            ${item.image_url ? `<img src="${esc(item.image_url)}" alt="">` : `<span>${esc(item.category_code)}</span>`}
+                        </div>
+                        <div class="cart-name">
+                            <a href="/store/products/${esc(item.slug)}">${esc(item.product_name)}</a>
+                            <span>${esc(item.variant_name || "Standard")}</span>
+                            <code>${esc(item.sku)}</code>
+                        </div>
+                        <div class="cart-unit">${money(item.price_cents)}</div>
+                        <div class="qty-stepper">
+                            <button type="button" data-action="dec" aria-label="Decrease quantity">−</button>
+                            <input type="number" min="1" max="${Number(item.stock)}" value="${Number(item.qty)}" aria-label="Quantity for ${esc(item.product_name)}">
+                            <button type="button" data-action="inc" aria-label="Increase quantity">+</button>
+                        </div>
+                        <strong>${money(item.price_cents * item.qty)}</strong>
+                        <button class="remove-item" type="button" aria-label="Remove ${esc(item.product_name)}">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </article>
+                `).join("");
+                subtotal.textContent = money(hydrated.reduce((sum, item) => sum + item.price_cents * item.qty, 0));
+                checkoutButton.disabled = false;
+            }
+
+            itemsEl.addEventListener("click", (event) => {
+                const row = event.target.closest(".cart-row");
+                if (!row) return;
+                const item = hydrated.find((entry) => entry.sku === row.dataset.sku);
+                if (!item) return;
+                if (event.target.closest(".remove-item")) {
+                    hydrated = hydrated.filter((entry) => entry.sku !== item.sku);
+                } else if (event.target.closest("[data-action='dec']")) {
+                    item.qty = Math.max(1, item.qty - 1);
+                } else if (event.target.closest("[data-action='inc']")) {
+                    item.qty = Math.min(item.stock, item.qty + 1);
+                } else {
+                    return;
+                }
+                window.PSVCart.write(hydrated.map((entry) => ({ sku: entry.sku, qty: entry.qty })));
+                render();
+            });
+
+            itemsEl.addEventListener("change", (event) => {
+                const input = event.target.closest("input[type='number']");
+                const row = event.target.closest(".cart-row");
+                if (!input || !row) return;
+                const item = hydrated.find((entry) => entry.sku === row.dataset.sku);
+                if (!item) return;
+                item.qty = Math.min(Math.max(Number(input.value || 1), 1), item.stock);
+                window.PSVCart.write(hydrated.map((entry) => ({ sku: entry.sku, qty: entry.qty })));
+                render();
+            });
+
+            checkoutButton.addEventListener("click", async () => {
+                checkoutButton.disabled = true;
+                showNotice("");
+                try {
+                    const response = await fetch("/store/checkout", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ items: window.PSVCart.read() }),
+                    });
+                    const data = await response.json().catch(() => ({}));
+                    if (response.ok && data.url) {
+                        window.location.href = data.url;
+                        return;
+                    }
+                    if (response.status === 409) await refresh();
+                    showNotice(data.detail || "Checkout could not be started.");
+                } catch {
+                    showNotice("Checkout could not be started. Please try again.");
+                }
+                checkoutButton.disabled = false;
+            });
+
+            refresh().catch(() => {
+                showNotice("Cart could not be loaded. Please try again.");
+                checkoutButton.disabled = true;
+            });
+        })();
+    </script>
+{% endblock %}

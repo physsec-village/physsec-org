@@ -151,7 +151,8 @@ nav.is-scrolled {
 
 .social-icons a,
 .theme-toggle,
-.hamburger {
+.hamburger,
+.cart-link {
     width: 40px;
     height: 40px;
     border-radius: 999px;
@@ -169,7 +170,8 @@ nav.is-scrolled {
 
 .social-icons a:hover,
 .theme-toggle:hover,
-.hamburger:hover {
+.hamburger:hover,
+.cart-link:hover {
     color: var(--text);
     border-color: var(--border-strong);
     background: var(--surface-raised);
@@ -183,6 +185,28 @@ nav.is-scrolled {
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
+}
+
+.cart-link {
+    position: relative;
+    text-decoration: none;
+}
+
+.cart-count {
+    position: absolute;
+    top: -0.2rem;
+    right: -0.2rem;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    padding: 0 0.28rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #09100c;
+    border: 1px solid var(--bg);
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1.05rem;
+    text-align: center;
 }
 
 .social-icons a svg {
@@ -216,22 +240,6 @@ nav.is-scrolled {
     color: rgba(163, 176, 167, 0.52);
     border: 1px dashed rgba(163, 176, 167, 0.22);
     background: rgba(163, 176, 167, 0.04);
-}
-
-.nav-disabled.store-option-1,
-.nav-disabled.store-option-2,
-.menu-disabled.store-option-1,
-.menu-disabled.store-option-2,
-.footer-disabled.store-option-1,
-.footer-disabled.store-option-2 {
-    border-color: transparent;
-    background: transparent;
-}
-
-.nav-disabled.store-option-2::after,
-.menu-disabled.store-option-2::after,
-.footer-disabled.store-option-2::after {
-    display: none;
 }
 
 .dropdown-disabled {
@@ -349,22 +357,6 @@ nav.is-scrolled {
     color: rgba(237, 242, 238, 0.82);
     background: rgba(163, 176, 167, 0.08);
     border-color: rgba(163, 176, 167, 0.34);
-}
-
-.nav-disabled.store-option-1:hover,
-.nav-disabled.store-option-1:focus-visible,
-.nav-disabled.store-option-2:hover,
-.nav-disabled.store-option-2:focus-visible,
-.menu-disabled.store-option-1:hover,
-.menu-disabled.store-option-1:focus-visible,
-.menu-disabled.store-option-2:hover,
-.menu-disabled.store-option-2:focus-visible,
-.footer-disabled.store-option-1:hover,
-.footer-disabled.store-option-1:focus-visible,
-.footer-disabled.store-option-2:hover,
-.footer-disabled.store-option-2:focus-visible {
-    background: transparent;
-    border-color: transparent;
 }
 
 .menu-disabled::after {

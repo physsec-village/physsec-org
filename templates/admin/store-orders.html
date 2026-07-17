@@ -1,0 +1,59 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/admin.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('admin_store_page') }}">Admin Store</a>
+            <span>/</span>
+            <span>Orders</span>
+        </div>
+        <h1 class="page-title">Store <em>Orders</em></h1>
+        <p class="page-summary">Read-only Stripe Checkout order snapshots.</p>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="admin-shell page-shell">
+        <div class="admin-warning">⚠ Admin is running without authentication (ADMIN_UNPROTECTED=true). Do not expose this in production — auth (Clerk) is planned.</div>
+        <div class="admin-toolbar">
+            <a class="btn btn-outline" href="{{ url_for('admin_store_page') }}">Products</a>
+        </div>
+        <div class="admin-table-wrap surface-card">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Email</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Items</th>
+                        <th>Stripe session</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                        <tr>
+                            <td>{{ order.created_at }}</td>
+                            <td>{{ order.email or "—" }}</td>
+                            <td>{{ cents(order.amount_total_cents or 0) }}</td>
+                            <td><span class="status-pill {{ order.status }}">{{ order.status }}</span></td>
+                            <td>
+                                {# order is a dict, so order.items would be the dict method #}
+                                {% for item in order["items"] %}
+                                    <div>{{ item.quantity }}× {{ item.product_name }}{% if item.variant_name %} / {{ item.variant_name }}{% endif %}</div>
+                                {% endfor %}
+                            </td>
+                            <td><code>{{ order.stripe_session_id[:18] }}…</code></td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6">No orders yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

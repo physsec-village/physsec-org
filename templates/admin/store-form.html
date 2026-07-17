@@ -1,0 +1,138 @@
+{% extends "base.html" %} {% block styles %}
+<link href="/static/pages/admin.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('admin_store_page') }}">Admin Store</a>
+            <span>/</span>
+            <span>{{ title }}</span>
+        </div>
+        <h1 class="page-title">{{ title }}</h1>
+        <p class="page-summary">Manage product details, variants, stock, and images.</p>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="admin-shell page-shell">
+        <div class="admin-warning">⚠ Admin is running without authentication (ADMIN_UNPROTECTED=true). Do not expose this in production — auth (Clerk) is planned.</div>
+        {% if saved %}<div class="admin-saved">Changes saved.</div>{% endif %}
+        {% if error %}<div class="admin-error">{{ error }}</div>{% endif %}
+
+        <form class="admin-form surface-card" method="post" enctype="multipart/form-data">
+            <div class="form-grid">
+                <label>Name <input id="productName" name="name" value="{{ product.name }}" required /></label>
+                <label>Slug <input id="productSlug" name="slug" value="{{ product.slug }}" required /></label>
+                <label>Base SKU <input id="baseSku" name="base_sku" value="{{ product.base_sku }}" placeholder="PSV-KYS-023" required /></label>
+                <label>Category label <input name="category_label" value="{{ product.category_label }}" /></label>
+                <label class="full">Description <textarea name="description" rows="5">{{ product.description }}</textarea></label>
+                <label class="check"><input type="checkbox" name="featured" value="true" {% if product.featured %}checked{% endif %} /> Featured</label>
+                <label class="check"><input type="checkbox" name="published" value="true" {% if product.published %}checked{% endif %} /> Published</label>
+            </div>
+
+            <section class="admin-subsection">
+                <div class="admin-subhead">
+                    <h2>Variants</h2>
+                    <button class="btn btn-outline" id="addVariant" type="button">Add variant</button>
+                </div>
+                <div class="variant-table" id="variantRows">
+                    <div class="variant-header">
+                        <span>Name</span><span>SKU suffix</span><span>Price</span><span>Stock</span><span>Position</span><span></span>
+                    </div>
+                    {% for variant in product.variants %}
+                        <div class="variant-row">
+                            <input name="variant_names" value="{{ variant.name }}" placeholder="Standard" aria-label="Variant name" />
+                            <div class="suffix-field"><span class="sku-prefix">{{ product.base_sku }}{% if product.base_sku %}-{% endif %}</span><input name="variant_suffixes" value="{{ variant.suffix }}" maxlength="3" placeholder="001" aria-label="Variant SKU suffix" /></div>
+                            <input name="variant_prices" value="{{ dollars_from_cents(variant.price_cents) }}" inputmode="decimal" required aria-label="Variant price in dollars" />
+                            <input name="variant_stocks" type="number" min="0" value="{{ variant.stock }}" required aria-label="Variant stock" />
+                            <input name="variant_positions" type="number" value="{{ variant.position }}" required aria-label="Variant position" />
+                            <button class="remove-row" type="button" aria-label="Remove variant">×</button>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="admin-subsection">
+                <h2>Images</h2>
+                {% if product.images %}
+                    <div class="image-list">
+                        {% for image in product.images %}
+                            <div class="image-row">
+                                <input type="hidden" name="image_ids" value="{{ image.id }}" />
+                                <div class="admin-thumb"><img src="{{ image.url }}" alt="{{ image.alt }}" /></div>
+                                <label>Alt <input name="image_alts" value="{{ image.alt }}" /></label>
+                                <label>Position <input name="image_positions" type="number" value="{{ image.position }}" /></label>
+                                <label class="check"><input type="checkbox" name="delete_image_ids" value="{{ image.id }}" /> Delete</label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <label class="file-input">Upload images <input name="image_files" type="file" multiple accept=".png,.jpg,.jpeg,.webp" /></label>
+            </section>
+
+            <div class="admin-form-actions">
+                <button class="btn btn-primary" type="submit">Save product</button>
+                <a class="btn btn-ghost" href="{{ url_for('admin_store_page') }}">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <template id="variantTemplate">
+        <div class="variant-row">
+            <input name="variant_names" value="" placeholder="Standard" aria-label="Variant name" />
+            <div class="suffix-field"><span class="sku-prefix"></span><input name="variant_suffixes" value="" maxlength="3" placeholder="001" aria-label="Variant SKU suffix" /></div>
+            <input name="variant_prices" value="0.00" inputmode="decimal" required aria-label="Variant price in dollars" />
+            <input name="variant_stocks" type="number" min="0" value="0" required aria-label="Variant stock" />
+            <input name="variant_positions" type="number" value="0" required aria-label="Variant position" />
+            <button class="remove-row" type="button" aria-label="Remove variant">×</button>
+        </div>
+    </template>
+
+    <script>
+        (() => {
+            const nameInput = document.getElementById("productName");
+            const slugInput = document.getElementById("productSlug");
+            const baseSku = document.getElementById("baseSku");
+            const rows = document.getElementById("variantRows");
+            const template = document.getElementById("variantTemplate");
+            const isNew = !{{ product.id or "false" }};
+            let slugTouched = Boolean(slugInput.value);
+
+            function slugify(value) {
+                return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "product";
+            }
+
+            function updatePrefixes() {
+                const prefix = baseSku.value.trim().toUpperCase();
+                document.querySelectorAll(".sku-prefix").forEach((el) => {
+                    el.textContent = prefix ? `${prefix}-` : "";
+                });
+            }
+
+            nameInput.addEventListener("input", () => {
+                if (isNew && !slugTouched) slugInput.value = slugify(nameInput.value);
+            });
+            slugInput.addEventListener("input", () => slugTouched = true);
+            baseSku.addEventListener("input", updatePrefixes);
+
+            document.getElementById("addVariant").addEventListener("click", () => {
+                const clone = template.content.firstElementChild.cloneNode(true);
+                clone.querySelector("[name='variant_positions']").value = rows.querySelectorAll(".variant-row").length;
+                rows.appendChild(clone);
+                updatePrefixes();
+            });
+
+            rows.addEventListener("click", (event) => {
+                if (!event.target.classList.contains("remove-row")) return;
+                const variantRows = rows.querySelectorAll(".variant-row");
+                if (variantRows.length <= 1) return;
+                event.target.closest(".variant-row").remove();
+            });
+
+            updatePrefixes();
+        })();
+    </script>
+{% endblock %}
