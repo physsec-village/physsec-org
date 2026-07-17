@@ -8,6 +8,7 @@ from fastapi_mail import FastMail, MessageSchema, MessageType
 
 from .email import get_mail_config, get_settings
 from .models import FormSchema
+from .turnstile import verify_turnstile_token
 
 from ..dependencies import templates
 from ..limiter import limiter
@@ -57,6 +58,13 @@ async def simple_send(
         # Honeypot field was filled in; pretend success so bots can't tell
         logger.warning("Honeypot triggered by %s <%s>", email.name, email.email)
         return JSONResponse(status_code=200, content={"message": "email has been sent"})
+
+    client_ip = request.client.host if request.client else None
+    if not await verify_turnstile_token(email.turnstile_token, client_ip):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "CAPTCHA verification failed. Please try again."},
+        )
 
     logger.info(
         "Contact form submission from %s <%s> (subject: %r)",

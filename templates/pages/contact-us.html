@@ -1,5 +1,8 @@
 {% extends "base.html" %} {% block styles %}
 <link href="/static/pages/forms.css" rel="stylesheet" />
+{% if turnstile_site_key %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
 {% endblock %}
 {% block page_header %}
     <div class="page-header-inner">
@@ -53,11 +56,20 @@
                         <label for="message">Message</label>
                         <textarea id="message" placeholder="Tell us what's on your mind..." style="min-height: 140px" maxlength="5000" required></textarea>
                     </div>
+                    {% if turnstile_site_key %}
+                    <div class="field full">
+                        <div
+                            class="cf-turnstile"
+                            data-sitekey="{{ turnstile_site_key }}"
+                            data-action="contact"
+                        ></div>
+                    </div>
+                    {% endif %}
                     <div class="form-submit-row">
                         <span class="form-note">
                             Fields without <span class="opt" style="opacity: 1; color: var(--muted)">(optional)</span> are required.
                         </span>
-                        <button class="btn btn-primary" type="submit">
+                        <button class="btn btn-primary" id="contactSubmit" type="submit">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                 <line x1="22" y1="2" x2="11" y2="13" />
                                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
@@ -87,12 +99,17 @@
         async function submitContactForm(event) {
             event.preventDefault();
 
+            const submitButton = document.getElementById("contactSubmit");
+            const turnstileInput = document.querySelector('[name="cf-turnstile-response"]');
+            submitButton.disabled = true;
+
             const data = {
                 name: document.getElementById("name").value,
                 email: document.getElementById("email").value,
                 subject: document.getElementById("subject").value,
                 message: document.getElementById("message").value,
-                website: document.getElementById("website").value
+                website: document.getElementById("website").value,
+                turnstile_token: turnstileInput ? turnstileInput.value : ""
             };
 
             try {
@@ -112,9 +129,17 @@
                         ? errData.detail
                         : "Please check your input and try again.";
                     alert("Failed to send email: " + detail);
+                    if (window.turnstile) {
+                        window.turnstile.reset();
+                    }
                 }
             } catch (error) {
                 alert("Error sending email: " + error);
+                if (window.turnstile) {
+                    window.turnstile.reset();
+                }
+            } finally {
+                submitButton.disabled = false;
             }
         }
     </script>

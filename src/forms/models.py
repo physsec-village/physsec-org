@@ -16,6 +16,8 @@ class FormSchema(BaseModel):
     subject: SingleLine
     # Honeypot: hidden field on the form, empty for humans
     website: str = Field(default="", max_length=500)
+    # Cloudflare Turnstile response token (empty when Turnstile is disabled)
+    turnstile_token: str = Field(default="", max_length=2048)
 
     @field_validator("name", "subject")
     @classmethod

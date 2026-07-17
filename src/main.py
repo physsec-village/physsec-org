@@ -8,6 +8,7 @@ from starlette.responses import JSONResponse
 
 from .forms.email import get_mail_config
 from .forms.router import router as form_router
+from .forms.turnstile import get_turnstile_settings
 from .limiter import limiter
 from .router import router as root_router
 from .router import not_found
@@ -30,8 +31,9 @@ exceptions = {
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Fail at startup, not on first submission, if mail env vars are missing
+    # Fail at startup, not on first submission, if required configuration is invalid
     get_mail_config()
+    get_turnstile_settings()
     yield
 
 
