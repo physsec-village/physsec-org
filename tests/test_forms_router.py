@@ -50,7 +50,9 @@ class ContactDeliveryTests(unittest.IsolatedAsyncioTestCase):
         deliver.assert_awaited_once()
 
     async def test_delivery_failure_returns_error_without_logging_pii(self):
-        deliver = AsyncMock(side_effect=RuntimeError("SMTP unavailable"))
+        deliver = AsyncMock(
+            side_effect=RuntimeError("SMTP rejected private@example.com")
+        )
         with (
             patch(
                 "src.forms.router.verify_turnstile_token",
@@ -65,7 +67,7 @@ class ContactDeliveryTests(unittest.IsolatedAsyncioTestCase):
         ):
             response = await simple_send(request=request(), email=contact_form())
 
-        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.status_code, 500)
         combined_logs = "\n".join(logs.output)
         self.assertNotIn("Private Name", combined_logs)
         self.assertNotIn("private@example.com", combined_logs)

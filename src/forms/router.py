@@ -79,10 +79,12 @@ async def simple_send(
     try:
         await send_contact_email(message)
     except Exception:
-        logger.exception("Email delivery failed for submission %s", submission_id)
+        # SMTP errors can contain message data, and a timeout may occur after
+        # delivery. Log neither the exception nor advice that could duplicate it.
+        logger.error("Email delivery outcome unknown for submission %s", submission_id)
         return JSONResponse(
-            status_code=502,
-            content={"detail": "Message delivery failed. Please try again later."},
+            status_code=500,
+            content={"detail": "We couldn't confirm whether the message was delivered."},
         )
 
     logger.info("Email delivered for submission %s", submission_id)
