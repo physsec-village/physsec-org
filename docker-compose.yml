@@ -6,3 +6,7 @@ services:
       - "127.0.0.1:8080:8080"
     env_file:
       - .env
+    environment:
+      # Trust proxy headers only from Docker bridge networks. The reverse
+      # proxy must overwrite, rather than append to, X-Forwarded-For.
+      - FORWARDED_ALLOW_IPS=172.16.0.0/12

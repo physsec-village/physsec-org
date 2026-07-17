@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from .dependencies import templates
+from .forms.turnstile import get_turnstile_settings
 
 router = APIRouter()
 
@@ -28,7 +29,11 @@ def content_page(request: Request):
 
 @router.get("/contact", response_class=HTMLResponse)
 def contact_us_page(request: Request):
-    return templates.TemplateResponse(request=request, name="pages/contact-us.html")
+    return templates.TemplateResponse(
+        request=request,
+        name="pages/contact-us.html",
+        context={"turnstile_site_key": get_turnstile_settings().turnstile_site_key},
+    )
 
 
 @router.get("/talks", response_class=HTMLResponse)
