@@ -68,11 +68,16 @@ The contact form depends on SMTP settings supplied through `.env` and loaded by 
 - `MAIL_PASSWORD`
 - `RECEIVER_EMAIL`
 
-Current mail behavior assumes Gmail SMTP:
+These optional values override the Gmail SMTP defaults:
 
-- server: `smtp.gmail.com`
-- port: `587`
-- STARTTLS enabled
+- `MAIL_SERVER` (default: `smtp.gmail.com`)
+- `MAIL_PORT` (default: `587`)
+- `MAIL_STARTTLS` (default: `true`)
+- `MAIL_VALIDATE_CERTS` (default: `true`)
+
+The compose file also sets `FORWARDED_ALLOW_IPS=*` so uvicorn trusts
+`X-Forwarded-For` from the reverse proxy; per-IP rate limiting on the contact
+form depends on it.
 
 ## Deployment Notes
 

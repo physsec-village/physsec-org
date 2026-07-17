@@ -6,3 +6,8 @@ services:
       - "127.0.0.1:8080:8080"
     env_file:
       - .env
+    environment:
+      # Trust X-Forwarded-For from the reverse proxy (which reaches the
+      # container from the docker bridge, not 127.0.0.1). Safe because the
+      # port is only published on 127.0.0.1.
+      - FORWARDED_ALLOW_IPS=*

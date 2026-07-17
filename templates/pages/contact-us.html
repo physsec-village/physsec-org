@@ -23,7 +23,12 @@
                     <div class="form-section-label">Your Information</div>
                     <div class="field">
                         <label for="name">Name</label>
-                        <input type="text" id="name" placeholder="Your name or handle" required />
+                        <input type="text" id="name" placeholder="Your name or handle" maxlength="200" required />
+                    </div>
+                    <!-- Honeypot: hidden from humans, bots tend to fill it -->
+                    <div style="position: absolute; left: -9999px; top: auto; overflow: hidden" aria-hidden="true">
+                        <label for="website">Website</label>
+                        <input type="text" id="website" name="website" autocomplete="off" tabindex="-1" />
                     </div>
                     <div class="field">
                         <label for="email">Email</label>
@@ -46,7 +51,7 @@
                     </div>
                     <div class="field full">
                         <label for="message">Message</label>
-                        <textarea id="message" placeholder="Tell us what's on your mind..." style="min-height: 140px" required></textarea>
+                        <textarea id="message" placeholder="Tell us what's on your mind..." style="min-height: 140px" maxlength="5000" required></textarea>
                     </div>
                     <div class="form-submit-row">
                         <span class="form-note">
@@ -86,7 +91,8 @@
                 name: document.getElementById("name").value,
                 email: document.getElementById("email").value,
                 subject: document.getElementById("subject").value,
-                message: document.getElementById("message").value
+                message: document.getElementById("message").value,
+                website: document.getElementById("website").value
             };
 
             try {
@@ -102,7 +108,10 @@
                 } else {
                     const errData = await response.json();
                     console.log(errData)
-                    alert("Failed to send email: " + (errData.detail || "Unknown error"));
+                    const detail = typeof errData.detail === "string"
+                        ? errData.detail
+                        : "Please check your input and try again.";
+                    alert("Failed to send email: " + detail);
                 }
             } catch (error) {
                 alert("Error sending email: " + error);
