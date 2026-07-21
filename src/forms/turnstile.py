@@ -1,5 +1,6 @@
 import logging
 from functools import lru_cache
+from typing import Literal
 
 import httpx
 from pydantic import model_validator
@@ -13,6 +14,7 @@ VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 class TurnstileSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    app_env: Literal["development", "test", "production"] = "development"
     # Both empty (the default) disables Turnstile entirely
     turnstile_site_key: str = ""
     turnstile_secret_key: str = ""
@@ -34,6 +36,8 @@ class TurnstileSettings(BaseSettings):
             )
         if self.turnstile_secret_key and not self.allowed_hostnames:
             raise ValueError("TURNSTILE_ALLOWED_HOSTNAMES must not be empty")
+        if self.app_env == "production" and not self.turnstile_secret_key:
+            raise ValueError("Turnstile must be configured when APP_ENV=production")
         return self
 
 

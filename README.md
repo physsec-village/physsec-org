@@ -81,13 +81,21 @@ Turnstile uses `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and an optional
 comma-separated `TURNSTILE_ALLOWED_HOSTNAMES` allowlist (default:
 `physsec.org,www.physsec.org`).
 
+`APP_ENV` defaults to `development`. Docker Compose sets it to `production`,
+which makes both Turnstile keys mandatory and causes startup to fail if bot
+protection is missing or only partially configured.
+The deployment workflow also restricts `.env` to the deployment account with
+mode `0600` before restarting the service.
+
 The compose file restricts Uvicorn's trusted proxy headers to Docker bridge
 networks. The reverse proxy must replace any client-supplied `X-Forwarded-For`
 header rather than append to it; per-IP rate limiting depends on this boundary.
 
 ## Deployment Notes
 
-- The `Dockerfile` starts the site with `fastapi run src/main.py --proxy-headers --port 8080`.
+- The `Dockerfile` installs the exact dependency versions in `uv.lock` with a
+  pinned uv release and pinned Python base-image digest, then starts the site
+  with `fastapi run src/main.py --proxy-headers --port 8080`.
 - `psv-website.service` expects the repository to live at `/opt/psv-website`.
 - The service file is an example deployment artifact, not a portable installer; adjust paths and service management to match the target host.
 

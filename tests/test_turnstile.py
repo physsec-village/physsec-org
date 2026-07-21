@@ -22,6 +22,24 @@ class TurnstileSettingsTests(unittest.TestCase):
                 turnstile_site_key="site", turnstile_secret_key="", _env_file=None
             )
 
+    def test_production_requires_turnstile(self):
+        with self.assertRaisesRegex(ValueError, "must be configured"):
+            TurnstileSettings(
+                app_env="production",
+                turnstile_site_key="",
+                turnstile_secret_key="",
+                _env_file=None,
+            )
+
+    def test_production_accepts_complete_turnstile_configuration(self):
+        settings = TurnstileSettings(
+            app_env="production",
+            turnstile_site_key="site",
+            turnstile_secret_key="secret",
+            _env_file=None,
+        )
+        self.assertEqual(settings.app_env, "production")
+
     def test_enabled_turnstile_requires_allowed_hostname(self):
         with self.assertRaisesRegex(ValueError, "must not be empty"):
             TurnstileSettings(

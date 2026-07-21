@@ -21,5 +21,6 @@ jobs:
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
             git pull origin main
+            chmod 600 .env
             sudo systemctl daemon-reload
             sudo systemctl restart psv-website.service
