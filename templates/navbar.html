@@ -98,7 +98,13 @@
             </svg>
         </button>
 
-        <button class="hamburger" id="hamburger" aria-label="Menu">
+        <button
+            class="hamburger"
+            id="hamburger"
+            aria-label="Open menu"
+            aria-controls="mobileMenu"
+            aria-expanded="false"
+        >
             <svg viewBox="0 0 24 24">
                 <line x1="3" y1="6" x2="21" y2="6" />
                 <line x1="3" y1="12" x2="21" y2="12" />
@@ -109,15 +115,15 @@
 </nav>
 
 <!-- MOBILE MENU -->
-<div class="mobile-menu" id="mobileMenu">
-    <a id="mobile-home-link" href="{{ url_for('home_page') }}" onclick="closeMobile()">Home</a>
-    <a href="{{ url_for('about_us_page') }}" onclick="closeMobile()"
+<div class="mobile-menu" id="mobileMenu" aria-label="Mobile navigation" hidden>
+    <a id="mobile-home-link" href="{{ url_for('home_page') }}">Home</a>
+    <a href="{{ url_for('about_us_page') }}"
         >About Us</a
     >
-    <a href="{{ url_for('get_involved_page') }}" onclick="closeMobile()"
+    <a href="{{ url_for('get_involved_page') }}"
         >Get Involved</a
     >
-    <a href="{{ url_for('content_page') }}" onclick="closeMobile()">Content</a>
+    <a href="{{ url_for('content_page') }}">Content</a>
     <span
         class="menu-disabled store-option-1"
         tabindex="0"
@@ -127,7 +133,7 @@
         <span class="disabled-label">Store</span>
         <span class="disabled-state">Soon</span>
     </span>
-    <a href="{{ url_for('contact_us_page') }}" onclick="closeMobile()"
+    <a href="{{ url_for('contact_us_page') }}"
         >Contact Us</a
     >
 </div>

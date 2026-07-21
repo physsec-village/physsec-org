@@ -81,15 +81,36 @@ Turnstile uses `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and an optional
 comma-separated `TURNSTILE_ALLOWED_HOSTNAMES` allowlist (default:
 `physsec.org,www.physsec.org`).
 
+`APP_ENV` defaults to `development`. Docker Compose sets it to `production`,
+which makes both Turnstile keys mandatory and causes startup to fail if bot
+protection is missing or only partially configured.
+The deployment workflow also restricts `.env` to the deployment account with
+mode `0600` before restarting the service.
+
 The compose file restricts Uvicorn's trusted proxy headers to Docker bridge
 networks. The reverse proxy must replace any client-supplied `X-Forwarded-For`
 header rather than append to it; per-IP rate limiting depends on this boundary.
 
 ## Deployment Notes
 
-- The `Dockerfile` starts the site with `fastapi run src/main.py --proxy-headers --port 8080`.
+- The `Dockerfile` installs the exact dependency versions in `uv.lock` with a
+  pinned uv release and pinned Python base-image digest, then starts the site
+  with `fastapi run src/main.py --proxy-headers --port 8080`.
 - `psv-website.service` expects the repository to live at `/opt/psv-website`.
 - The service file is an example deployment artifact, not a portable installer; adjust paths and service management to match the target host.
+- The app serves a `/healthz` endpoint, and the compose file defines a matching
+  container health check.
+- Deploys run `systemctl reload-or-restart psv-website.service`; the unit's
+  `ExecReload` invokes [`deploy/deploy.sh`](deploy/deploy.sh), which builds the
+  new image while the old container keeps serving, swaps containers only after
+  the new one passes its health check, and otherwise rolls back to the
+  previously tagged image (`psv-website:previous`) and fails the deploy.
+  `ExecStart` runs the same script, so boot and inactive-unit deploys get the
+  same health gate; `ExecStop` remains the shutdown path.
+- A production nginx reverse-proxy configuration and security-header policy are
+  versioned under [`deploy/nginx`](deploy/nginx/README.md). Install them on the
+  host only after adapting certificate and distribution-specific paths, then
+  validate with `nginx -t` before reloading nginx.
 
 ## Placeholders To Replace
 
@@ -119,20 +140,19 @@ The repository still contains several stubbed or provisional values that should 
 | `templates/pages/materials.html` | Materials page says written reference material is still being expanded and only offers contact/Discord paths | Real documents, slide decks, references, downloads, or external resources |
 | `templates/pages/calls.html` | Several opportunities are generic, rolling, seasonal, or "published when the next CFP window opens" rather than event-specific | Actual conference names, dates, deadlines, and submission/application links |
 
-### Stub data and mock interactions
+### Stub data
 
 | File | Current placeholder | What should replace it |
 | --- | --- | --- |
 | `templates/pages/talks.html` | Hard-coded sample talk archive entries with generic speaker names and no recordings/external links | Real PSV talks, speakers, dates, and media links |
-| `templates/pages/volunteer-form.html` | Form submit handler only hides the form and shows a success message; no backend submission exists | Real submission flow, validation, storage, and notification handling |
 
 ### Legacy external asset/link dependencies to review
 
 | File | Current placeholder | What should replace it |
 | --- | --- | --- |
-| `templates/pages/games.html` | Thumbnails and game links point at legacy `physsec.org` WordPress/game URLs | Confirmed maintained URLs or locally managed assets/routes |
+| `templates/pages/games.html` | Game links point at legacy `physsec.org` game URLs; thumbnails are now locally managed | Confirmed maintained game URLs or locally managed routes |
 | `templates/pages/games/hid.html` | Embedded image paths reference archived `/web/...` URLs | Local static assets or current maintained URLs |
 
 ## Current State Summary
 
-The site already has a coherent frontend structure, a working FastAPI app shell, and a contact email path. The main unfinished areas are organizational content, real event/archive data, store/sponsorship decisions, volunteer form backend integration, and deployment-specific configuration.
+The site already has a coherent frontend structure, working contact and volunteer email paths, and locally managed game thumbnails. The main unfinished areas are organizational content, real event/archive data, store/sponsorship decisions, legacy game routes, and deployment-specific configuration.

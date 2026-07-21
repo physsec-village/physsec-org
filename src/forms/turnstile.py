@@ -1,5 +1,6 @@
 import logging
 from functools import lru_cache
+from typing import Literal
 
 import httpx
 from pydantic import model_validator
@@ -13,6 +14,7 @@ VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 class TurnstileSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    app_env: Literal["development", "test", "production"] = "development"
     # Both empty (the default) disables Turnstile entirely
     turnstile_site_key: str = ""
     turnstile_secret_key: str = ""
@@ -34,6 +36,8 @@ class TurnstileSettings(BaseSettings):
             )
         if self.turnstile_secret_key and not self.allowed_hostnames:
             raise ValueError("TURNSTILE_ALLOWED_HOSTNAMES must not be empty")
+        if self.app_env == "production" and not self.turnstile_secret_key:
+            raise ValueError("Turnstile must be configured when APP_ENV=production")
         return self
 
 
@@ -42,7 +46,9 @@ def get_turnstile_settings() -> TurnstileSettings:
     return TurnstileSettings()
 
 
-async def verify_turnstile_token(token: str, remote_ip: str | None) -> bool:
+async def verify_turnstile_token(
+    token: str, remote_ip: str | None, expected_action: str = "contact"
+) -> bool:
     """Verify a contact-form token with Cloudflare when Turnstile is enabled."""
     settings = get_turnstile_settings()
     if not settings.turnstile_secret_key:
@@ -70,7 +76,7 @@ async def verify_turnstile_token(token: str, remote_ip: str | None) -> bool:
     if not outcome.get("success"):
         logger.warning("Turnstile rejected token: %s", outcome.get("error-codes"))
         return False
-    if outcome.get("action") != "contact":
+    if outcome.get("action") != expected_action:
         logger.warning("Turnstile returned unexpected action: %r", outcome.get("action"))
         return False
     hostname = outcome.get("hostname")

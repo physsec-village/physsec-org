@@ -322,6 +322,10 @@ nav.is-scrolled {
     transition: transform var(--transition);
 }
 
+.mobile-menu[hidden] {
+    display: none;
+}
+
 .mobile-menu.open {
     transform: translateY(0);
 }

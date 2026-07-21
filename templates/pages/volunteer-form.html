@@ -1,5 +1,11 @@
-{% extends "base.html" %} {% block styles %}
+{% extends "base.html" %}
+{% block title %}Volunteer With PSV | Physical Security Village{% endblock %}
+{% block description %}Apply to volunteer with Physical Security Village and tell us which events interest you, how you can help, and your relevant experience.{% endblock %}
+{% block styles %}
 <link href="/static/pages/forms.css" rel="stylesheet" />
+{% if turnstile_site_key %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
 {% endblock %}
 {% block page_header %}
     <div class="page-header-inner">
@@ -20,31 +26,39 @@
 {% block main %}
     <div class="forms-inner">
         <div class="vol-form-wrap">
-            <form id="volForm">
+            <form id="volForm" onsubmit="submitVolForm(event)">
                 <div class="form-grid">
                     <div class="form-section-label">Basic Information</div>
 
                     <div class="field">
-                        <label>Name</label>
-                        <input type="text" placeholder="Your name or handle" />
+                        <label for="volName">Name</label>
+                        <input type="text" id="volName" placeholder="Your name or handle" maxlength="200" required />
                     </div>
                     <div class="field">
-                        <label>Email</label>
-                        <input type="email" placeholder="you@example.com" />
+                        <label for="volEmail">Email</label>
+                        <input type="email" id="volEmail" placeholder="you@example.com" required />
+                    </div>
+                    <div style="position: absolute; left: -9999px; top: auto; overflow: hidden" aria-hidden="true">
+                        <label for="volWebsite">Website</label>
+                        <input type="text" id="volWebsite" name="website" autocomplete="off" tabindex="-1" />
                     </div>
 
                     <hr class="form-divider" />
                     <div class="form-section-label">Discord</div>
 
                     <div class="field">
-                        <label>Discord Handle</label>
-                        <input type="text" placeholder="username" />
+                        <label for="discordHandle">Discord Handle</label>
+                        <input type="text" id="discordHandle" placeholder="username" maxlength="200" required />
                     </div>
                     <div class="field">
-                        <label>Discord User ID</label>
+                        <label for="discordUserId">Discord User ID</label>
                         <input
                             type="text"
+                            id="discordUserId"
                             placeholder="e.g. 123456789012345678"
+                            inputmode="numeric"
+                            pattern="[0-9]{17,20}"
+                            required
                         />
                     </div>
 
@@ -52,11 +66,11 @@
                     <div class="form-section-label">Personal Details</div>
 
                     <div class="field">
-                        <label
+                        <label for="shirtSize"
                             >Shirt Size
                             <span class="opt">(optional)</span></label
                         >
-                        <select>
+                        <select id="shirtSize">
                             <option value="" disabled selected>
                                 Select a size
                             </option>
@@ -71,34 +85,36 @@
                         </select>
                     </div>
                     <div class="field">
-                        <label
+                        <label for="volLocation"
                             >Location <span class="opt">(optional)</span></label
                         >
                         <input
                             type="text"
+                            id="volLocation"
                             placeholder="City, Country, or however specific you want to get"
+                            maxlength="200"
                         />
                     </div>
 
                     <div class="field full">
-                        <label>Food Limitations</label>
+                        <label for="foodLimitations">Food Limitations</label>
                         <input
                             type="text"
+                            id="foodLimitations"
                             placeholder="e.g. vegetarian, gluten-free, nut allergy - or 'None'"
+                            maxlength="200"
+                            required
                         />
                     </div>
 
                     <hr class="form-divider" />
                     <div class="form-section-label">Conferences</div>
 
-                    <div class="field full">
-                        <label
-                            >Which conferences are you interested in
-                            volunteering for?</label
-                        >
+                    <fieldset class="field full">
+                        <legend>Which conferences are you interested in volunteering for?</legend>
                         <div class="check-group">
                             <label class="check-pill">
-                                <input type="checkbox" value="RSAC" />
+                                <input type="checkbox" name="conferences" value="RSAC" />
                                 <span class="pill-box"
                                     ><svg viewBox="0 0 10 10">
                                         <polyline
@@ -108,7 +124,7 @@
                                 <span>RSAC</span>
                             </label>
                             <label class="check-pill">
-                                <input type="checkbox" value="HOPE" />
+                                <input type="checkbox" name="conferences" value="HOPE" />
                                 <span class="pill-box"
                                     ><svg viewBox="0 0 10 10">
                                         <polyline
@@ -118,7 +134,7 @@
                                 <span>HOPE</span>
                             </label>
                             <label class="check-pill">
-                                <input type="checkbox" value="DEF CON" />
+                                <input type="checkbox" name="conferences" value="DEF CON" />
                                 <span class="pill-box"
                                     ><svg viewBox="0 0 10 10">
                                         <polyline
@@ -128,7 +144,7 @@
                                 <span>DEF CON</span>
                             </label>
                             <label class="check-pill">
-                                <input type="checkbox" value="Ekoparty" />
+                                <input type="checkbox" name="conferences" value="Ekoparty" />
                                 <span class="pill-box"
                                     ><svg viewBox="0 0 10 10">
                                         <polyline
@@ -138,7 +154,7 @@
                                 <span>Ekoparty</span>
                             </label>
                             <label class="check-pill">
-                                <input type="checkbox" value="Northsec" />
+                                <input type="checkbox" name="conferences" value="Northsec" />
                                 <span class="pill-box"
                                     ><svg viewBox="0 0 10 10">
                                         <polyline
@@ -148,19 +164,20 @@
                                 <span>Northsec</span>
                             </label>
                         </div>
-                    </div>
+                    </fieldset>
 
                     <hr class="form-divider" />
                     <div class="form-section-label">About You</div>
 
-                    <div class="field full">
-                        <label>Have you volunteered with PSV before?</label>
+                    <fieldset class="field full">
+                        <legend>Have you volunteered with PSV before?</legend>
                         <div class="radio-group">
                             <label class="radio-pill">
                                 <input
                                     type="radio"
                                     name="prev_vol"
                                     value="yes"
+                                    required
                                 />
                                 <span class="radio-dot"></span>
                                 <span>Yes</span>
@@ -170,31 +187,37 @@
                                     type="radio"
                                     name="prev_vol"
                                     value="no"
+                                    required
                                 />
                                 <span class="radio-dot"></span>
                                 <span>No, first time</span>
                             </label>
                         </div>
-                    </div>
+                    </fieldset>
                     <br />
                     <div class="field full">
-                        <label
+                        <label for="volInterest"
                             >Why are you interested in volunteering with the
                             village?</label
                         >
                         <textarea
+                            id="volInterest"
                             placeholder="Tell us a bit about your interest in physical security and what draws you to PSV..."
+                            maxlength="3000"
+                            required
                         ></textarea>
                     </div>
 
                     <div class="field full">
-                        <label
+                        <label for="otherInformation"
                             >Any other relevant information
                             <span class="opt">(optional)</span></label
                         >
                         <textarea
+                            id="otherInformation"
                             placeholder="Skills, past experience, certifications, or anything else you'd like us to know..."
                             style="min-height: 90px"
+                            maxlength="3000"
                         ></textarea>
                     </div>
 
@@ -202,9 +225,9 @@
                     <div class="form-section-label">Consent</div>
 
                     <div class="field full">
-                        <label>Data & Notifications</label>
+                        <span class="form-section-label">Data & Notifications</span>
                         <label class="consent-row">
-                            <input type="checkbox" id="consentCheck" />
+                            <input type="checkbox" id="consentCheck" required />
                             <span class="toggle-track"></span>
                             <span class="consent-text">
                                 <strong
@@ -216,6 +239,18 @@
                             </span>
                         </label>
                     </div>
+
+                    {% if turnstile_site_key %}
+                    <div class="field full">
+                        <div
+                            class="cf-turnstile"
+                            data-sitekey="{{ turnstile_site_key }}"
+                            data-action="volunteer"
+                        ></div>
+                    </div>
+                    {% endif %}
+
+                    <div id="volFormError" class="form-error" role="alert" aria-live="assertive" tabindex="-1" hidden></div>
 
                     <div class="form-submit-row">
                         <span class="form-note"
@@ -229,8 +264,8 @@
                         >
                         <button
                             class="btn btn-primary"
-                            type="button"
-                            onclick="submitVolForm()"
+                            id="volSubmit"
+                            type="submit"
                         >
                             <svg
                                 width="16"
@@ -249,7 +284,7 @@
                 </div>
             </form>
 
-            <div class="form-success" id="volSuccess">
+            <div class="form-success" id="volSuccess" role="status" tabindex="-1">
                 <div class="success-icon">
                     <svg viewBox="0 0 24 24">
                         <polyline points="20 6 9 17 4 12" />
@@ -265,9 +300,72 @@
     </div>
 
 <script>
-    function submitVolForm() {
-        document.getElementById("volForm").style.display = "none";
-        document.getElementById("volSuccess").style.display = "block";
+    async function submitVolForm(event) {
+        event.preventDefault();
+        const errorMessage = document.getElementById("volFormError");
+        errorMessage.hidden = true;
+        errorMessage.textContent = "";
+        const showFormError = (message) => {
+            errorMessage.textContent = message;
+            errorMessage.hidden = false;
+            errorMessage.focus();
+        };
+        const conferences = Array.from(
+            document.querySelectorAll('[name="conferences"]:checked'),
+            (input) => input.value,
+        );
+        if (conferences.length === 0) {
+            showFormError("Please select at least one conference.");
+            return;
+        }
+
+        const submitButton = document.getElementById("volSubmit");
+        const previousVolunteer = document.querySelector('[name="prev_vol"]:checked');
+        const turnstileInput = document.querySelector('[name="cf-turnstile-response"]');
+        submitButton.disabled = true;
+
+        const data = {
+            name: document.getElementById("volName").value,
+            email: document.getElementById("volEmail").value,
+            discord_handle: document.getElementById("discordHandle").value,
+            discord_user_id: document.getElementById("discordUserId").value,
+            shirt_size: document.getElementById("shirtSize").value,
+            location: document.getElementById("volLocation").value,
+            food_limitations: document.getElementById("foodLimitations").value,
+            conferences,
+            volunteered_before: previousVolunteer ? previousVolunteer.value : "",
+            interest: document.getElementById("volInterest").value,
+            other_information: document.getElementById("otherInformation").value,
+            consent: document.getElementById("consentCheck").checked,
+            website: document.getElementById("volWebsite").value,
+            turnstile_token: turnstileInput ? turnstileInput.value : "",
+        };
+
+        try {
+            const response = await fetch("/forms/volunteer", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data),
+            });
+            if (response.ok) {
+                document.getElementById("volForm").style.display = "none";
+                const successMessage = document.getElementById("volSuccess");
+                successMessage.style.display = "block";
+                successMessage.focus();
+            } else {
+                const errorData = await response.json();
+                const detail = typeof errorData.detail === "string"
+                    ? errorData.detail
+                    : "Please check your application and try again.";
+                showFormError("Failed to submit application: " + detail);
+                if (window.turnstile) window.turnstile.reset();
+            }
+        } catch (error) {
+            showFormError("Unable to submit the application. Please try again.");
+            if (window.turnstile) window.turnstile.reset();
+        } finally {
+            submitButton.disabled = false;
+        }
     }
 </script>
 

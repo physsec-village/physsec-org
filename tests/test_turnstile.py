@@ -22,6 +22,24 @@ class TurnstileSettingsTests(unittest.TestCase):
                 turnstile_site_key="site", turnstile_secret_key="", _env_file=None
             )
 
+    def test_production_requires_turnstile(self):
+        with self.assertRaisesRegex(ValueError, "must be configured"):
+            TurnstileSettings(
+                app_env="production",
+                turnstile_site_key="",
+                turnstile_secret_key="",
+                _env_file=None,
+            )
+
+    def test_production_accepts_complete_turnstile_configuration(self):
+        settings = TurnstileSettings(
+            app_env="production",
+            turnstile_site_key="site",
+            turnstile_secret_key="secret",
+            _env_file=None,
+        )
+        self.assertEqual(settings.app_env, "production")
+
     def test_enabled_turnstile_requires_allowed_hostname(self):
         with self.assertRaisesRegex(ValueError, "must not be empty"):
             TurnstileSettings(
@@ -100,6 +118,23 @@ class TurnstileVerificationTests(unittest.IsolatedAsyncioTestCase):
             patch("src.forms.turnstile.httpx.AsyncClient", return_value=client),
         ):
             self.assertFalse(await verify_turnstile_token("token", None))
+
+    async def test_volunteer_action_is_accepted_when_expected(self):
+        client = self._client_with_response(
+            {"success": True, "action": "volunteer", "hostname": "physsec.org"}
+        )
+        with (
+            patch(
+                "src.forms.turnstile.get_turnstile_settings",
+                return_value=self._enabled_settings(),
+            ),
+            patch("src.forms.turnstile.httpx.AsyncClient", return_value=client),
+        ):
+            self.assertTrue(
+                await verify_turnstile_token(
+                    "token", None, expected_action="volunteer"
+                )
+            )
 
     async def test_unapproved_hostname_is_rejected(self):
         client = self._client_with_response(

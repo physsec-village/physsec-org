@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% block title %}Physical Security Village | Hands-On Security Education{% endblock %}
+{% block description %}Learn practical physical security through PSV's hands-on exhibits, talks, demonstrations, and community events.{% endblock %}
 {% block styles %}
 <link href="/static/pages/landing.css" rel="stylesheet" />
 {% endblock %}
@@ -55,7 +57,7 @@
     </div>
     <div class="faq-list">
             <div class="faq-item">
-                <button class="faq-q" onclick="toggleFAQ(this)">
+                <button class="faq-q" id="faq-question-1" aria-expanded="false" aria-controls="faq-answer-1" onclick="toggleFAQ(this)">
                     What is the Physical Security Village?
                     <svg
                         class="chevron"
@@ -67,7 +69,7 @@
                         <polyline points="6 9 12 15 18 9" />
                     </svg>
                 </button>
-                <div class="faq-a">
+                <div class="faq-a" id="faq-answer-1" role="region" aria-labelledby="faq-question-1">
                     <p>
                         The Physical Security Village (or PSV) is a not-for-profit dedicated to physical security education!
                         We most commonly appear as a “village” at security conferences,
@@ -78,7 +80,7 @@
             </div>
 
             <div class="faq-item">
-                <button class="faq-q" onclick="toggleFAQ(this)">
+                <button class="faq-q" id="faq-question-2" aria-expanded="false" aria-controls="faq-answer-2" onclick="toggleFAQ(this)">
                     What will I learn in the village?
                     <svg
                         class="chevron"
@@ -90,7 +92,7 @@
                         <polyline points="6 9 12 15 18 9" />
                     </svg>
                 </button>
-                <div class="faq-a">
+                <div class="faq-a" id="faq-answer-2" role="region" aria-labelledby="faq-question-2">
                     <p>
                         We have many educational hands-on exhibits, where you can learn about various physical security topics.
                         These include motion sensor demonstrations and vehicular security setups,
@@ -103,7 +105,7 @@
             </div>
 
             <div class="faq-item">
-                <button class="faq-q" onclick="toggleFAQ(this)">
+                <button class="faq-q" id="faq-question-3" aria-expanded="false" aria-controls="faq-answer-3" onclick="toggleFAQ(this)">
                     Do I need experience to attend or participate?
                     <svg
                         class="chevron"
@@ -115,7 +117,7 @@
                         <polyline points="6 9 12 15 18 9" />
                     </svg>
                 </button>
-                <div class="faq-a">
+                <div class="faq-a" id="faq-answer-3" role="region" aria-labelledby="faq-question-3">
                     <p>
                         Absolutely not! PSV welcomes everyone from total
                         beginners to seasoned professionals. We are one of the
@@ -127,7 +129,7 @@
             </div>
 
             <div class="faq-item">
-                <button class="faq-q" onclick="toggleFAQ(this)">
+                <button class="faq-q" id="faq-question-4" aria-expanded="false" aria-controls="faq-answer-4" onclick="toggleFAQ(this)">
                     I can’t make it to a conference, can I learn your material online?
                     <svg
                         class="chevron"
@@ -139,7 +141,7 @@
                         <polyline points="6 9 12 15 18 9" />
                     </svg>
                 </button>
-                <div class="faq-a">
+                <div class="faq-a" id="faq-answer-4" role="region" aria-labelledby="faq-question-4">
                     <p>
                         Yes! Many of our past talks are recorded and available here,
                         and you can still access a lot of the online hands-on content
@@ -151,7 +153,7 @@
             </div>
 
             <div class="faq-item">
-                <button class="faq-q" onclick="toggleFAQ(this)">
+                <button class="faq-q" id="faq-question-5" aria-expanded="false" aria-controls="faq-answer-5" onclick="toggleFAQ(this)">
                     How do I volunteer with PSV?
                     <svg
                         class="chevron"
@@ -163,7 +165,7 @@
                         <polyline points="6 9 12 15 18 9" />
                     </svg>
                 </button>
-                <div class="faq-a">
+                <div class="faq-a" id="faq-answer-5" role="region" aria-labelledby="faq-question-5">
                     <p>
                         We open volunteer applications ahead of each conference!
                         Keep an eye on our Discord server and
@@ -175,7 +177,7 @@
             </div>
 
             <div class="faq-item">
-                <button class="faq-q" onclick="toggleFAQ(this)">
+                <button class="faq-q" id="faq-question-6" aria-expanded="false" aria-controls="faq-answer-6" onclick="toggleFAQ(this)">
                     Can I submit a talk or workshop?
                     <svg
                         class="chevron"
@@ -187,7 +189,7 @@
                         <polyline points="6 9 12 15 18 9" />
                     </svg>
                 </button>
-                <div class="faq-a">
+                <div class="faq-a" id="faq-answer-6" role="region" aria-labelledby="faq-question-6">
                     <p>
                         Yes! We publish a Call for Papers (CFP) each
                         year. We're looking for talks and workshops on
@@ -207,10 +209,14 @@
     function toggleFAQ(btn) {
         const item = btn.closest(".faq-item");
         const wasOpen = item.classList.contains("open");
-        document
-            .querySelectorAll(".faq-item")
-            .forEach((i) => i.classList.remove("open"));
-        if (!wasOpen) item.classList.add("open");
+        document.querySelectorAll(".faq-item").forEach((faqItem) => {
+            faqItem.classList.remove("open");
+            faqItem.querySelector(".faq-q").setAttribute("aria-expanded", "false");
+        });
+        if (!wasOpen) {
+            item.classList.add("open");
+            btn.setAttribute("aria-expanded", "true");
+        }
     }
 </script>
 {% endblock %}

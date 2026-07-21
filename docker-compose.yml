@@ -1,12 +1,24 @@
 services:
   app:
     build: .
+    # Deterministic image name so deploy/deploy.sh can tag the previous
+    # release for rollback.
+    image: psv-website:latest
     restart: unless-stopped
+    healthcheck:
+      # The slim base image has no curl/wget; probe with the stdlib instead.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     ports:
       - "127.0.0.1:8080:8080"
     env_file:
       - .env
     environment:
+      # Production startup fails unless Turnstile is fully configured.
+      - APP_ENV=production
       # Trust proxy headers only from Docker bridge networks. The reverse
       # proxy must overwrite, rather than append to, X-Forwarded-For.
       - FORWARDED_ALLOW_IPS=172.16.0.0/12
