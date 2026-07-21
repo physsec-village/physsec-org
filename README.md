@@ -98,6 +98,10 @@ header rather than append to it; per-IP rate limiting depends on this boundary.
   with `fastapi run src/main.py --proxy-headers --port 8080`.
 - `psv-website.service` expects the repository to live at `/opt/psv-website`.
 - The service file is an example deployment artifact, not a portable installer; adjust paths and service management to match the target host.
+- A production nginx reverse-proxy configuration and security-header policy are
+  versioned under [`deploy/nginx`](deploy/nginx/README.md). Install them on the
+  host only after adapting certificate and distribution-specific paths, then
+  validate with `nginx -t` before reloading nginx.
 
 ## Placeholders To Replace
 
