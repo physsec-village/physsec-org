@@ -110,11 +110,8 @@
                     <hr class="form-divider" />
                     <div class="form-section-label">Conferences</div>
 
-                    <div class="field full">
-                        <label
-                            >Which conferences are you interested in
-                            volunteering for?</label
-                        >
+                    <fieldset class="field full">
+                        <legend>Which conferences are you interested in volunteering for?</legend>
                         <div class="check-group">
                             <label class="check-pill">
                                 <input type="checkbox" name="conferences" value="RSAC" />
@@ -167,13 +164,13 @@
                                 <span>Northsec</span>
                             </label>
                         </div>
-                    </div>
+                    </fieldset>
 
                     <hr class="form-divider" />
                     <div class="form-section-label">About You</div>
 
-                    <div class="field full">
-                        <label>Have you volunteered with PSV before?</label>
+                    <fieldset class="field full">
+                        <legend>Have you volunteered with PSV before?</legend>
                         <div class="radio-group">
                             <label class="radio-pill">
                                 <input
@@ -196,7 +193,7 @@
                                 <span>No, first time</span>
                             </label>
                         </div>
-                    </div>
+                    </fieldset>
                     <br />
                     <div class="field full">
                         <label for="volInterest"
@@ -228,7 +225,7 @@
                     <div class="form-section-label">Consent</div>
 
                     <div class="field full">
-                        <label>Data & Notifications</label>
+                        <span class="form-section-label">Data & Notifications</span>
                         <label class="consent-row">
                             <input type="checkbox" id="consentCheck" required />
                             <span class="toggle-track"></span>
@@ -252,6 +249,8 @@
                         ></div>
                     </div>
                     {% endif %}
+
+                    <div id="volFormError" class="form-error" role="alert" aria-live="assertive" tabindex="-1" hidden></div>
 
                     <div class="form-submit-row">
                         <span class="form-note"
@@ -285,7 +284,7 @@
                 </div>
             </form>
 
-            <div class="form-success" id="volSuccess">
+            <div class="form-success" id="volSuccess" role="status" tabindex="-1">
                 <div class="success-icon">
                     <svg viewBox="0 0 24 24">
                         <polyline points="20 6 9 17 4 12" />
@@ -303,12 +302,20 @@
 <script>
     async function submitVolForm(event) {
         event.preventDefault();
+        const errorMessage = document.getElementById("volFormError");
+        errorMessage.hidden = true;
+        errorMessage.textContent = "";
+        const showFormError = (message) => {
+            errorMessage.textContent = message;
+            errorMessage.hidden = false;
+            errorMessage.focus();
+        };
         const conferences = Array.from(
             document.querySelectorAll('[name="conferences"]:checked'),
             (input) => input.value,
         );
         if (conferences.length === 0) {
-            alert("Please select at least one conference.");
+            showFormError("Please select at least one conference.");
             return;
         }
 
@@ -342,17 +349,19 @@
             });
             if (response.ok) {
                 document.getElementById("volForm").style.display = "none";
-                document.getElementById("volSuccess").style.display = "block";
+                const successMessage = document.getElementById("volSuccess");
+                successMessage.style.display = "block";
+                successMessage.focus();
             } else {
                 const errorData = await response.json();
                 const detail = typeof errorData.detail === "string"
                     ? errorData.detail
                     : "Please check your application and try again.";
-                alert("Failed to submit application: " + detail);
+                showFormError("Failed to submit application: " + detail);
                 if (window.turnstile) window.turnstile.reset();
             }
         } catch (error) {
-            alert("Unable to submit the application. Please try again.");
+            showFormError("Unable to submit the application. Please try again.");
             if (window.turnstile) window.turnstile.reset();
         } finally {
             submitButton.disabled = false;

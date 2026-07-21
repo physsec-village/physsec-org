@@ -28,23 +28,24 @@
         <div class="filter-bar">
             <span class="filter-label">Filter talks</span>
             <div class="filter-group">
-                <button class="filter-btn active" data-filter="all">All</button>
-                <button class="filter-btn" data-filter="DEF CON">DEF CON</button>
-                <button class="filter-btn" data-filter="RSAC">RSAC</button>
-                <button class="filter-btn" data-filter="HOPE">HOPE</button>
-                <button class="filter-btn" data-filter="Ekoparty">Ekoparty</button>
+                <button class="filter-btn active" data-filter="all" aria-pressed="true">All</button>
+                <button class="filter-btn" data-filter="DEF CON" aria-pressed="false">DEF CON</button>
+                <button class="filter-btn" data-filter="RSAC" aria-pressed="false">RSAC</button>
+                <button class="filter-btn" data-filter="HOPE" aria-pressed="false">HOPE</button>
+                <button class="filter-btn" data-filter="Ekoparty" aria-pressed="false">Ekoparty</button>
             </div>
             <div class="search-wrap">
-                <svg viewBox="0 0 24 24">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
                     <circle cx="11" cy="11" r="8" />
                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
+                <label class="visually-hidden" for="searchInput">Search talks</label>
                 <input type="text" id="searchInput" placeholder="Search talks" />
             </div>
         </div>
 
         <div class="results-bar">
-            <div class="results-count" id="resultsCount"><strong>0</strong> talks</div>
+            <div class="results-count" id="resultsCount" aria-live="polite" aria-atomic="true"><strong>0</strong> talks</div>
         </div>
 
         <div id="videoOutput"></div>
@@ -309,8 +310,12 @@
 
         document.querySelectorAll(".filter-btn").forEach((button) => {
             button.addEventListener("click", () => {
-                document.querySelectorAll(".filter-btn").forEach((item) => item.classList.remove("active"));
+                document.querySelectorAll(".filter-btn").forEach((item) => {
+                    item.classList.remove("active");
+                    item.setAttribute("aria-pressed", "false");
+                });
                 button.classList.add("active");
+                button.setAttribute("aria-pressed", "true");
                 activeFilter = button.dataset.filter;
                 renderTalks();
             });

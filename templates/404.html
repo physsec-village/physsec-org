@@ -6,7 +6,7 @@
 {% block styles %}
 <link href="/static/404.css" rel="stylesheet" />
 {% endblock %} {% block main %}
-    <main class="not-found-body">
+    <div class="not-found-body">
         <div class="not-found-inner">
             <div class="nf-terminal">// Access Denied</div>
             <div class="nf-code">404</div>
@@ -33,7 +33,7 @@
                 <div class="nf-log-line"><span class="err">[ ERR ]</span> &nbsp;HTTP 404 — resource not found</div>
             </div>
         </div>
-    </main>
+    </div>
     <script>
         // Reflect actual path in the error display
         document.getElementById("nfPath").textContent = window.location.pathname;

@@ -6,6 +6,29 @@ from src.main import app
 
 
 class RouteStatusTests(unittest.TestCase):
+    def test_accessibility_semantics_are_rendered(self):
+        with TestClient(app) as client:
+            home = client.get("/").text
+            games = client.get("/games").text
+            talks = client.get("/talks").text
+            volunteer = client.get("/forms/volunteer").text
+            contact = client.get("/contact").text
+            missing = client.get("/missing").text
+
+        self.assertIn('aria-controls="mobileMenu"', home)
+        self.assertIn('aria-expanded="false"', home)
+        self.assertIn('id="faq-answer-1" role="region"', home)
+        self.assertIn('aria-controls="alarm-levels"', games)
+        self.assertIn('<label class="visually-hidden" for="searchInput">', talks)
+        self.assertIn('aria-live="polite"', talks)
+        self.assertEqual(volunteer.count("<fieldset"), 2)
+        self.assertIn('id="volFormError" class="form-error" role="alert"', volunteer)
+        self.assertNotIn("alert(", volunteer)
+        self.assertIn('id="contactFormError" class="form-error" role="alert"', contact)
+        self.assertNotIn("console.log", contact)
+        self.assertNotIn("alert(", contact)
+        self.assertEqual(missing.count("<main"), 1)
+
     def test_home_has_search_and_social_metadata(self):
         with TestClient(app) as client:
             response = client.get("/")

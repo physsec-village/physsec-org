@@ -68,6 +68,7 @@
                         ></div>
                     </div>
                     {% endif %}
+                    <div id="contactFormError" class="form-error" role="alert" aria-live="assertive" tabindex="-1" hidden></div>
                     <div class="form-submit-row">
                         <span class="form-note">
                             Fields without <span class="opt" style="opacity: 1; color: var(--muted)">(optional)</span> are required.
@@ -83,7 +84,7 @@
                 </div>
             </form>
 
-            <div class="form-success" id="contactSuccess">
+            <div class="form-success" id="contactSuccess" role="status" tabindex="-1">
                 <div class="success-icon">
                     <svg viewBox="0 0 24 24">
                         <polyline points="20 6 9 17 4 12" />
@@ -101,6 +102,15 @@
     <script>
         async function submitContactForm(event) {
             event.preventDefault();
+
+            const errorMessage = document.getElementById("contactFormError");
+            errorMessage.hidden = true;
+            errorMessage.textContent = "";
+            const showFormError = (message) => {
+                errorMessage.textContent = message;
+                errorMessage.hidden = false;
+                errorMessage.focus();
+            };
 
             const submitButton = document.getElementById("contactSubmit");
             const turnstileInput = document.querySelector('[name="cf-turnstile-response"]');
@@ -124,20 +134,21 @@
 
                 if (response.ok) {
                     document.getElementById("contactForm").style.display = "none";
-                    document.getElementById("contactSuccess").style.display = "block";
+                    const successMessage = document.getElementById("contactSuccess");
+                    successMessage.style.display = "block";
+                    successMessage.focus();
                 } else {
                     const errData = await response.json();
-                    console.log(errData)
                     const detail = typeof errData.detail === "string"
                         ? errData.detail
                         : "Please check your input and try again.";
-                    alert("Failed to send email: " + detail);
+                    showFormError("Failed to send email: " + detail);
                     if (window.turnstile) {
                         window.turnstile.reset();
                     }
                 }
             } catch (error) {
-                alert("Error sending email: " + error);
+                showFormError("Unable to send your message. Please try again.");
                 if (window.turnstile) {
                     window.turnstile.reset();
                 }

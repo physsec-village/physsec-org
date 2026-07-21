@@ -61,13 +61,13 @@
                         show why controller tolerances matter.
                     </div>
                     <div class="game-levels">
-                        <button class="levels-toggle" onclick="toggleLevels(this)">
+                        <button class="levels-toggle" id="alarm-levels-toggle" aria-expanded="false" aria-controls="alarm-levels" onclick="toggleLevels(this)">
                             <span class="levels-toggle-text">Show 10 levels</span>
                             <svg viewBox="0 0 24 24">
                                 <polyline points="6 9 12 15 18 9" />
                             </svg>
                         </button>
-                        <div class="levels-list">
+                        <div class="levels-list" id="alarm-levels" role="region" aria-labelledby="alarm-levels-toggle">
                             <ul>
                                 <li><a href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=0&EOLshunt=Infinity&NC=&regOK=6,20&regAlarm=0,6" target="_blank" rel="noopener"><span class="level-num">01</span>Normally Open (NO)</a></li>
                                 <li><a href="https://physsec.org/games/alarm_wire/new/alarm.html?EOLseries=0&EOLshunt=Infinity&regOK=0,6&regAlarm=6,20" target="_blank" rel="noopener"><span class="level-num">02</span>Normally Closed (NC)</a></li>
@@ -212,6 +212,10 @@
             button.classList.toggle("open");
             const list = button.nextElementSibling;
             list.classList.toggle("open");
+            button.setAttribute(
+                "aria-expanded",
+                button.classList.contains("open") ? "true" : "false",
+            );
             button.querySelector(".levels-toggle-text").textContent =
                 button.classList.contains("open")
                     ? "Hide 10 levels"

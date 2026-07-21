@@ -32,7 +32,7 @@
         />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
         <link href="/static/styles.css" rel="stylesheet" />
-        <link href="/static/nav.css?v=2" rel="stylesheet" />
+        <link href="/static/nav.css?v=3" rel="stylesheet" />
         <link href="/static/footer.css" rel="stylesheet" />
         {% block styles %} {% endblock %}
     </head>
@@ -63,16 +63,37 @@
             const hamburger = document.getElementById("hamburger");
             const mobileMenu = document.getElementById("mobileMenu");
             if (hamburger && mobileMenu) {
-                hamburger.addEventListener("click", () =>
-                    mobileMenu.classList.toggle("open"),
-                );
+                hamburger.addEventListener("click", () => {
+                    if (mobileMenu.hidden) {
+                        mobileMenu.hidden = false;
+                        mobileMenu.classList.add("open");
+                        hamburger.setAttribute("aria-expanded", "true");
+                        hamburger.setAttribute("aria-label", "Close menu");
+                        mobileMenu.querySelector("a:not([style*='display: none'])")?.focus();
+                    } else {
+                        closeMobile(true);
+                    }
+                });
+                mobileMenu.querySelectorAll("a").forEach((link) => {
+                    link.addEventListener("click", () => closeMobile(false));
+                });
             }
 
-            function closeMobile() {
-                if (mobileMenu) {
+            function closeMobile(returnFocus = false) {
+                if (mobileMenu && hamburger) {
                     mobileMenu.classList.remove("open");
+                    mobileMenu.hidden = true;
+                    hamburger.setAttribute("aria-expanded", "false");
+                    hamburger.setAttribute("aria-label", "Open menu");
+                    if (returnFocus) hamburger.focus();
                 }
             }
+
+            document.addEventListener("keydown", (event) => {
+                if (event.key === "Escape" && mobileMenu && !mobileMenu.hidden) {
+                    closeMobile(true);
+                }
+            });
 
             if (window.location.pathname === "/") {
                 const navHomeLink = document.getElementById("nav-home-link");
