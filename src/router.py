@@ -1,10 +1,22 @@
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from .dependencies import templates
 from .forms.turnstile import get_turnstile_settings
 
 router = APIRouter()
+
+SITEMAP_PATHS = (
+    "/",
+    "/about",
+    "/involved",
+    "/content",
+    "/contact",
+    "/games",
+    "/materials",
+    "/forms/calls",
+    "/forms/volunteer",
+)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -54,6 +66,23 @@ def materials_page(request: Request):
 @router.get("/archives", response_class=HTMLResponse)
 def archives_page(request: Request):
     return templates.TemplateResponse(request=request, name="pages/archives.html")
+
+
+@router.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
+def robots_txt():
+    return "User-agent: *\nAllow: /\nSitemap: https://physsec.org/sitemap.xml\n"
+
+
+@router.get("/sitemap.xml", include_in_schema=False)
+def sitemap_xml():
+    urls = "".join(
+        f"<url><loc>https://physsec.org{path}</loc></url>" for path in SITEMAP_PATHS
+    )
+    return Response(
+        content=f'<?xml version="1.0" encoding="UTF-8"?>'
+        f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>',
+        media_type="application/xml",
+    )
 
 async def not_found(request, exc):
     return templates.TemplateResponse(

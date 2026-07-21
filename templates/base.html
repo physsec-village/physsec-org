@@ -3,7 +3,19 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Physical Security Village</title>
+        <title>{% block title %}Physical Security Village{% endblock %}</title>
+        <meta name="description" content="{% block description %}Physical Security Village teaches practical physical security through hands-on exhibits, talks, games, and community events.{% endblock %}" />
+        <meta name="robots" content="{% block robots %}index,follow{% endblock %}" />
+        {% block canonical %}<link rel="canonical" href="https://physsec.org{{ request.url.path }}" />{% endblock %}
+        <meta property="og:site_name" content="Physical Security Village" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="{{ self.title() | striptags | trim }}" />
+        <meta property="og:description" content="{{ self.description() | striptags | trim }}" />
+        <meta property="og:url" content="https://physsec.org{{ request.url.path }}" />
+        <meta property="og:image" content="https://physsec.org/static/psv-compact-logo.png" />
+        <meta property="og:image:alt" content="Physical Security Village logo" />
+        <meta name="twitter:card" content="summary" />
+        <link rel="icon" type="image/png" href="/static/psv-compact-logo.png" />
         <script>
             // Apply the stored theme before first paint to avoid a flash of
             // the default dark theme when light mode is selected.

@@ -1,4 +1,7 @@
-{% extends "base.html" %} {% block styles %}
+{% extends "base.html" %}
+{% block title %}Contact Us | Physical Security Village{% endblock %}
+{% block description %}Contact Physical Security Village about speaking, sponsorship, media, hosting, operations, or general questions.{% endblock %}
+{% block styles %}
 <link href="/static/pages/forms.css" rel="stylesheet" />
 {% if turnstile_site_key %}
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>

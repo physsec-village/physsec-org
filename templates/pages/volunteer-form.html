@@ -1,4 +1,7 @@
-{% extends "base.html" %} {% block styles %}
+{% extends "base.html" %}
+{% block title %}Volunteer With PSV | Physical Security Village{% endblock %}
+{% block description %}Apply to volunteer with Physical Security Village and tell us which events interest you, how you can help, and your relevant experience.{% endblock %}
+{% block styles %}
 <link href="/static/pages/forms.css" rel="stylesheet" />
 {% if turnstile_site_key %}
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
