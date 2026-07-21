@@ -7,7 +7,10 @@ After=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/psv-website
-ExecStart=/usr/bin/docker compose up -d --build
+# Boot and deploy both go through the health-gated script, so a deploy that
+# finds the unit inactive cannot bypass the health check and rollback path.
+ExecStart=/opt/psv-website/deploy/deploy.sh
+ExecReload=/opt/psv-website/deploy/deploy.sh
 ExecStop=/usr/bin/docker compose down
 
 [Install]

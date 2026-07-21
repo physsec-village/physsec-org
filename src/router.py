@@ -68,6 +68,11 @@ def archives_page(request: Request):
     return templates.TemplateResponse(request=request, name="pages/archives.html")
 
 
+@router.get("/healthz", response_class=PlainTextResponse, include_in_schema=False)
+def healthz():
+    return "ok"
+
+
 @router.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
 def robots_txt():
     return "User-agent: *\nAllow: /\nSitemap: https://physsec.org/sitemap.xml\n"

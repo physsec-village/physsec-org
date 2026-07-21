@@ -98,6 +98,15 @@ header rather than append to it; per-IP rate limiting depends on this boundary.
   with `fastapi run src/main.py --proxy-headers --port 8080`.
 - `psv-website.service` expects the repository to live at `/opt/psv-website`.
 - The service file is an example deployment artifact, not a portable installer; adjust paths and service management to match the target host.
+- The app serves a `/healthz` endpoint, and the compose file defines a matching
+  container health check.
+- Deploys run `systemctl reload-or-restart psv-website.service`; the unit's
+  `ExecReload` invokes [`deploy/deploy.sh`](deploy/deploy.sh), which builds the
+  new image while the old container keeps serving, swaps containers only after
+  the new one passes its health check, and otherwise rolls back to the
+  previously tagged image (`psv-website:previous`) and fails the deploy.
+  `ExecStart` runs the same script, so boot and inactive-unit deploys get the
+  same health gate; `ExecStop` remains the shutdown path.
 - A production nginx reverse-proxy configuration and security-header policy are
   versioned under [`deploy/nginx`](deploy/nginx/README.md). Install them on the
   host only after adapting certificate and distribution-specific paths, then

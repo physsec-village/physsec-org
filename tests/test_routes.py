@@ -48,6 +48,13 @@ class RouteStatusTests(unittest.TestCase):
         self.assertEqual(sitemap.headers["content-type"], "application/xml")
         self.assertIn("<loc>https://physsec.org/forms/volunteer</loc>", sitemap.text)
 
+    def test_healthz_is_served(self):
+        with TestClient(app) as client:
+            response = client.get("/healthz")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text, "ok")
+
     def test_missing_page_returns_404(self):
         with TestClient(app) as client:
             response = client.get("/definitely-missing")
