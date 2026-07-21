@@ -119,20 +119,19 @@ The repository still contains several stubbed or provisional values that should 
 | `templates/pages/materials.html` | Materials page says written reference material is still being expanded and only offers contact/Discord paths | Real documents, slide decks, references, downloads, or external resources |
 | `templates/pages/calls.html` | Several opportunities are generic, rolling, seasonal, or "published when the next CFP window opens" rather than event-specific | Actual conference names, dates, deadlines, and submission/application links |
 
-### Stub data and mock interactions
+### Stub data
 
 | File | Current placeholder | What should replace it |
 | --- | --- | --- |
 | `templates/pages/talks.html` | Hard-coded sample talk archive entries with generic speaker names and no recordings/external links | Real PSV talks, speakers, dates, and media links |
-| `templates/pages/volunteer-form.html` | Form submit handler only hides the form and shows a success message; no backend submission exists | Real submission flow, validation, storage, and notification handling |
 
 ### Legacy external asset/link dependencies to review
 
 | File | Current placeholder | What should replace it |
 | --- | --- | --- |
-| `templates/pages/games.html` | Thumbnails and game links point at legacy `physsec.org` WordPress/game URLs | Confirmed maintained URLs or locally managed assets/routes |
+| `templates/pages/games.html` | Game links point at legacy `physsec.org` game URLs; thumbnails are now locally managed | Confirmed maintained game URLs or locally managed routes |
 | `templates/pages/games/hid.html` | Embedded image paths reference archived `/web/...` URLs | Local static assets or current maintained URLs |
 
 ## Current State Summary
 
-The site already has a coherent frontend structure, a working FastAPI app shell, and a contact email path. The main unfinished areas are organizational content, real event/archive data, store/sponsorship decisions, volunteer form backend integration, and deployment-specific configuration.
+The site already has a coherent frontend structure, working contact and volunteer email paths, and locally managed game thumbnails. The main unfinished areas are organizational content, real event/archive data, store/sponsorship decisions, legacy game routes, and deployment-specific configuration.

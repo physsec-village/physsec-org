@@ -42,7 +42,9 @@ def get_turnstile_settings() -> TurnstileSettings:
     return TurnstileSettings()
 
 
-async def verify_turnstile_token(token: str, remote_ip: str | None) -> bool:
+async def verify_turnstile_token(
+    token: str, remote_ip: str | None, expected_action: str = "contact"
+) -> bool:
     """Verify a contact-form token with Cloudflare when Turnstile is enabled."""
     settings = get_turnstile_settings()
     if not settings.turnstile_secret_key:
@@ -70,7 +72,7 @@ async def verify_turnstile_token(token: str, remote_ip: str | None) -> bool:
     if not outcome.get("success"):
         logger.warning("Turnstile rejected token: %s", outcome.get("error-codes"))
         return False
-    if outcome.get("action") != "contact":
+    if outcome.get("action") != expected_action:
         logger.warning("Turnstile returned unexpected action: %r", outcome.get("action"))
         return False
     hostname = outcome.get("hostname")

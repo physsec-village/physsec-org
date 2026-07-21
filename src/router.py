@@ -56,4 +56,6 @@ def archives_page(request: Request):
     return templates.TemplateResponse(request=request, name="pages/archives.html")
 
 async def not_found(request, exc):
-    return templates.TemplateResponse(request=request, name="404.html")
+    return templates.TemplateResponse(
+        request=request, name="404.html", status_code=404
+    )
