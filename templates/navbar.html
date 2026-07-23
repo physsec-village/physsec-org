@@ -16,22 +16,6 @@
         <li id="nav-home-link"><a href="{{ url_for('home_page') }}">Home</a></li>
         <li><a href="{{ url_for('about_us_page') }}">About Us</a></li>
         <li><a href="{{ url_for('get_involved_page') }}">Get Involved</a></li>
-        <li class="dropdown">
-            <a href="{{ url_for('content_page') }}">Content</a>
-            <div class="dropdown-menu">
-                <span
-                    class="dropdown-disabled"
-                    tabindex="0"
-                    aria-disabled="true"
-                    data-tooltip="Conference archives coming soon"
-                >
-                    <span class="disabled-label">Conference Archives</span>
-                    <span class="disabled-state">Soon</span>
-                </span>
-                <a href="{{ url_for('games_page') }}">Bypass Games</a>
-                <a href="{{ url_for('materials_page') }}">Other Materials</a>
-            </div>
-        </li>
         <li>
             <span
                 class="nav-disabled store-option-1"
@@ -123,7 +107,6 @@
     <a href="{{ url_for('get_involved_page') }}"
         >Get Involved</a
     >
-    <a href="{{ url_for('content_page') }}">Content</a>
     <span
         class="menu-disabled store-option-1"
         tabindex="0"
