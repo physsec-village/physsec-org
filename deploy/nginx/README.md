@@ -32,10 +32,11 @@ Run the reload only after `nginx -t` succeeds. Remove or disable any older
 virtual host that claims these domain names so nginx does not select an
 unexpected server block.
 
-The development virtual host proxies to `0.0.0.0:8080`; this production file
-uses `127.0.0.1:8080`, the concrete loopback address on which Compose publishes
-the application. It also replaces `X-Forwarded-For` with `$remote_addr` instead
-of using `$proxy_add_x_forwarded_for`. That difference is intentional: the app
+The production virtual host redirects HTTP and `www.physsec.org` requests to
+the canonical `https://physsec.org` origin. It proxies the apex domain to
+`127.0.0.1:8080`, the concrete loopback address on which Compose publishes the
+application. It also replaces `X-Forwarded-For` with `$remote_addr` instead of
+using `$proxy_add_x_forwarded_for`. That difference is intentional: the app
 trusts nginx's forwarded address for rate limiting, so nginx must discard any
 client-supplied forwarding chain.
 
