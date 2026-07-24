@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% from "store/macros.html" import product_card with context %}
+{% set initial_label = "All Products" if initial_cat == "All" else categories | selectattr("key", "equalto", initial_cat) | map(attribute="label") | first %}
+{% set initial_blurb = all_blurb if initial_cat == "All" else categories | selectattr("key", "equalto", initial_cat) | map(attribute="blurb") | first %}
+{% block title %}{{ initial_label }} | PSV Store | Physical Security Village{% endblock %}
+{% block description %}Browse the Physical Security Village store: bypass tools, keyed-alike utility keys, Covert Instruments kits, RFID hardware, gear, and merch.{% endblock %}
+{% block styles %}
+<link href="/static/pages/store.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('store_page') }}">Store</a>
+            <span>/</span>
+            <span id="catalogCrumb">{{ initial_label }}</span>
+        </div>
+        <h1 class="page-title store-catalog-title" id="catalogTitle">{{ initial_label }}</h1>
+        <p class="page-summary" id="catalogBlurb">{{ initial_blurb }}</p>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="page-shell">
+        <div class="store-toolbar">
+            <div class="filter-group" id="catalogFilters" data-all-label="All Products" data-all-blurb="{{ all_blurb }}">
+                <button
+                    class="filter-btn{% if initial_cat == 'All' %} active{% endif %}"
+                    data-cat="All"
+                    data-label="All Products"
+                    data-blurb="{{ all_blurb }}"
+                >All <span class="filter-count">{{ products | length }}</span></button>
+                {% for c in categories %}
+                    <button
+                        class="filter-btn{% if initial_cat == c.key %} active{% endif %}"
+                        data-cat="{{ c.key }}"
+                        data-label="{{ c.label }}"
+                        data-blurb="{{ c.blurb }}"
+                    >{{ c.label }} <span class="filter-count">{{ c.count }}</span></button>
+                {% endfor %}
+            </div>
+            <div class="search-wrap">
+                <label class="visually-hidden" for="storeSearch">Search products</label>
+                <svg viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input id="storeSearch" type="search" placeholder="Search products, SKUs…" autocomplete="off" />
+            </div>
+        </div>
+
+        <div class="store-meta" aria-live="polite">
+            <span id="resultCount">{{ products | length if initial_cat == "All" else (products | selectattr("cat", "equalto", initial_cat) | list | length) }} products</span>
+            <span class="keys-note" id="keysNote" {% if initial_cat != "KYS" %}hidden{% endif %}>
+                <svg viewBox="0 0 24 24">
+                    <circle cx="7.5" cy="15.5" r="5.5" />
+                    <path d="m21 2-9.6 9.6" />
+                    <path d="m15.5 7.5 3 3L22 7l-3-3" />
+                </svg>
+                All PSV keys are cut keyed-alike
+            </span>
+        </div>
+
+        <div class="product-grid" id="productGrid">
+            {% for p in products %}
+                <div
+                    class="product-cell"
+                    data-cat="{{ p.cat }}"
+                    data-search="{{ p.search_text }}"
+                    {% if initial_cat != "All" and p.cat != initial_cat %}hidden{% endif %}
+                >
+                    {{ product_card(p, show_sku=true) }}
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="empty-state store-empty" id="storeEmpty" hidden>
+            <svg viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <p>No products match “<span id="emptyQuery"></span>”. Try a different term or category.</p>
+        </div>
+
+        <div class="store-legal">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            <p>
+                <strong>Authorized use only.</strong> These items are sold for
+                education, research, and lawful security testing. By checking
+                out you confirm you have the right to possess and use them in
+                your jurisdiction.
+            </p>
+        </div>
+    </div>
+
+    {% include "store/cart.html" %}
+{% endblock %}

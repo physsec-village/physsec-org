@@ -12,6 +12,7 @@ from .forms.turnstile import get_turnstile_settings
 from .limiter import limiter
 from .router import router as root_router
 from .router import not_found
+from .store.router import router as store_router
 
 
 def rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONResponse:
@@ -44,3 +45,4 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(root_router)
 app.include_router(form_router)
+app.include_router(store_router)
