@@ -33,7 +33,7 @@ class StoreRouteTests(unittest.TestCase):
             keys = client.get("/store/catalog?cat=KYS")
             product = client.get("/store/product/PSV-BYP-004")
             checkout = client.get("/store/checkout")
-            confirmed = client.get("/store/confirmed?order=PSV-123456")
+            confirmed = client.get("/store/confirmed?session_id=cs_pending")
 
         self.assertEqual(home.status_code, 200)
         self.assertIn("Featured drop", home.text)
@@ -51,10 +51,11 @@ class StoreRouteTests(unittest.TestCase):
         self.assertIn('id="variantSelect"', product.text)
 
         self.assertEqual(checkout.status_code, 200)
-        self.assertIn("no payment is processed", checkout.text)
+        self.assertIn("Stripe securely collects payment", checkout.text)
+        self.assertNotIn("Card number", checkout.text)
 
         self.assertEqual(confirmed.status_code, 200)
-        self.assertIn("PSV-123456", confirmed.text)
+        self.assertIn("Payment is processing", confirmed.text)
 
     def test_unknown_product_returns_404(self):
         with TestClient(app) as client:
@@ -62,13 +63,12 @@ class StoreRouteTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_confirmed_rejects_malformed_order_number(self):
+    def test_confirmed_requires_a_session_id(self):
         with TestClient(app) as client:
             response = client.get("/store/confirmed?order=<script>alert(1)</script>")
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 404)
         self.assertNotIn("alert(", response.text)
-        self.assertIn("Order PSV-", response.text)
 
     def test_store_is_linked_and_in_sitemap(self):
         with TestClient(app) as client:

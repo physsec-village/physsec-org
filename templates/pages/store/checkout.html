@@ -21,71 +21,16 @@
 
 {% block main %}
     <div class="page-shell">
-        <form
-            id="checkoutForm"
-            class="checkout-layout"
-            data-free-shipping="{{ free_shipping_threshold }}"
-            data-flat-shipping="{{ flat_shipping }}"
-        >
+        <form id="checkoutForm" class="checkout-layout">
             <div class="checkout-fields">
                 <div class="checkout-card">
-                    <div class="checkout-card-title">Contact</div>
-                    <div class="field">
-                        <label for="coEmail">Email</label>
-                        <input class="store-input" id="coEmail" type="email" required placeholder="you@example.com" autocomplete="email" />
-                    </div>
-                </div>
-                <div class="checkout-card">
-                    <div class="checkout-card-title">Shipping address</div>
-                    <div class="field">
-                        <label for="coName">Full name</label>
-                        <input class="store-input" id="coName" required placeholder="Jane Doe" autocomplete="name" />
-                    </div>
-                    <div class="field">
-                        <label for="coStreet">Street address</label>
-                        <input class="store-input" id="coStreet" required placeholder="123 Cypher St" autocomplete="street-address" />
-                    </div>
-                    <div class="field-row">
-                        <div class="field">
-                            <label for="coCity">City</label>
-                            <input class="store-input" id="coCity" required placeholder="Springfield" autocomplete="address-level2" />
-                        </div>
-                        <div class="field">
-                            <label for="coPostal">Postal code</label>
-                            <input class="store-input" id="coPostal" required placeholder="00000" autocomplete="postal-code" />
-                        </div>
-                    </div>
-                    <div class="field-row">
-                        <div class="field">
-                            <label for="coState">State / Region</label>
-                            <input class="store-input" id="coState" placeholder="CA" autocomplete="address-level1" />
-                        </div>
-                        <div class="field">
-                            <label for="coCountry">Country</label>
-                            <input class="store-input" id="coCountry" required placeholder="United States" autocomplete="country-name" />
-                        </div>
-                    </div>
-                </div>
-                <div class="checkout-card">
-                    <div class="checkout-card-title">Payment</div>
-                    <div class="field">
-                        <label for="coCard">Card number</label>
-                        <input class="store-input mono" id="coCard" inputmode="numeric" placeholder="4242 4242 4242 4242" autocomplete="off" />
-                    </div>
-                    <div class="field-row">
-                        <div class="field">
-                            <label for="coExpiry">Expiry</label>
-                            <input class="store-input mono" id="coExpiry" placeholder="MM / YY" autocomplete="off" />
-                        </div>
-                        <div class="field">
-                            <label for="coCvc">CVC</label>
-                            <input class="store-input mono" id="coCvc" inputmode="numeric" placeholder="123" autocomplete="off" />
-                        </div>
-                    </div>
-                    <p class="cart-fineprint">
-                        Design mockup only — no payment is processed and no
-                        data is stored.
+                    <div class="checkout-card-title">Secure checkout</div>
+                    <p>
+                        Your cart is validated against current inventory before
+                        you continue to Stripe. Stripe securely collects payment
+                        and shipping details; this site never handles card data.
                     </p>
+                    <p class="form-error" id="checkoutError" role="alert" hidden></p>
                 </div>
             </div>
 
@@ -98,15 +43,13 @@
                         <span class="mono" id="summarySubtotal">$0.00</span>
                     </div>
                     <div class="summary-row">
-                        <span>Shipping</span>
-                        <span class="mono" id="summaryShipping">$0.00</span>
-                    </div>
-                    <div class="summary-row summary-grand">
-                        <span>Total</span>
-                        <span class="mono" id="summaryTotal">$0.00</span>
+                        <span>Shipping &amp; tax</span>
+                        <span>Calculated by Stripe</span>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary checkout-submit" id="placeOrder">Place order</button>
+                <button type="submit" class="btn btn-primary checkout-submit" id="placeOrder">
+                    Continue to secure checkout
+                </button>
                 <a href="{{ url_for('store_catalog_page') }}" class="btn btn-outline">Continue shopping</a>
                 <p class="summary-empty" id="summaryEmpty" hidden>
                     Your cart is empty.

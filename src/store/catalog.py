@@ -59,11 +59,11 @@ _PRICE_OVERRIDES = (
 _PRICE_BASES = {"BYP": 14, "KYS": 8, "MRC": 27, "MSC": 18, "RFID": 16}
 
 _FEATURED_PATTERNS = (
-    re.compile(r"proxmark", re.I),
-    re.compile(r"^lishi", re.I),
-    re.compile(r"^medeco bump", re.I),
-    re.compile(r"unauthorised personnel shirt", re.I),
-    re.compile(r"^handcuffs$", re.I),
+    re.compile(r"proxmark", re.IGNORECASE),
+    re.compile(r"^lishi", re.IGNORECASE),
+    re.compile(r"^medeco bump", re.IGNORECASE),
+    re.compile(r"unauthorised personnel shirt", re.IGNORECASE),
+    re.compile(r"^handcuffs$", re.IGNORECASE),
 )
 
 HERO_PRODUCT_ID = "PSV-RFID-001"
@@ -156,8 +156,7 @@ def _derive_group(names: list[str]) -> tuple[str, list[str]]:
         prefix += 1
     suffix = 0
     while suffix < min_len - prefix and all(
-        t[len(t) - 1 - suffix] == tokens[0][len(tokens[0]) - 1 - suffix]
-        for t in tokens
+        t[len(t) - 1 - suffix] == tokens[0][len(tokens[0]) - 1 - suffix] for t in tokens
     ):
         suffix += 1
     shared = tokens[0][:prefix] + (tokens[0][-suffix:] if suffix else [])
@@ -179,7 +178,7 @@ def _derive_group(names: list[str]) -> tuple[str, list[str]]:
 
 def _load_rows() -> list[tuple[str, str, str]]:
     raw = (Path(__file__).parent / "products.tsv").read_text(encoding="utf-8")
-    skip = re.compile(r"reserved|do not use", re.I)
+    skip = re.compile(r"reserved|do not use", re.IGNORECASE)
     rows = []
     for line in raw.splitlines():
         if not line.strip():
@@ -205,7 +204,11 @@ def _build_products() -> tuple[Product, ...]:
         cat = sku.split("-")[1]
         products.append(
             Product(
-                id=sku, name=name, cat=cat, sku=sku, upc=upc,
+                id=sku,
+                name=name,
+                cat=cat,
+                sku=sku,
+                upc=upc,
                 price=_price_for(cat, sku, name),
             )
         )
@@ -215,7 +218,11 @@ def _build_products() -> tuple[Product, ...]:
             name, sku, upc = members[0]
             products.append(
                 Product(
-                    id=sku, name=name, cat=cat, sku=sku, upc=upc,
+                    id=sku,
+                    name=name,
+                    cat=cat,
+                    sku=sku,
+                    upc=upc,
                     price=_price_for(cat, sku, name),
                 )
             )
@@ -228,8 +235,13 @@ def _build_products() -> tuple[Product, ...]:
         first = members[0]
         products.append(
             Product(
-                id=base, name=name, cat=cat, sku=first[1], upc=first[2],
-                price=_price_for(cat, first[1], name), variants=variants,
+                id=base,
+                name=name,
+                cat=cat,
+                sku=first[1],
+                upc=first[2],
+                price=_price_for(cat, first[1], name),
+                variants=variants,
             )
         )
 
@@ -253,7 +265,9 @@ def _pick_featured() -> tuple[Product, ...]:
 
 
 FEATURED = _pick_featured()
-HERO = PRODUCT_MAP.get(HERO_PRODUCT_ID, FEATURED[0])
+HERO = PRODUCT_MAP.get(HERO_PRODUCT_ID) or (
+    FEATURED[0] if FEATURED else PRODUCTS[0] if PRODUCTS else None
+)
 
 
 def category_hub() -> list[dict]:
@@ -269,9 +283,7 @@ def category_hub() -> list[dict]:
 
 
 def related_products(product: Product, limit: int = 4) -> list[Product]:
-    return [
-        p for p in PRODUCTS if p.cat == product.cat and p.id != product.id
-    ][:limit]
+    return [p for p in PRODUCTS if p.cat == product.cat and p.id != product.id][:limit]
 
 
 def catalog_json() -> dict:

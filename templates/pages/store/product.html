@@ -42,7 +42,14 @@
                         <label for="variantSelect">Option</label>
                         <select id="variantSelect" class="store-input">
                             {% for v in product.variants %}
-                                <option value="{{ v.code }}" data-sku="{{ v.sku }}" data-upc="{{ v.upc }}">{{ v.label }}</option>
+                                <option
+                                    value="{{ v.sku }}"
+                                    data-sku="{{ v.sku }}"
+                                    data-upc="{{ v.upc }}"
+                                    data-price-cents="{{ v.price_cents }}"
+                                    data-stock="{{ v.available_stock }}"
+                                    {% if v.available_stock <= 0 %}disabled{% endif %}
+                                >{{ v.label or v.sku }}{% if v.available_stock <= 0 %} — Sold out{% endif %}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -54,8 +61,15 @@
                         <span id="qtyValue" aria-live="polite">1</span>
                         <button type="button" id="qtyInc" aria-label="Increase quantity">+</button>
                     </div>
-                    <button class="btn btn-primary product-add" data-add data-id="{{ product.id }}" data-detail>
-                        Add to cart
+                    <button
+                        class="btn btn-primary product-add"
+                        data-add
+                        data-id="{{ product.id }}"
+                        data-sku="{{ product.variants[0].sku }}"
+                        data-detail
+                        {% if product.sold_out %}disabled{% endif %}
+                    >
+                        {{ "Sold out" if product.sold_out else "Add to cart" }}
                     </button>
                 </div>
 
@@ -65,7 +79,10 @@
                     <div><dt>Category</dt><dd class="spec-plain">{{ product.cat_label }}</dd></div>
                     <div>
                         <dt>Availability</dt>
-                        <dd class="spec-stock"><span class="stock-dot"></span>In stock</dd>
+                        <dd class="spec-stock" id="specStock">
+                            <span class="stock-dot"></span>
+                            {{ "Sold out" if product.sold_out else "In stock" }}
+                        </dd>
                     </div>
                 </dl>
             </div>

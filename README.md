@@ -40,6 +40,12 @@ The app currently serves these user-facing routes:
 - `/forms/volunteer`
 - `/forms/calls`
 - `/forms/email` (`POST`)
+- `/store`
+- `/store/catalog`
+- `/store/product/{product_id}`
+- `/store/checkout`
+- `/store/confirmed`
+- `/store/webhook` (`POST`, Stripe-signed)
 
 ## Local Development
 
@@ -91,6 +97,29 @@ The compose file restricts Uvicorn's trusted proxy headers to Docker bridge
 networks. The reverse proxy must replace any client-supplied `X-Forwarded-For`
 header rather than append to it; per-IP rate limiting depends on this boundary.
 
+### Store configuration
+
+The store uses SQLite at `STORE_DB_PATH` (default `data/store.db`) and persists
+that directory through Docker Compose. A fresh database imports the bundled
+catalog with zero stock, so checkout remains unavailable until inventory is
+explicitly loaded. Prices and inventory are always resolved server-side in
+integer cents and browser carts contain only SKU/quantity pairs.
+
+- `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Stripe Checkout.
+- `STORE_PUBLIC_ORIGIN` is the canonical HTTPS origin used for Stripe redirects.
+- `STORE_SHIP_COUNTRIES` is a comma-separated country allowlist.
+- `STRIPE_SHIPPING_RATE_IDS` optionally supplies Stripe shipping rates.
+- `STORE_AUTOMATIC_TAX=true` enables Stripe Tax.
+- `STORE_RESERVATION_MINUTES` controls reservation lifetime from 30 minutes to
+  24 hours.
+
+Checkout creation atomically reserves inventory before contacting Stripe.
+Provider calls use the durable checkout UUID as their idempotency key. Signed
+webhooks consume or release reservations and record an event ledger in the same
+transaction as order state. Payment, fulfillment, manual review, and refund
+states remain independent. `/readyz` verifies the SQLite schema and integrity;
+`/healthz` remains the process liveness probe.
+
 ## Deployment Notes
 
 - The `Dockerfile` installs the exact dependency versions in `uv.lock` with a
@@ -98,8 +127,8 @@ header rather than append to it; per-IP rate limiting depends on this boundary.
   with `fastapi run src/main.py --proxy-headers --port 8080`.
 - `psv-website.service` expects the repository to live at `/opt/psv-website`.
 - The service file is an example deployment artifact, not a portable installer; adjust paths and service management to match the target host.
-- The app serves a `/healthz` endpoint, and the compose file defines a matching
-  container health check.
+- The app serves `/healthz` for liveness and `/readyz` for store database
+  readiness. The compose file uses the liveness endpoint.
 - Deploys invoke [`deploy/deploy.sh`](deploy/deploy.sh) directly as the
   deployment account, avoiding interactive `sudo` in GitHub Actions. The
   script builds the new image while the old container keeps serving, swaps
@@ -129,8 +158,6 @@ The repository still contains several stubbed or provisional values that should 
 
 | File | Current placeholder | What should replace it |
 | --- | --- | --- |
-| `templates/navbar.html` | Store nav item disabled with `PSV Store coming soon` / `Store coming soon` | Real store URL or remove the nav item |
-| `templates/footer.html` | Store footer item disabled with `Store coming soon` | Real store URL or remove the footer item |
 | `templates/pages/get-involved.html` | `Sponsorship details coming soon` | Real sponsorship workflow, package, or contact path |
 
 ### Pages with intentionally incomplete content
@@ -156,4 +183,9 @@ The repository still contains several stubbed or provisional values that should 
 
 ## Current State Summary
 
-The site already has a coherent frontend structure, working contact and volunteer email paths, and locally managed game thumbnails. The main unfinished areas are organizational content, real event/archive data, store/sponsorship decisions, legacy game routes, and deployment-specific configuration.
+The site already has a coherent frontend structure, working contact and
+volunteer email paths, locally managed game thumbnails, and a Stripe-backed
+store commerce foundation. Store inventory and production Stripe configuration
+must be loaded before checkout is enabled. The main remaining areas are
+organizational content, real event/archive data, store administration,
+sponsorship decisions, legacy game routes, and deployment-specific operations.

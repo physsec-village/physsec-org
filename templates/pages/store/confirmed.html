@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Order Placed | PSV Store | Physical Security Village{% endblock %}
-{% block description %}Your Physical Security Village store order has been placed.{% endblock %}
+{% block title %}Order Status | PSV Store | Physical Security Village{% endblock %}
+{% block description %}Your Physical Security Village store order status.{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block styles %}
 <link href="/static/pages/store.css" rel="stylesheet" />
@@ -8,18 +8,27 @@
 
 {% block main %}
     <div class="page-shell">
-        <div class="order-confirm">
-            <div class="order-confirm-icon">
-                <svg viewBox="0 0 24 24">
-                    <polyline points="20 6 9 17 4 12" />
-                </svg>
-            </div>
-            <h1>Order placed</h1>
-            <p>
-                Thanks for supporting the village. A confirmation has been sent
-                to your email with tracking details once your order ships.
-            </p>
-            <div class="order-num mono">Order {{ order_num }}</div>
+        <div class="order-confirm" data-order-confirmed="{{ 'true' if order else 'false' }}">
+            {% if order %}
+                <div class="order-confirm-icon">
+                    <svg viewBox="0 0 24 24">
+                        <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                </div>
+                <h1>Order placed</h1>
+                <p>
+                    Thanks for supporting the village. Your payment is confirmed
+                    and the order is awaiting fulfillment.
+                </p>
+                <div class="order-num mono">Order {{ order.id }}</div>
+            {% else %}
+                <h1>Payment is processing</h1>
+                <p>
+                    Stripe redirected you successfully, but the signed payment
+                    notification has not reached us yet. Refresh this page in a
+                    moment. Your cart has not been cleared.
+                </p>
+            {% endif %}
             <a href="{{ url_for('store_catalog_page') }}" class="btn btn-primary">Continue shopping</a>
         </div>
     </div>

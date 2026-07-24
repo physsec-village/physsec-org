@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from .dependencies import templates
 from .forms.turnstile import get_turnstile_settings
+from .store import db
 
 router = APIRouter()
 
@@ -75,6 +76,20 @@ def healthz():
     return "ok"
 
 
+@router.get("/readyz", include_in_schema=False)
+def readyz():
+    try:
+        status = db.readiness()
+    except OSError, RuntimeError:
+        status = {}
+    ready = isinstance(status, dict) and bool(status.get("ready"))
+    return Response(
+        content="ready" if ready else "not ready",
+        status_code=200 if ready else 503,
+        media_type="text/plain",
+    )
+
+
 @router.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
 def robots_txt():
     return "User-agent: *\nAllow: /\nSitemap: https://physsec.org/sitemap.xml\n"
@@ -91,7 +106,6 @@ def sitemap_xml():
         media_type="application/xml",
     )
 
+
 async def not_found(request, exc):
-    return templates.TemplateResponse(
-        request=request, name="404.html", status_code=404
-    )
+    return templates.TemplateResponse(request=request, name="404.html", status_code=404)

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "store/macros.html" import product_card with context %}
-{% set initial_label = "All Products" if initial_cat == "All" else categories | selectattr("key", "equalto", initial_cat) | map(attribute="label") | first %}
-{% set initial_blurb = all_blurb if initial_cat == "All" else categories | selectattr("key", "equalto", initial_cat) | map(attribute="blurb") | first %}
+{% set initial_label = "All Products" if initial_cat == "All" else categories | selectattr("key", "equalto", initial_cat) | map(attribute="label") | first | default("All Products", true) %}
+{% set initial_blurb = all_blurb if initial_cat == "All" else categories | selectattr("key", "equalto", initial_cat) | map(attribute="blurb") | first | default(all_blurb, true) %}
 {% block title %}{{ initial_label }} | PSV Store | Physical Security Village{% endblock %}
 {% block description %}Browse the Physical Security Village store: bypass tools, keyed-alike utility keys, Covert Instruments kits, RFID hardware, gear, and merch.{% endblock %}
 {% block styles %}
