@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import stripe
@@ -20,7 +20,7 @@ def _required(name: str) -> str:
 
 def create_checkout_session(checkout: dict[str, Any]) -> stripe.checkout.Session:
     """Create or recover a hosted Checkout Session for a reserved cart."""
-    stripe.api_key = _required("STRIPE_SECRET_KEY")
+    client = stripe.StripeClient(_required("STRIPE_SECRET_KEY"))
     origin = _required("STORE_PUBLIC_ORIGIN").rstrip("/")
     countries = [
         value.strip().upper()
@@ -53,6 +53,8 @@ def create_checkout_session(checkout: dict[str, Any]) -> stripe.checkout.Session
     expires_at = datetime.fromisoformat(checkout["expires_at"])
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=UTC)
+    if expires_at < datetime.now(UTC) + timedelta(minutes=30):
+        raise ValueError("Checkout reservation is too close to expiration.")
     params: dict[str, Any] = {
         "mode": "payment",
         "line_items": line_items,
@@ -75,15 +77,14 @@ def create_checkout_session(checkout: dict[str, Any]) -> stripe.checkout.Session
     if os.getenv("STORE_AUTOMATIC_TAX", "").lower() == "true":
         params["automatic_tax"] = {"enabled": True}
 
-    return stripe.checkout.Session.create(
-        **params,
-        idempotency_key=f"checkout:{checkout_id}",
+    return client.v1.checkout.sessions.create(
+        params,
+        {"idempotency_key": f"checkout:{checkout_id}"},
     )
 
 
 def construct_webhook_event(payload: bytes, signature: str | None) -> stripe.Event:
     """Verify and decode a Stripe webhook payload."""
-    stripe.api_key = _required("STRIPE_SECRET_KEY")
     return stripe.Webhook.construct_event(
         payload,
         signature,

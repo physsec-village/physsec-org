@@ -64,7 +64,7 @@
                         class="btn btn-primary btn-add"
                         data-add
                         data-id="{{ p.id }}"
-                        data-sku="{{ p.variants[0].sku }}"
+                        data-sku="{{ p.default_variant.sku }}"
                         {% if p.sold_out %}disabled{% endif %}
                         aria-label="Add {{ p.name }} to cart"
                     >{{ "Sold out" if p.sold_out else "Add" }}</button>

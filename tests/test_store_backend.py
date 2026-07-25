@@ -7,9 +7,11 @@ import stripe
 from fastapi.testclient import TestClient
 
 from src.main import app
-from src.store import db, seed
+from src.store import db, seed, stripe_client
 from src.store import router as store_router
+from src.store.config import bootstrap_stock, reservation_minutes
 from src.store.models import ProductInput, VariantInput
+from src.store.storefront import ProductView, VariantView
 
 
 def _database(tmp_path, *, stock: int = 1):
@@ -58,6 +60,47 @@ def test_schema_and_rfid_catalog(tmp_path):
     assert product["base_sku"] == "PSV-RFID-001"
     assert product["price_cents"] == 2500
     assert product["variants"][0]["available_stock"] == 1
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "reader"),
+    [
+        ("STORE_RESERVATION_MINUTES", "not-a-number", reservation_minutes),
+        ("STORE_RESERVATION_MINUTES", "30", reservation_minutes),
+        ("STORE_RESERVATION_MINUTES", "1441", reservation_minutes),
+        ("STORE_BOOTSTRAP_STOCK", "not-a-number", bootstrap_stock),
+        ("STORE_BOOTSTRAP_STOCK", "-1", bootstrap_stock),
+    ],
+)
+def test_store_numeric_configuration_is_validated(monkeypatch, name, value, reader):
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValueError, match=name):
+        reader()
+
+
+def test_product_default_variant_prefers_available_stock():
+    variants = (
+        VariantView("001", "Sold out", "PSV-RFID-001-001", "", 1000, 0),
+        VariantView("002", "Available", "PSV-RFID-001-002", "", 1000, 2),
+    )
+    product = ProductView(
+        id="PSV-RFID-001",
+        name="RFID Tool",
+        cat="RFID",
+        cat_label="RFID",
+        sku=variants[0].sku,
+        upc="",
+        desc="",
+        featured=False,
+        price_cents=1000,
+        price_str="$10.00",
+        price_varies=False,
+        variants=variants,
+        available_stock=2,
+    )
+
+    assert product.default_variant.sku == "PSV-RFID-001-002"
 
 
 def test_cart_normalization_caps_duplicate_sku_totals(tmp_path):
@@ -261,6 +304,88 @@ def test_checkout_http_retry_reuses_reservation(tmp_path, monkeypatch):
             ).fetchone()[0]
             == 1
         )
+
+
+def test_checkout_http_rejects_and_releases_a_stale_retry(tmp_path, monkeypatch):
+    path = _database(tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", path)
+    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}], db_path=path)
+    stale_expiry = db._timestamp(datetime.now(UTC) + timedelta(minutes=29))
+    with db.connection(path, write=True) as conn:
+        conn.execute(
+            "UPDATE checkouts SET expires_at=? WHERE id=?",
+            (stale_expiry, checkout["id"]),
+        )
+        conn.execute(
+            "UPDATE inventory_reservations SET expires_at=? WHERE checkout_id=?",
+            (stale_expiry, checkout["id"]),
+        )
+
+    response = TestClient(app).post(
+        "/store/checkout",
+        json={
+            "items": [{"sku": "PSV-RFID-001", "qty": 1}],
+            "checkout_id": checkout["id"],
+        },
+    )
+
+    assert response.status_code == 409
+    with db.connection(path) as conn:
+        assert conn.execute("SELECT status FROM checkouts").fetchone()[0] == "failed"
+        assert (
+            conn.execute("SELECT state FROM inventory_reservations").fetchone()[0]
+            == "released"
+        )
+
+
+def test_stripe_client_uses_scoped_client_and_ignores_api_key_for_webhooks(monkeypatch):
+    created = {}
+
+    class Sessions:
+        def create(self, params, options):
+            created.update(params=params, options=options)
+            return SimpleNamespace(id="cs_test")
+
+    class Client:
+        def __init__(self, api_key):
+            created["api_key"] = api_key
+            self.v1 = SimpleNamespace(checkout=SimpleNamespace(sessions=Sessions()))
+
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_scoped")
+    monkeypatch.setenv("STORE_PUBLIC_ORIGIN", "https://example.test")
+    monkeypatch.setattr(stripe, "StripeClient", Client)
+    checkout = {
+        "id": "checkout-id",
+        "currency": "usd",
+        "expires_at": (datetime.now(UTC) + timedelta(minutes=31)).isoformat(),
+        "items": [
+            {
+                "sku": "PSV-RFID-001",
+                "product_name": "RFID Tool",
+                "variant_name": "",
+                "unit_amount_cents": 2500,
+                "quantity": 1,
+            }
+        ],
+    }
+
+    stripe_client.create_checkout_session(checkout)
+
+    assert created["api_key"] == "sk_test_scoped"
+    assert created["options"] == {"idempotency_key": "checkout:checkout-id"}
+
+    monkeypatch.delenv("STRIPE_SECRET_KEY")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+    monkeypatch.setattr(
+        stripe.Webhook,
+        "construct_event",
+        lambda payload, signature, secret: (payload, signature, secret),
+    )
+    assert stripe_client.construct_webhook_event(b"{}", "sig") == (
+        b"{}",
+        "sig",
+        "whsec_test",
+    )
 
 
 def test_webhook_http_rejects_invalid_and_replays_paid_event_once(

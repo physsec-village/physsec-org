@@ -110,8 +110,10 @@ integer cents and browser carts contain only SKU/quantity pairs.
 - `STORE_SHIP_COUNTRIES` is a comma-separated country allowlist.
 - `STRIPE_SHIPPING_RATE_IDS` optionally supplies Stripe shipping rates.
 - `STORE_AUTOMATIC_TAX=true` enables Stripe Tax.
-- `STORE_RESERVATION_MINUTES` controls reservation lifetime from 30 minutes to
-  24 hours.
+- `STORE_RESERVATION_MINUTES` controls reservation lifetime from 31 minutes to
+  24 hours (default `35`, leaving a buffer above Stripe's 30-minute minimum).
+- `STORE_BOOTSTRAP_STOCK` controls initial stock during first-time import and
+  defaults to `0` so new deployments fail closed.
 
 Checkout creation atomically reserves inventory before contacting Stripe.
 Provider calls use the durable checkout UUID as their idempotency key. Signed

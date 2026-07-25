@@ -43,6 +43,14 @@ class ProductView:
         return self.available_stock <= 0
 
     @property
+    def default_variant(self) -> VariantView:
+        """Prefer an available variant for one-click product-card adds."""
+        return next(
+            (variant for variant in self.variants if variant.available_stock > 0),
+            self.variants[0],
+        )
+
+    @property
     def search_text(self) -> str:
         values = [self.name, self.sku, self.cat_label]
         values.extend(variant.label for variant in self.variants)

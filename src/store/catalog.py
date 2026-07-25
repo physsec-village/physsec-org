@@ -9,6 +9,7 @@ per-category base, with overrides for well-known items) carried over from the
 approved store design; replace with real pricing data when it exists.
 """
 
+import logging
 import re
 from dataclasses import dataclass, field
 from math import floor
@@ -23,6 +24,7 @@ CATEGORY_LABELS = {
 }
 
 CATEGORY_ORDER = ("BYP", "KYS", "RFID", "MSC", "MRC")
+logger = logging.getLogger(__name__)
 
 CATEGORY_BLURBS = {
     "BYP": "Shims, jigglers, slips, and picks for hands-on bypass practice.",
@@ -180,10 +182,14 @@ def _load_rows() -> list[tuple[str, str, str]]:
     raw = (Path(__file__).parent / "products.tsv").read_text(encoding="utf-8")
     skip = re.compile(r"reserved|do not use", re.IGNORECASE)
     rows = []
-    for line in raw.splitlines():
+    for line_number, line in enumerate(raw.splitlines(), start=1):
         if not line.strip():
             continue
-        name, sku, upc = (part.strip() for part in line.split("\t"))
+        parts = [part.strip() for part in line.split("\t")]
+        if len(parts) != 3:
+            logger.warning("Skipping malformed catalog row line=%d", line_number)
+            continue
+        name, sku, upc = parts
         if name and sku and not skip.search(name):
             rows.append((name, sku, upc))
     return rows
@@ -245,7 +251,16 @@ def _build_products() -> tuple[Product, ...]:
             )
         )
 
-    products.sort(key=lambda p: (CATEGORY_ORDER.index(p.cat), p.name.casefold()))
+    products.sort(
+        key=lambda product: (
+            (
+                CATEGORY_ORDER.index(product.cat)
+                if product.cat in CATEGORY_ORDER
+                else len(CATEGORY_ORDER)
+            ),
+            product.name.casefold(),
+        )
+    )
     return tuple(products)
 
 

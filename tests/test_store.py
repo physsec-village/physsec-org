@@ -63,12 +63,15 @@ class StoreRouteTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_confirmed_requires_a_session_id(self):
+    def test_confirmed_does_not_reflect_an_unknown_session_id(self):
         with TestClient(app) as client:
-            response = client.get("/store/confirmed?order=<script>alert(1)</script>")
+            response = client.get(
+                "/store/confirmed?session_id=<script>alert(1)</script>"
+            )
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
         self.assertNotIn("alert(", response.text)
+        self.assertIn("Payment is processing", response.text)
 
     def test_store_is_linked_and_in_sitemap(self):
         with TestClient(app) as client:

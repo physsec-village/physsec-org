@@ -13,6 +13,7 @@ from .limiter import limiter
 from .router import not_found
 from .router import router as root_router
 from .store import db
+from .store.config import validate_store_config
 from .store.router import router as store_router
 from .store.seed import bootstrap_catalog
 
@@ -37,6 +38,7 @@ async def lifespan(app: FastAPI):
     # Fail at startup, not on first submission, if required configuration is invalid
     get_mail_config()
     get_turnstile_settings()
+    validate_store_config()
     db.init_db()
     bootstrap_catalog()
     yield

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import logging
-import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import stripe
@@ -13,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ..dependencies import templates
 from . import catalog, db, storefront
+from .config import reservation_minutes
 from .stripe_client import (
     StripeNotConfigured,
     construct_webhook_event,
@@ -124,12 +124,18 @@ def store_cart_info(payload: CartPayload):
 
 @router.post("/checkout")
 def store_checkout(payload: CartPayload):
-    ttl_minutes = int(os.getenv("STORE_RESERVATION_MINUTES", "30"))
     try:
+        ttl_minutes = reservation_minutes()
         if payload.checkout_id:
             checkout = db.get_checkout(payload.checkout_id)
             if checkout is None or checkout["status"] != "creating":
                 raise db.CheckoutConflict("Checkout is not retryable.")
+            expires_at = datetime.fromisoformat(checkout["expires_at"])
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+            if expires_at < datetime.now(UTC) + timedelta(minutes=30):
+                db.mark_provider_failure(checkout["id"], "stripe_retry_window_elapsed")
+                raise db.CheckoutConflict("Checkout reservation has expired.")
         else:
             db.cleanup_expired_reservations(limit=100)
             checkout = db.reserve_checkout(_items(payload), ttl_minutes=ttl_minutes)
@@ -154,6 +160,14 @@ def store_checkout(payload: CartPayload):
         )
     except db.CheckoutConflict as exc:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
+    except ValueError as exc:
+        if "checkout" in locals() and checkout.get("id"):
+            db.mark_provider_failure(checkout["id"], "invalid_store_configuration")
+        logger.error("store_checkout_configuration_invalid error=%s", exc)
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Store checkout configuration is invalid."},
+        )
     except StripeNotConfigured:
         if "checkout" in locals() and checkout.get("id"):
             db.mark_provider_failure(checkout["id"], "not_configured")

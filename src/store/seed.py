@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
 from . import catalog, db
+from .config import bootstrap_stock
 from .models import ProductInput, VariantInput, cents_from_dollars
 
 logger = logging.getLogger(__name__)
@@ -15,13 +15,11 @@ logger = logging.getLogger(__name__)
 def bootstrap_catalog(db_path: str | Path | None = None) -> int:
     """Import the bundled catalog only when the database has no products.
 
-    Prices come from the approved design data, but stock defaults to zero so a
-    fresh production deployment cannot accidentally sell unconfigured items.
-    Operators must explicitly load inventory before checkout becomes available.
+    Imports resume per base SKU. Prices come from the approved design data, but
+    stock defaults to zero so a fresh production deployment cannot accidentally
+    sell unconfigured items.
     """
-    initial_stock = int(os.getenv("STORE_BOOTSTRAP_STOCK", "0"))
-    if initial_stock < 0:
-        raise ValueError("STORE_BOOTSTRAP_STOCK must not be negative.")
+    initial_stock = bootstrap_stock()
     grouped: dict[str, list[catalog.Product]] = {}
     for product in catalog.PRODUCTS:
         grouped.setdefault("-".join(product.id.split("-")[:3]), []).append(product)

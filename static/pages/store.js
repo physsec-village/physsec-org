@@ -301,6 +301,9 @@
                     window.sessionStorage.setItem(CHECKOUT_KEY, result.checkout_id);
                 }
                 if (!response.ok) {
+                    if (response.status === 409 && !result.checkout_id) {
+                        window.sessionStorage.removeItem(CHECKOUT_KEY);
+                    }
                     throw new Error(
                         result.detail || "Checkout could not be started.",
                     );

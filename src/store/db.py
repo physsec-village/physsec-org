@@ -272,22 +272,34 @@ def _hydrate_products(
     conn: sqlite3.Connection, rows: Sequence[sqlite3.Row]
 ) -> list[dict[str, Any]]:
     products = [dict(row) for row in rows]
+    if not products:
+        return products
+    product_ids = [product["id"] for product in products]
+    placeholders = ",".join("?" for _ in product_ids)
+    variants_by_product: dict[int, list[dict[str, Any]]] = {
+        product_id: [] for product_id in product_ids
+    }
+    for row in conn.execute(
+        f"SELECT v.*, {_available_sql()} AS available_stock "
+        f"FROM variants v WHERE product_id IN ({placeholders}) "
+        "ORDER BY product_id,position,id",
+        product_ids,
+    ):
+        variants_by_product[int(row["product_id"])].append(dict(row))
+    images_by_product: dict[int, list[dict[str, Any]]] = {
+        product_id: [] for product_id in product_ids
+    }
+    for row in conn.execute(
+        f"SELECT * FROM product_images WHERE product_id IN ({placeholders}) "
+        "ORDER BY product_id,position,id",
+        product_ids,
+    ):
+        image = {**dict(row), "url": f"/media/{row['filename']}"}
+        images_by_product[int(row["product_id"])].append(image)
+
     for product in products:
-        variants = [
-            dict(row)
-            for row in conn.execute(
-                f"SELECT v.*, {_available_sql()} AS available_stock "
-                "FROM variants v WHERE product_id=? ORDER BY position,id",
-                (product["id"],),
-            )
-        ]
-        images = [
-            {**dict(row), "url": f"/media/{row['filename']}"}
-            for row in conn.execute(
-                "SELECT * FROM product_images WHERE product_id=? ORDER BY position,id",
-                (product["id"],),
-            )
-        ]
+        variants = variants_by_product[product["id"]]
+        images = images_by_product[product["id"]]
         prices = [int(v["price_cents"]) for v in variants]
         product.update(
             variants=variants,
@@ -433,14 +445,13 @@ def reserve_checkout(
     items: Sequence[Mapping[str, Any]],
     *,
     currency: str = "usd",
-    ttl_minutes: int = 30,
-    checkout_id: str | None = None,
+    ttl_minutes: int = 35,
     db_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Validate and reserve an entire cart in one serialized transaction."""
-    if not 30 <= ttl_minutes <= 1440:
+    if not 31 <= ttl_minutes <= 1440:
         raise ValueError(
-            "Reservation lifetime must be between 30 minutes and 24 hours."
+            "Reservation lifetime must be between 31 minutes and 24 hours."
         )
     requested: dict[str, int] = {}
     for raw in items:
@@ -461,7 +472,7 @@ def reserve_checkout(
     now_dt = datetime.now(UTC)
     created_at = _timestamp(now_dt)
     expires_at = _timestamp(now_dt + timedelta(minutes=ttl_minutes))
-    checkout_id = checkout_id or uuid.uuid4().hex
+    checkout_id = uuid.uuid4().hex
     with connection(db_path, write=True) as conn:
         rows = _cart_rows(conn, requested)
         by_sku = {row["sku"]: row for row in rows}
