@@ -17,7 +17,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./data:/psv-website/data
+      - ./data/media:/psv-website/data/media
     environment:
       # Production startup fails unless Turnstile is fully configured.
       - APP_ENV=production

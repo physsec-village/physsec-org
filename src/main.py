@@ -39,9 +39,13 @@ async def lifespan(app: FastAPI):
     get_mail_config()
     get_turnstile_settings()
     validate_store_config()
-    db.init_db()
-    bootstrap_catalog()
-    yield
+    db.open_pool()
+    try:
+        db.require_schema()
+        bootstrap_catalog()
+        yield
+    finally:
+        db.close_pool()
 
 
 app = FastAPI(exception_handlers=exceptions, lifespan=lifespan)

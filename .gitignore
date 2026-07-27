@@ -106,4 +106,8 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+# Supabase CLI local state
+supabase/.branches/
+supabase/.temp/
+
 .idea/*

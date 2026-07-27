@@ -1,28 +1,31 @@
-"""SQLite persistence for catalog, checkout, inventory, and orders.
+"""PostgreSQL persistence for catalog, checkout, inventory, and orders.
 
-All inventory transitions use ``BEGIN IMMEDIATE``.  Stripe/network operations
-must happen outside these transactions and be retried with the checkout ID as
-their provider idempotency key.
+Inventory transitions lock affected rows in deterministic order. Stripe/network
+operations happen outside database transactions and use the durable checkout ID
+as their provider idempotency key.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 import os
-import sqlite3
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
+import psycopg
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
+
+from .config import database_url
 from .models import ProductInput, slugify
 
-DB_PATH = Path(os.getenv("STORE_DB_PATH", "data/store.db"))
-MEDIA_DIR = DB_PATH.parent / "media"
+MEDIA_DIR = os.getenv("STORE_MEDIA_DIR", "data/media")
 SCHEMA_VERSION = 1
+_pool: ConnectionPool | None = None
 
 
 class StoreError(RuntimeError):
@@ -51,213 +54,85 @@ def _timestamp(value: datetime | None) -> str:
 
 
 @contextmanager
-def connection(
-    db_path: str | Path | None = None, *, write: bool = False
-) -> Iterator[sqlite3.Connection]:
-    """Open a configured connection; callers explicitly initialize storage."""
-    conn = sqlite3.connect(str(db_path or DB_PATH), timeout=5, isolation_level=None)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout = 5000")
-    conn.execute("PRAGMA foreign_keys = ON")
-    if write:
-        conn.execute("BEGIN IMMEDIATE")
-    else:
-        conn.execute("BEGIN")
-    try:
+def connection(*, write: bool = False) -> Iterator[psycopg.Connection]:
+    """Borrow a pooled connection and bound its work to one transaction."""
+    del write  # All pooled work is transactional.
+    pool = _get_pool()
+    with pool.connection(timeout=5) as conn, conn.transaction():
         yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
-def init_db(db_path: str | Path | None = None) -> None:
-    """Create the parent directory and apply every pending schema migration."""
-    path = Path(db_path or DB_PATH)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path), timeout=5, isolation_level=None)
-    try:
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA busy_timeout = 5000")
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA journal_mode = WAL")
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS schema_migrations("
-            "version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
+def _configure_connection(conn: psycopg.Connection) -> None:
+    conn.execute("SET search_path TO store, public")
+    conn.execute("SET statement_timeout TO '10s'")
+    conn.execute("SET lock_timeout TO '5s'")
+    conn.commit()
+
+
+def _get_pool() -> ConnectionPool:
+    global _pool
+    if _pool is None:
+        _pool = ConnectionPool(
+            database_url(),
+            min_size=1,
+            max_size=10,
+            timeout=5,
+            kwargs={"row_factory": dict_row},
+            configure=_configure_connection,
+            check=ConnectionPool.check_connection,
+            open=False,
         )
-        applied = {
-            int(row["version"])
-            for row in conn.execute("SELECT version FROM schema_migrations")
-        }
-        for version, sql in _MIGRATIONS:
-            if version in applied:
-                continue
-            try:
-                conn.executescript(
-                    "BEGIN IMMEDIATE;\n"
-                    f"{sql}\n"
-                    "INSERT INTO schema_migrations(version, applied_at) "
-                    f"VALUES({version}, '{utc_now()}');\n"
-                    "COMMIT;"
-                )
-            except Exception:
-                conn.rollback()
-                raise
-    finally:
-        conn.close()
+        _pool.open(wait=True)
+    return _pool
 
 
-_MIGRATIONS = [
-    (
-        1,
-        """
-        CREATE TABLE categories(
-            code TEXT PRIMARY KEY,
-            label TEXT NOT NULL
-        );
-        CREATE TABLE products(
-            id INTEGER PRIMARY KEY,
-            slug TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL,
-            base_sku TEXT UNIQUE NOT NULL,
-            description TEXT NOT NULL DEFAULT '',
-            category_code TEXT NOT NULL REFERENCES categories(code),
-            featured INTEGER NOT NULL DEFAULT 0 CHECK(featured IN (0,1)),
-            published INTEGER NOT NULL DEFAULT 1 CHECK(published IN (0,1)),
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-        CREATE TABLE variants(
-            id INTEGER PRIMARY KEY,
-            product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
-            sku TEXT UNIQUE NOT NULL,
-            upc TEXT NOT NULL DEFAULT '',
-            name TEXT NOT NULL DEFAULT '',
-            price_cents INTEGER NOT NULL CHECK(price_cents >= 0),
-            stock_on_hand INTEGER NOT NULL DEFAULT 0 CHECK(stock_on_hand >= 0),
-            position INTEGER NOT NULL DEFAULT 0
-        );
-        CREATE TABLE product_images(
-            id INTEGER PRIMARY KEY,
-            product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-            filename TEXT NOT NULL,
-            alt TEXT NOT NULL DEFAULT '',
-            position INTEGER NOT NULL DEFAULT 0
-        );
-        CREATE TABLE checkouts(
-            id TEXT PRIMARY KEY,
-            status TEXT NOT NULL CHECK(status IN
-                ('creating','open','paid','expired','failed','canceled')),
-            stripe_session_id TEXT UNIQUE,
-            stripe_payment_intent_id TEXT,
-            currency TEXT NOT NULL,
-            subtotal_cents INTEGER NOT NULL CHECK(subtotal_cents >= 0),
-            created_at TEXT NOT NULL,
-            expires_at TEXT NOT NULL,
-            completed_at TEXT,
-            failure_code TEXT,
-            version INTEGER NOT NULL DEFAULT 0
-        );
-        CREATE TABLE checkout_items(
-            checkout_id TEXT NOT NULL REFERENCES checkouts(id) ON DELETE RESTRICT,
-            variant_id INTEGER NOT NULL REFERENCES variants(id) ON DELETE RESTRICT,
-            sku TEXT NOT NULL,
-            product_name TEXT NOT NULL,
-            variant_name TEXT NOT NULL DEFAULT '',
-            unit_amount_cents INTEGER NOT NULL CHECK(unit_amount_cents >= 0),
-            quantity INTEGER NOT NULL CHECK(quantity > 0),
-            PRIMARY KEY(checkout_id, variant_id)
-        );
-        CREATE TABLE inventory_reservations(
-            id INTEGER PRIMARY KEY,
-            checkout_id TEXT NOT NULL REFERENCES checkouts(id) ON DELETE RESTRICT,
-            variant_id INTEGER NOT NULL REFERENCES variants(id) ON DELETE RESTRICT,
-            quantity INTEGER NOT NULL CHECK(quantity > 0),
-            state TEXT NOT NULL CHECK(state IN ('active','consumed','released')),
-            expires_at TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            finalized_at TEXT,
-            UNIQUE(checkout_id, variant_id)
-        );
-        CREATE TABLE stripe_events(
-            event_id TEXT PRIMARY KEY,
-            event_type TEXT NOT NULL,
-            stripe_object_id TEXT,
-            stripe_created_at INTEGER,
-            payload_sha256 TEXT,
-            state TEXT NOT NULL CHECK(state IN
-                ('received','processed','ignored','failed')),
-            attempts INTEGER NOT NULL DEFAULT 0,
-            received_at TEXT NOT NULL,
-            processed_at TEXT,
-            last_error_code TEXT,
-            last_error_detail TEXT
-        );
-        CREATE TABLE orders(
-            id TEXT PRIMARY KEY,
-            checkout_id TEXT UNIQUE NOT NULL REFERENCES checkouts(id),
-            stripe_session_id TEXT UNIQUE NOT NULL,
-            payment_intent_id TEXT UNIQUE,
-            email TEXT,
-            shipping_json TEXT,
-            currency TEXT NOT NULL,
-            amount_subtotal_cents INTEGER NOT NULL CHECK(amount_subtotal_cents >= 0),
-            amount_shipping_cents INTEGER NOT NULL DEFAULT 0 CHECK(amount_shipping_cents >= 0),
-            amount_tax_cents INTEGER NOT NULL DEFAULT 0 CHECK(amount_tax_cents >= 0),
-            amount_total_cents INTEGER NOT NULL CHECK(amount_total_cents >= 0),
-            amount_refunded_cents INTEGER NOT NULL DEFAULT 0
-                CHECK(amount_refunded_cents >= 0 AND amount_refunded_cents <= amount_total_cents),
-            payment_state TEXT NOT NULL CHECK(payment_state IN
-                ('pending','paid','failed','canceled')),
-            fulfillment_state TEXT NOT NULL CHECK(fulfillment_state IN
-                ('unfulfilled','processing','shipped','canceled')),
-            review_state TEXT NOT NULL CHECK(review_state IN ('clear','needs_review')),
-            review_reason TEXT,
-            refund_state TEXT NOT NULL CHECK(refund_state IN ('none','partial','full')),
-            created_at TEXT NOT NULL,
-            paid_at TEXT,
-            updated_at TEXT NOT NULL
-        );
-        CREATE TABLE order_items(
-            id INTEGER PRIMARY KEY,
-            order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
-            sku TEXT NOT NULL,
-            product_name TEXT NOT NULL,
-            variant_name TEXT NOT NULL DEFAULT '',
-            quantity INTEGER NOT NULL CHECK(quantity > 0),
-            unit_amount_cents INTEGER NOT NULL CHECK(unit_amount_cents >= 0)
-        );
-        CREATE INDEX idx_products_public ON products(published, featured);
-        CREATE INDEX idx_variants_product ON variants(product_id, position);
-        CREATE INDEX idx_images_product ON product_images(product_id, position);
-        CREATE INDEX idx_reservations_active
-            ON inventory_reservations(variant_id, expires_at)
-            WHERE state = 'active';
-        CREATE INDEX idx_checkouts_expiry ON checkouts(status, expires_at);
-        CREATE INDEX idx_orders_payment_intent ON orders(payment_intent_id);
-        CREATE INDEX idx_order_items_order ON order_items(order_id);
-        """,
-    )
-]
+def open_pool() -> None:
+    """Open and verify the process-level PostgreSQL connection pool."""
+    _get_pool()
 
 
-def readiness(db_path: str | Path | None = None) -> dict[str, Any]:
+def close_pool() -> None:
+    """Close the process-level pool during application shutdown."""
+    global _pool
+    if _pool is not None:
+        _pool.close()
+        _pool = None
+
+
+@contextmanager
+def catalog_bootstrap_lock() -> Iterator[None]:
+    """Serialize resumable catalog bootstrap across application instances."""
+    with connection(write=True) as conn:
+        conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtext('physsec-store-catalog-bootstrap'))"
+        )
+        yield
+
+
+def require_schema() -> None:
+    """Fail startup when the versioned Supabase migration is absent."""
+    status = readiness()
+    if not status["ready"]:
+        raise RuntimeError(f"Store database is not ready: {status}")
+
+
+def readiness() -> dict[str, Any]:
     try:
-        with connection(db_path) as conn:
-            version = conn.execute(
-                "SELECT COALESCE(MAX(version),0) FROM schema_migrations"
-            ).fetchone()[0]
-            ok = conn.execute("PRAGMA quick_check").fetchone()[0] == "ok"
-        return {"ready": ok and version == SCHEMA_VERSION, "schema_version": version}
-    except sqlite3.Error as exc:
+        with connection() as conn:
+            row = conn.execute(
+                "SELECT version FROM schema_metadata WHERE singleton"
+            ).fetchone()
+            version = int(row["version"]) if row else 0
+            conn.execute("SELECT 1")
+        return {"ready": version == SCHEMA_VERSION, "schema_version": version}
+    except (psycopg.Error, RuntimeError, ValueError) as exc:
         return {"ready": False, "error": type(exc).__name__}
 
 
-def products_count(db_path: str | Path | None = None) -> int:
-    with connection(db_path) as conn:
-        return int(conn.execute("SELECT COUNT(*) FROM products").fetchone()[0])
+def products_count() -> int:
+    with connection() as conn:
+        row = conn.execute("SELECT COUNT(*) AS count FROM products").fetchone()
+        return int(row["count"])
 
 
 def _available_sql(alias: str = "v") -> str:
@@ -269,30 +144,29 @@ def _available_sql(alias: str = "v") -> str:
 
 
 def _hydrate_products(
-    conn: sqlite3.Connection, rows: Sequence[sqlite3.Row]
+    conn: psycopg.Connection, rows: Sequence[Mapping[str, Any]]
 ) -> list[dict[str, Any]]:
     products = [dict(row) for row in rows]
     if not products:
         return products
     product_ids = [product["id"] for product in products]
-    placeholders = ",".join("?" for _ in product_ids)
     variants_by_product: dict[int, list[dict[str, Any]]] = {
         product_id: [] for product_id in product_ids
     }
     for row in conn.execute(
         f"SELECT v.*, {_available_sql()} AS available_stock "
-        f"FROM variants v WHERE product_id IN ({placeholders}) "
+        "FROM variants v WHERE product_id = ANY(%s) "
         "ORDER BY product_id,position,id",
-        product_ids,
+        (product_ids,),
     ):
         variants_by_product[int(row["product_id"])].append(dict(row))
     images_by_product: dict[int, list[dict[str, Any]]] = {
         product_id: [] for product_id in product_ids
     }
     for row in conn.execute(
-        f"SELECT * FROM product_images WHERE product_id IN ({placeholders}) "
+        "SELECT * FROM product_images WHERE product_id = ANY(%s) "
         "ORDER BY product_id,position,id",
-        product_ids,
+        (product_ids,),
     ):
         image = {**dict(row), "url": f"/media/{row['filename']}"}
         images_by_product[int(row["product_id"])].append(image)
@@ -317,53 +191,53 @@ def _hydrate_products(
     return products
 
 
-def get_published_products(
-    featured: bool | None = None, db_path: str | Path | None = None
-) -> list[dict[str, Any]]:
+def get_published_products(featured: bool | None = None) -> list[dict[str, Any]]:
     clause, params = "", []
     if featured is not None:
-        clause, params = " AND p.featured=?", [int(featured)]
-    with connection(db_path) as conn:
+        clause, params = " AND p.featured=%s", [featured]
+    with connection() as conn:
         rows = conn.execute(
             "SELECT p.*,COALESCE(c.label,p.category_code) category_label "
             "FROM products p LEFT JOIN categories c ON c.code=p.category_code "
-            f"WHERE p.published=1{clause} ORDER BY p.featured DESC,p.name",
+            f"WHERE p.published{clause} ORDER BY p.featured DESC,p.name",
             params,
         ).fetchall()
         return _hydrate_products(conn, rows)
 
 
 def get_product_by_slug(
-    slug: str, published_only: bool = True, db_path: str | Path | None = None
+    slug: str, published_only: bool = True
 ) -> dict[str, Any] | None:
-    published = " AND p.published=1" if published_only else ""
-    with connection(db_path) as conn:
+    published = " AND p.published" if published_only else ""
+    with connection() as conn:
         row = conn.execute(
             "SELECT p.*,COALESCE(c.label,p.category_code) category_label "
             "FROM products p LEFT JOIN categories c ON c.code=p.category_code "
-            f"WHERE p.slug=?{published}",
+            f"WHERE p.slug=%s{published}",
             (slug,),
         ).fetchone()
         return _hydrate_products(conn, [row])[0] if row else None
 
 
-def get_product_by_id(
-    product_id: int | str, db_path: str | Path | None = None
-) -> dict[str, Any] | None:
-    with connection(db_path) as conn:
+def get_product_by_id(product_id: int | str) -> dict[str, Any] | None:
+    if isinstance(product_id, int):
+        predicate, params = "p.id=%s", (product_id,)
+    else:
+        predicate, params = "p.base_sku=%s", (product_id.upper(),)
+    with connection() as conn:
         row = conn.execute(
             "SELECT p.*,COALESCE(c.label,p.category_code) category_label "
             "FROM products p LEFT JOIN categories c ON c.code=p.category_code "
-            "WHERE p.id=? OR p.base_sku=?",
-            (product_id, str(product_id).upper()),
+            f"WHERE {predicate}",
+            params,
         ).fetchone()
         return _hydrate_products(conn, [row])[0] if row else None
 
 
-def catalog_json(db_path: str | Path | None = None) -> dict[str, Any]:
+def catalog_json() -> dict[str, Any]:
     """Return a SKU-first catalog safe to embed in storefront pages."""
     result: dict[str, Any] = {}
-    for product in get_published_products(db_path=db_path):
+    for product in get_published_products():
         result[product["base_sku"]] = {
             "name": product["name"],
             "price_cents": product["price_cents"],
@@ -384,7 +258,7 @@ def catalog_json(db_path: str | Path | None = None) -> dict[str, Any]:
 
 
 def normalize_cart(
-    items: Sequence[Mapping[str, Any]], db_path: str | Path | None = None
+    items: Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     requested: dict[str, int] = {}
     problems: list[dict[str, Any]] = []
@@ -406,7 +280,7 @@ def normalize_cart(
         return [], [{"sku": "", "reason": "too_many_distinct_items"}]
     if not requested:
         return [], problems
-    with connection(db_path) as conn:
+    with connection() as conn:
         rows = _cart_rows(conn, requested)
     found = {row["sku"] for row in rows}
     normalized = []
@@ -429,15 +303,14 @@ def normalize_cart(
 
 
 def _cart_rows(
-    conn: sqlite3.Connection, requested: Mapping[str, int]
-) -> list[sqlite3.Row]:
-    placeholders = ",".join("?" for _ in requested)
+    conn: psycopg.Connection, requested: Mapping[str, int]
+) -> list[Mapping[str, Any]]:
     return conn.execute(
         f"SELECT v.id variant_id,v.sku,v.name variant_name,v.price_cents,"
         f"{_available_sql()} available_stock,p.name product_name,p.slug,"
         "p.base_sku FROM variants v JOIN products p ON p.id=v.product_id "
-        f"WHERE p.published=1 AND v.sku IN ({placeholders})",
-        tuple(requested),
+        "WHERE p.published AND v.sku = ANY(%s)",
+        (list(requested),),
     ).fetchall()
 
 
@@ -446,7 +319,6 @@ def reserve_checkout(
     *,
     currency: str = "usd",
     ttl_minutes: int = 35,
-    db_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Validate and reserve an entire cart in one serialized transaction."""
     if not 31 <= ttl_minutes <= 1440:
@@ -473,7 +345,11 @@ def reserve_checkout(
     created_at = _timestamp(now_dt)
     expires_at = _timestamp(now_dt + timedelta(minutes=ttl_minutes))
     checkout_id = uuid.uuid4().hex
-    with connection(db_path, write=True) as conn:
+    with connection(write=True) as conn:
+        conn.execute(
+            "SELECT id FROM variants WHERE sku = ANY(%s) ORDER BY id FOR UPDATE",
+            (sorted(requested),),
+        ).fetchall()
         rows = _cart_rows(conn, requested)
         by_sku = {row["sku"]: row for row in rows}
         problems = []
@@ -494,13 +370,13 @@ def reserve_checkout(
         subtotal = sum(int(by_sku[s]["price_cents"]) * q for s, q in requested.items())
         conn.execute(
             "INSERT INTO checkouts(id,status,currency,subtotal_cents,created_at,expires_at) "
-            "VALUES(?,'creating',?,?,?,?)",
+            "VALUES(%s,'creating',%s,%s,%s,%s)",
             (checkout_id, currency.lower(), subtotal, created_at, expires_at),
         )
         for sku, qty in requested.items():
             row = by_sku[sku]
             conn.execute(
-                "INSERT INTO checkout_items VALUES(?,?,?,?,?,?,?)",
+                "INSERT INTO checkout_items VALUES(%s,%s,%s,%s,%s,%s,%s)",
                 (
                     checkout_id,
                     row["variant_id"],
@@ -514,27 +390,28 @@ def reserve_checkout(
             conn.execute(
                 "INSERT INTO inventory_reservations("
                 "checkout_id,variant_id,quantity,state,expires_at,created_at) "
-                "VALUES(?,?,?,'active',?,?)",
+                "VALUES(%s,%s,%s,'active',%s,%s)",
                 (checkout_id, row["variant_id"], qty, expires_at, created_at),
             )
-    return get_checkout(checkout_id, db_path=db_path) or {}
+    return get_checkout(checkout_id) or {}
 
 
-def get_checkout(
-    checkout_id: str, db_path: str | Path | None = None
-) -> dict[str, Any] | None:
-    with connection(db_path) as conn:
+def get_checkout(checkout_id: str) -> dict[str, Any] | None:
+    with connection() as conn:
         row = conn.execute(
-            "SELECT * FROM checkouts WHERE id=?", (checkout_id,)
+            "SELECT * FROM checkouts WHERE id=%s", (checkout_id,)
         ).fetchone()
         if not row:
             return None
         checkout = dict(row)
+        for key in ("created_at", "expires_at", "completed_at"):
+            if isinstance(checkout.get(key), datetime):
+                checkout[key] = _timestamp(checkout[key])
         checkout["items"] = [
             dict(item)
             for item in conn.execute(
                 "SELECT sku,product_name,variant_name,unit_amount_cents,quantity "
-                "FROM checkout_items WHERE checkout_id=? ORDER BY sku",
+                "FROM checkout_items WHERE checkout_id=%s ORDER BY sku",
                 (checkout_id,),
             )
         ]
@@ -546,26 +423,25 @@ def attach_stripe_session(
     session_id: str,
     *,
     expires_at: datetime | None = None,
-    db_path: str | Path | None = None,
 ) -> None:
-    with connection(db_path, write=True) as conn:
+    with connection(write=True) as conn:
         values: list[Any] = [session_id]
         expiry_sql = ""
         if expires_at:
-            expiry_sql = ",expires_at=?"
+            expiry_sql = ",expires_at=%s"
             values.append(_timestamp(expires_at))
         values.append(checkout_id)
         result = conn.execute(
-            f"UPDATE checkouts SET stripe_session_id=?,status='open',version=version+1"
-            f"{expiry_sql} WHERE id=? AND status IN ('creating','open')",
+            f"UPDATE checkouts SET stripe_session_id=%s,status='open',version=version+1"
+            f"{expiry_sql} WHERE id=%s AND status IN ('creating','open')",
             values,
         )
         if result.rowcount != 1:
             raise CheckoutConflict("Checkout cannot accept a Stripe session.")
         if expires_at:
             conn.execute(
-                "UPDATE inventory_reservations SET expires_at=? "
-                "WHERE checkout_id=? AND state='active'",
+                "UPDATE inventory_reservations SET expires_at=%s "
+                "WHERE checkout_id=%s AND state='active'",
                 (_timestamp(expires_at), checkout_id),
             )
 
@@ -573,12 +449,11 @@ def attach_stripe_session(
 def mark_provider_failure(
     checkout_id: str,
     failure_code: str,
-    db_path: str | Path | None = None,
 ) -> bool:
-    with connection(db_path, write=True) as conn:
+    with connection(write=True) as conn:
         changed = conn.execute(
-            "UPDATE checkouts SET status='failed',failure_code=?,version=version+1 "
-            "WHERE id=? AND status IN ('creating','open')",
+            "UPDATE checkouts SET status='failed',failure_code=%s,version=version+1 "
+            "WHERE id=%s AND status IN ('creating','open')",
             (failure_code[:100], checkout_id),
         ).rowcount
         if changed:
@@ -587,36 +462,37 @@ def mark_provider_failure(
 
 
 def cleanup_expired_reservations(
-    *, limit: int = 100, now: datetime | None = None, db_path: str | Path | None = None
+    *, limit: int = 100, now: datetime | None = None
 ) -> int:
-    with connection(db_path, write=True) as conn:
+    with connection(write=True) as conn:
         ids = [
-            row[0]
+            row["id"]
             for row in conn.execute(
                 "SELECT id FROM checkouts WHERE status IN ('creating','open') "
-                "AND expires_at<=? ORDER BY expires_at LIMIT ?",
+                "AND expires_at<=%s ORDER BY expires_at LIMIT %s "
+                "FOR UPDATE SKIP LOCKED",
                 (_timestamp(now), max(1, min(limit, 1000))),
             )
         ]
         for checkout_id in ids:
             conn.execute(
-                "UPDATE checkouts SET status='expired',version=version+1 WHERE id=?",
+                "UPDATE checkouts SET status='expired',version=version+1 WHERE id=%s",
                 (checkout_id,),
             )
             _release(conn, checkout_id)
         return len(ids)
 
 
-def _release(conn: sqlite3.Connection, checkout_id: str) -> None:
+def _release(conn: psycopg.Connection, checkout_id: str) -> None:
     conn.execute(
-        "UPDATE inventory_reservations SET state='released',finalized_at=? "
-        "WHERE checkout_id=? AND state='active'",
+        "UPDATE inventory_reservations SET state='released',finalized_at=%s "
+        "WHERE checkout_id=%s AND state='active'",
         (utc_now(), checkout_id),
     )
 
 
 def _event_begin(
-    conn: sqlite3.Connection,
+    conn: psycopg.Connection,
     event_id: str,
     event_type: str,
     object_id: str | None,
@@ -624,28 +500,34 @@ def _event_begin(
     stripe_created_at: int | None = None,
     payload: bytes | None = None,
 ) -> bool:
+    digest = hashlib.sha256(payload).hexdigest() if payload is not None else None
+    inserted = conn.execute(
+        "INSERT INTO stripe_events(event_id,event_type,stripe_object_id,"
+        "stripe_created_at,payload_sha256,state,attempts,received_at) "
+        "VALUES(%s,%s,%s,%s,%s,'received',1,%s) "
+        "ON CONFLICT(event_id) DO NOTHING RETURNING event_id",
+        (event_id, event_type, object_id, stripe_created_at, digest, utc_now()),
+    ).fetchone()
+    if inserted:
+        return True
     existing = conn.execute(
-        "SELECT state FROM stripe_events WHERE event_id=?", (event_id,)
+        "SELECT state FROM stripe_events WHERE event_id=%s FOR UPDATE", (event_id,)
     ).fetchone()
     if existing and existing["state"] in {"processed", "ignored"}:
         return False
-    digest = hashlib.sha256(payload).hexdigest() if payload is not None else None
     conn.execute(
-        "INSERT INTO stripe_events(event_id,event_type,stripe_object_id,"
-        "stripe_created_at,payload_sha256,state,attempts,received_at) "
-        "VALUES(?,?,?,?,?,'received',1,?) "
-        "ON CONFLICT(event_id) DO UPDATE SET attempts=attempts+1,state='received',"
-        "last_error_code=NULL,last_error_detail=NULL",
-        (event_id, event_type, object_id, stripe_created_at, digest, utc_now()),
+        "UPDATE stripe_events SET attempts=attempts+1,state='received',"
+        "last_error_code=NULL,last_error_detail=NULL WHERE event_id=%s",
+        (event_id,),
     )
     return True
 
 
 def _event_done(
-    conn: sqlite3.Connection, event_id: str, state: str = "processed"
+    conn: psycopg.Connection, event_id: str, state: str = "processed"
 ) -> None:
     conn.execute(
-        "UPDATE stripe_events SET state=?,processed_at=? WHERE event_id=?",
+        "UPDATE stripe_events SET state=%s,processed_at=%s WHERE event_id=%s",
         (state, utc_now(), event_id),
     )
 
@@ -657,15 +539,14 @@ def record_event_failure(
     detail: str = "",
     *,
     object_id: str | None = None,
-    db_path: str | Path | None = None,
 ) -> None:
     """Persist a bounded, PII-free failure after a domain transaction rolls back."""
-    with connection(db_path, write=True) as conn:
+    with connection(write=True) as conn:
         if not _event_begin(conn, event_id, event_type, object_id):
             return
         conn.execute(
-            "UPDATE stripe_events SET state='failed',last_error_code=?,"
-            "last_error_detail=? WHERE event_id=? "
+            "UPDATE stripe_events SET state='failed',last_error_code=%s,"
+            "last_error_detail=%s WHERE event_id=%s "
             "AND state NOT IN ('processed','ignored')",
             (error_code[:100], detail[:500], event_id),
         )
@@ -678,10 +559,9 @@ def process_ignored_event(
     object_id: str | None = None,
     stripe_created_at: int | None = None,
     payload: bytes | None = None,
-    db_path: str | Path | None = None,
 ) -> str:
     """Record an irrelevant or unpaid signed event without retaining its body."""
-    with connection(db_path, write=True) as conn:
+    with connection(write=True) as conn:
         if not _event_begin(
             conn,
             event_id,
@@ -702,7 +582,6 @@ def process_paid_event(
     event_type: str = "checkout.session.completed",
     stripe_created_at: int | None = None,
     payload: bytes | None = None,
-    db_path: str | Path | None = None,
 ) -> str:
     """Consume reservations and create an order exactly once."""
     session_id = str(session.get("id") or "")
@@ -712,7 +591,7 @@ def process_paid_event(
         checkout_id = str(session.get("client_reference_id") or "")
     if not session_id or not checkout_id:
         raise CheckoutConflict("Paid event lacks checkout identity.")
-    with connection(db_path, write=True) as conn:
+    with connection(write=True) as conn:
         if not _event_begin(
             conn,
             event_id,
@@ -723,7 +602,7 @@ def process_paid_event(
         ):
             return "duplicate"
         checkout = conn.execute(
-            "SELECT * FROM checkouts WHERE id=?", (checkout_id,)
+            "SELECT * FROM checkouts WHERE id=%s FOR UPDATE", (checkout_id,)
         ).fetchone()
         if checkout is None:
             raise CheckoutConflict("Paid checkout is missing.")
@@ -741,15 +620,20 @@ def process_paid_event(
         if currency != checkout["currency"] or subtotal != checkout["subtotal_cents"]:
             raise CheckoutConflict("Stripe totals do not match checkout snapshot.")
         reservations = conn.execute(
-            "SELECT * FROM inventory_reservations WHERE checkout_id=?",
+            "SELECT * FROM inventory_reservations WHERE checkout_id=%s "
+            "ORDER BY variant_id FOR UPDATE",
             (checkout_id,),
         ).fetchall()
         if not reservations or any(row["state"] != "active" for row in reservations):
             raise CheckoutConflict("Inventory reservation is not active.")
+        conn.execute(
+            "SELECT id FROM variants WHERE id = ANY(%s) ORDER BY id FOR UPDATE",
+            ([row["variant_id"] for row in reservations],),
+        ).fetchall()
         for reservation in reservations:
             changed = conn.execute(
-                "UPDATE variants SET stock_on_hand=stock_on_hand-? "
-                "WHERE id=? AND stock_on_hand>=?",
+                "UPDATE variants SET stock_on_hand=stock_on_hand-%s "
+                "WHERE id=%s AND stock_on_hand>=%s",
                 (
                     reservation["quantity"],
                     reservation["variant_id"],
@@ -760,8 +644,8 @@ def process_paid_event(
                 raise CheckoutConflict("Reserved inventory cannot be consumed.")
         now = utc_now()
         conn.execute(
-            "UPDATE inventory_reservations SET state='consumed',finalized_at=? "
-            "WHERE checkout_id=? AND state='active'",
+            "UPDATE inventory_reservations SET state='consumed',finalized_at=%s "
+            "WHERE checkout_id=%s AND state='active'",
             (now, checkout_id),
         )
         payment_intent = _object_id(session.get("payment_intent"))
@@ -778,14 +662,14 @@ def process_paid_event(
             "amount_shipping_cents,amount_tax_cents,amount_total_cents,"
             "payment_state,fulfillment_state,review_state,refund_state,"
             "created_at,paid_at,updated_at) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,'paid','unfulfilled','clear','none',?,?,?)",
+            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'paid','unfulfilled','clear','none',%s,%s,%s)",
             (
                 order_id,
                 checkout_id,
                 session_id,
                 payment_intent,
                 customer.get("email") if isinstance(customer, Mapping) else None,
-                json.dumps(shipping, separators=(",", ":")) if shipping else None,
+                Jsonb(shipping) if shipping else None,
                 currency,
                 subtotal,
                 int(total_details.get("amount_shipping") or 0),
@@ -798,13 +682,13 @@ def process_paid_event(
         )
         conn.execute(
             "INSERT INTO order_items(order_id,sku,product_name,variant_name,"
-            "quantity,unit_amount_cents) SELECT ?,sku,product_name,variant_name,"
-            "quantity,unit_amount_cents FROM checkout_items WHERE checkout_id=?",
+            "quantity,unit_amount_cents) SELECT %s,sku,product_name,variant_name,"
+            "quantity,unit_amount_cents FROM checkout_items WHERE checkout_id=%s",
             (order_id, checkout_id),
         )
         conn.execute(
-            "UPDATE checkouts SET status='paid',stripe_session_id=?,"
-            "stripe_payment_intent_id=?,completed_at=?,version=version+1 WHERE id=?",
+            "UPDATE checkouts SET status='paid',stripe_session_id=%s,"
+            "stripe_payment_intent_id=%s,completed_at=%s,version=version+1 WHERE id=%s",
             (session_id, payment_intent, now, checkout_id),
         )
         _event_done(conn, event_id)
@@ -814,18 +698,17 @@ def process_paid_event(
 def process_expired_event(
     event_id: str,
     session: Mapping[str, Any],
-    *,
-    db_path: str | Path | None = None,
 ) -> str:
     session_id = str(session.get("id") or "")
     metadata = session.get("metadata") or {}
     checkout_id = str(metadata.get("checkout_id") or metadata.get("cart_id") or "")
     checkout_id = checkout_id or str(session.get("client_reference_id") or "")
-    with connection(db_path, write=True) as conn:
+    with connection(write=True) as conn:
         if not _event_begin(conn, event_id, "checkout.session.expired", session_id):
             return "duplicate"
         row = conn.execute(
-            "SELECT status,stripe_session_id FROM checkouts WHERE id=?", (checkout_id,)
+            "SELECT status,stripe_session_id FROM checkouts WHERE id=%s FOR UPDATE",
+            (checkout_id,),
         ).fetchone()
         if row is None:
             raise CheckoutConflict("Expired checkout is missing.")
@@ -833,8 +716,8 @@ def process_expired_event(
             raise CheckoutConflict("Stripe session does not match checkout.")
         if row["status"] in {"creating", "open"}:
             conn.execute(
-                "UPDATE checkouts SET status='expired',stripe_session_id=?,"
-                "version=version+1 WHERE id=?",
+                "UPDATE checkouts SET status='expired',stripe_session_id=%s,"
+                "version=version+1 WHERE id=%s",
                 (session_id, checkout_id),
             )
             _release(conn, checkout_id)
@@ -845,20 +728,18 @@ def process_expired_event(
 def process_refund_event(
     event_id: str,
     charge: Mapping[str, Any],
-    *,
-    db_path: str | Path | None = None,
 ) -> str:
     payment_intent = _object_id(charge.get("payment_intent"))
     if not payment_intent:
         raise CheckoutConflict("Refund lacks payment intent.")
-    with connection(db_path, write=True) as conn:
+    with connection(write=True) as conn:
         if not _event_begin(
             conn, event_id, "charge.refunded", str(charge.get("id") or "")
         ):
             return "duplicate"
         order = conn.execute(
             "SELECT id,amount_total_cents,amount_refunded_cents FROM orders "
-            "WHERE payment_intent_id=?",
+            "WHERE payment_intent_id=%s FOR UPDATE",
             (payment_intent,),
         ).fetchone()
         if not order:
@@ -877,22 +758,20 @@ def process_refund_event(
             else "none"
         )
         conn.execute(
-            "UPDATE orders SET amount_refunded_cents=?,refund_state=?,updated_at=? "
-            "WHERE id=?",
+            "UPDATE orders SET amount_refunded_cents=%s,refund_state=%s,updated_at=%s "
+            "WHERE id=%s",
             (refunded, state, utc_now(), order["id"]),
         )
         _event_done(conn, event_id)
         return state
 
 
-def confirmation_lookup(
-    session_id: str, db_path: str | Path | None = None
-) -> dict[str, Any] | None:
-    with connection(db_path) as conn:
+def confirmation_lookup(session_id: str) -> dict[str, Any] | None:
+    with connection() as conn:
         row = conn.execute(
             "SELECT id,payment_state,fulfillment_state,review_state,refund_state,"
             "amount_total_cents,currency,created_at FROM orders "
-            "WHERE stripe_session_id=?",
+            "WHERE stripe_session_id=%s",
             (session_id,),
         ).fetchone()
         return dict(row) if row else None
@@ -918,40 +797,40 @@ def _shipping(session: Mapping[str, Any]) -> Any:
 def create_product(
     product: ProductInput,
     images: list[dict[str, Any]] | None = None,
-    db_path: str | Path | None = None,
 ) -> int:
     now = utc_now()
-    with connection(db_path, write=True) as conn:
+    with connection(write=True) as conn:
         conn.execute(
-            "INSERT INTO categories(code,label) VALUES(?,?) "
+            "INSERT INTO categories(code,label) VALUES(%s,%s) "
             "ON CONFLICT(code) DO UPDATE SET label=excluded.label "
             "WHERE excluded.label<>excluded.code",
             (product.category_code, product.category_label or product.category_code),
         )
         base = slugify(product.slug)
         slug, suffix = base, 2
-        while conn.execute("SELECT 1 FROM products WHERE slug=?", (slug,)).fetchone():
+        while conn.execute("SELECT 1 FROM products WHERE slug=%s", (slug,)).fetchone():
             slug, suffix = f"{base}-{suffix}", suffix + 1
-        cursor = conn.execute(
+        row = conn.execute(
             "INSERT INTO products(slug,name,base_sku,description,category_code,"
-            "featured,published,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+            "featured,published,created_at,updated_at) "
+            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
             (
                 slug,
                 product.name,
                 product.base_sku,
                 product.description,
                 product.category_code,
-                int(product.featured),
-                int(product.published),
+                product.featured,
+                product.published,
                 now,
                 now,
             ),
-        )
-        product_id = int(cursor.lastrowid)
+        ).fetchone()
+        product_id = int(row["id"])
         for variant in product.variants:
             conn.execute(
                 "INSERT INTO variants(product_id,sku,upc,name,price_cents,"
-                "stock_on_hand,position) VALUES(?,?,?,?,?,?,?)",
+                "stock_on_hand,position) VALUES(%s,%s,%s,%s,%s,%s,%s)",
                 (
                     product_id,
                     variant.sku,
@@ -965,7 +844,7 @@ def create_product(
         for image in images or []:
             conn.execute(
                 "INSERT INTO product_images(product_id,filename,alt,position) "
-                "VALUES(?,?,?,?)",
+                "VALUES(%s,%s,%s,%s)",
                 (
                     product_id,
                     image["filename"],

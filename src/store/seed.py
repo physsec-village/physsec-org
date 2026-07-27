@@ -1,9 +1,8 @@
-"""One-time import of the storefront design catalog into SQLite."""
+"""Resumable import of the storefront design catalog into PostgreSQL."""
 
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from . import catalog, db
 from .config import bootstrap_stock
@@ -12,7 +11,13 @@ from .models import ProductInput, VariantInput, cents_from_dollars
 logger = logging.getLogger(__name__)
 
 
-def bootstrap_catalog(db_path: str | Path | None = None) -> int:
+def bootstrap_catalog() -> int:
+    """Serialize catalog bootstrap across concurrent application starts."""
+    with db.catalog_bootstrap_lock():
+        return _bootstrap_catalog()
+
+
+def _bootstrap_catalog() -> int:
     """Import the bundled catalog only when the database has no products.
 
     Imports resume per base SKU. Prices come from the approved design data, but
@@ -26,7 +31,7 @@ def bootstrap_catalog(db_path: str | Path | None = None) -> int:
 
     imported = 0
     for base_sku, members in grouped.items():
-        if db.get_product_by_id(base_sku, db_path=db_path) is not None:
+        if db.get_product_by_id(base_sku) is not None:
             continue
         product = members[0]
         source_variants: list[tuple[catalog.Variant, catalog.Product]] = []
@@ -57,7 +62,6 @@ def bootstrap_catalog(db_path: str | Path | None = None) -> int:
                 published=True,
                 variants=variants,
             ),
-            db_path=db_path,
         )
         imported += 1
     logger.info(

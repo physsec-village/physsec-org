@@ -9,14 +9,13 @@ from fastapi.testclient import TestClient
 from src.main import app
 from src.store import db, seed, stripe_client
 from src.store import router as store_router
-from src.store.config import bootstrap_stock, reservation_minutes
+from src.store.config import bootstrap_stock, database_url, reservation_minutes
 from src.store.models import ProductInput, VariantInput
 from src.store.storefront import ProductView, VariantView
 
 
-def _database(tmp_path, *, stock: int = 1):
-    path = tmp_path / "store.db"
-    db.init_db(path)
+def _database(_tmp_path, *, stock: int = 1):
+    db.require_schema()
     db.create_product(
         ProductInput(
             name="RFID Test Tool",
@@ -32,9 +31,7 @@ def _database(tmp_path, *, stock: int = 1):
                 )
             ],
         ),
-        db_path=path,
     )
-    return path
 
 
 def _paid_session(checkout):
@@ -53,10 +50,10 @@ def _paid_session(checkout):
 
 
 def test_schema_and_rfid_catalog(tmp_path):
-    path = _database(tmp_path)
+    _database(tmp_path)
 
-    assert db.readiness(path) == {"ready": True, "schema_version": 1}
-    product = db.get_published_products(db_path=path)[0]
+    assert db.readiness() == {"ready": True, "schema_version": 1}
+    product = db.get_published_products()[0]
     assert product["base_sku"] == "PSV-RFID-001"
     assert product["price_cents"] == 2500
     assert product["variants"][0]["available_stock"] == 1
@@ -77,6 +74,26 @@ def test_store_numeric_configuration_is_validated(monkeypatch, name, value, read
 
     with pytest.raises(ValueError, match=name):
         reader()
+
+
+def test_production_database_requires_tls(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://example.test/store")
+
+    with pytest.raises(ValueError, match="sslmode=require"):
+        database_url()
+
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://example.test/store?sslmode=require&sslmode=disable",
+    )
+    with pytest.raises(ValueError, match="sslmode=require"):
+        database_url()
+
+    monkeypatch.setenv(
+        "DATABASE_URL", "postgresql://example.test/store?sslmode=verify-full"
+    )
+    assert database_url().endswith("sslmode=verify-full")
 
 
 def test_product_default_variant_prefers_available_stock():
@@ -104,13 +121,12 @@ def test_product_default_variant_prefers_available_stock():
 
 
 def test_cart_normalization_caps_duplicate_sku_totals(tmp_path):
-    path = _database(tmp_path, stock=200)
+    _database(tmp_path, stock=200)
     normalized, problems = db.normalize_cart(
         [
             {"sku": "PSV-RFID-001", "qty": 60},
             {"sku": "psv-rfid-001", "qty": 60},
         ],
-        db_path=path,
     )
 
     assert normalized[0]["qty"] == 60
@@ -118,24 +134,23 @@ def test_cart_normalization_caps_duplicate_sku_totals(tmp_path):
 
 
 def test_catalog_bootstrap_resumes_a_partial_import(tmp_path):
-    path = _database(tmp_path)
+    _database(tmp_path)
 
-    imported = seed.bootstrap_catalog(path)
+    imported = seed.bootstrap_catalog()
 
     assert imported > 0
-    assert seed.bootstrap_catalog(path) == 0
-    assert db.get_product_by_id("PSV-BYP-001", db_path=path) is not None
+    assert seed.bootstrap_catalog() == 0
+    assert db.get_product_by_id("PSV-BYP-001") is not None
 
 
 def test_reservation_prevents_overselling_and_expiry_releases(tmp_path):
-    path = _database(tmp_path)
+    _database(tmp_path)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         attempts = [
             pool.submit(
                 db.reserve_checkout,
                 [{"sku": "PSV-RFID-001", "qty": 1}],
-                db_path=path,
             )
             for _ in range(2)
         ]
@@ -148,45 +163,156 @@ def test_reservation_prevents_overselling_and_expiry_releases(tmp_path):
     assert sorted(outcomes) == ["creating", "unavailable"]
 
     assert (
-        db.cleanup_expired_reservations(
-            now=datetime.now(UTC) + timedelta(hours=1), db_path=path
-        )
-        == 1
+        db.cleanup_expired_reservations(now=datetime.now(UTC) + timedelta(hours=1)) == 1
     )
-    replacement = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}], db_path=path)
+    replacement = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
     assert replacement["status"] == "creating"
 
 
 def test_paid_event_is_atomic_and_idempotent(tmp_path):
-    path = _database(tmp_path)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}], db_path=path)
-    db.attach_stripe_session(checkout["id"], "cs_test_paid", db_path=path)
+    _database(tmp_path)
+    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+    db.attach_stripe_session(checkout["id"], "cs_test_paid")
     session = _paid_session(checkout)
 
-    order_id = db.process_paid_event("evt_paid", session, db_path=path)
-    assert db.process_paid_event("evt_paid", session, db_path=path) == "duplicate"
+    order_id = db.process_paid_event("evt_paid", session)
+    assert db.process_paid_event("evt_paid", session) == "duplicate"
     assert (
         db.process_paid_event(
             "evt_async_paid",
             session,
             event_type="checkout.session.async_payment_succeeded",
-            db_path=path,
         )
         == "duplicate"
     )
 
-    confirmation = db.confirmation_lookup("cs_test_paid", db_path=path)
+    confirmation = db.confirmation_lookup("cs_test_paid")
     assert confirmation["id"] == order_id
     assert confirmation["payment_state"] == "paid"
     assert confirmation["fulfillment_state"] == "unfulfilled"
-    with db.connection(path) as conn:
-        assert conn.execute("SELECT stock_on_hand FROM variants").fetchone()[0] == 0
-        assert conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0] == 1
-        assert conn.execute("SELECT COUNT(*) FROM stripe_events").fetchone()[0] == 2
+    with db.connection() as conn:
+        assert (
+            conn.execute("SELECT stock_on_hand FROM variants").fetchone()[
+                "stock_on_hand"
+            ]
+            == 0
+        )
+        assert (
+            conn.execute("SELECT COUNT(*) AS count FROM orders").fetchone()["count"]
+            == 1
+        )
+        assert (
+            conn.execute("SELECT COUNT(*) AS count FROM stripe_events").fetchone()[
+                "count"
+            ]
+            == 2
+        )
+
+
+def test_concurrent_webhook_delivery_creates_one_order(tmp_path):
+    _database(tmp_path)
+    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+    db.attach_stripe_session(checkout["id"], "cs_test_paid")
+    session = _paid_session(checkout)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts = [
+            pool.submit(db.process_paid_event, "evt_concurrent", session)
+            for _ in range(2)
+        ]
+    outcomes = [attempt.result() for attempt in attempts]
+
+    assert outcomes.count("duplicate") == 1
+    with db.connection() as conn:
+        assert (
+            conn.execute("SELECT COUNT(*) AS count FROM orders").fetchone()["count"]
+            == 1
+        )
+        assert conn.execute(
+            "SELECT attempts,state FROM stripe_events WHERE event_id='evt_concurrent'"
+        ).fetchone() == {"attempts": 1, "state": "processed"}
+
+
+def test_distinct_paid_events_for_one_checkout_are_idempotent(tmp_path):
+    _database(tmp_path)
+    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+    db.attach_stripe_session(checkout["id"], "cs_test_paid")
+    session = _paid_session(checkout)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts = [
+            pool.submit(db.process_paid_event, event_id, session)
+            for event_id in ("evt_completed", "evt_async_succeeded")
+        ]
+    outcomes = [attempt.result() for attempt in attempts]
+
+    assert outcomes.count("duplicate") == 1
+    with db.connection() as conn:
+        assert (
+            conn.execute("SELECT COUNT(*) AS count FROM orders").fetchone()["count"]
+            == 1
+        )
+        assert (
+            conn.execute(
+                "SELECT stock_on_hand FROM variants WHERE sku='PSV-RFID-001'"
+            ).fetchone()["stock_on_hand"]
+            == 0
+        )
+        assert {
+            row["state"]
+            for row in conn.execute(
+                "SELECT state FROM stripe_events "
+                "WHERE event_id IN ('evt_completed','evt_async_succeeded')"
+            )
+        } == {"processed"}
+
+
+def test_payment_and_expiry_cleanup_are_serialized(tmp_path):
+    _database(tmp_path)
+    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+    db.attach_stripe_session(checkout["id"], "cs_test_paid")
+
+    def pay():
+        try:
+            return db.process_paid_event("evt_race", _paid_session(checkout))
+        except db.CheckoutConflict:
+            return "conflict"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        payment = pool.submit(pay)
+        cleanup = pool.submit(
+            db.cleanup_expired_reservations,
+            now=datetime.now(UTC) + timedelta(hours=1),
+        )
+    payment_result, cleanup_count = payment.result(), cleanup.result()
+
+    with db.connection() as conn:
+        state = conn.execute(
+            "SELECT status FROM checkouts WHERE id=%s", (checkout["id"],)
+        ).fetchone()["status"]
+        orders = conn.execute("SELECT COUNT(*) AS count FROM orders").fetchone()[
+            "count"
+        ]
+        reservation = conn.execute(
+            "SELECT state FROM inventory_reservations WHERE checkout_id=%s",
+            (checkout["id"],),
+        ).fetchone()["state"]
+
+    if state == "paid":
+        assert payment_result != "conflict"
+        assert (cleanup_count, orders, reservation) == (0, 1, "consumed")
+    else:
+        assert (payment_result, cleanup_count, state, orders, reservation) == (
+            "conflict",
+            1,
+            "expired",
+            0,
+            "released",
+        )
 
 
 def test_failed_paid_event_rolls_back_then_can_be_recorded(tmp_path):
-    path = _database(tmp_path)
+    _database(tmp_path)
     missing = {
         "id": "cs_missing",
         "client_reference_id": "missing-checkout",
@@ -197,16 +323,15 @@ def test_failed_paid_event_rolls_back_then_can_be_recorded(tmp_path):
     }
 
     with pytest.raises(db.CheckoutConflict):
-        db.process_paid_event("evt_missing", missing, db_path=path)
+        db.process_paid_event("evt_missing", missing)
     db.record_event_failure(
         "evt_missing",
         "checkout.session.completed",
         "checkout_conflict",
         "Paid checkout is missing.",
-        db_path=path,
     )
 
-    with db.connection(path) as conn:
+    with db.connection() as conn:
         event = conn.execute(
             "SELECT state,attempts,last_error_code FROM stripe_events"
         ).fetchone()
@@ -218,21 +343,21 @@ def test_failed_paid_event_rolls_back_then_can_be_recorded(tmp_path):
 
 
 def test_paid_event_requires_explicit_payment_status(tmp_path):
-    path = _database(tmp_path)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}], db_path=path)
-    db.attach_stripe_session(checkout["id"], "cs_test_paid", db_path=path)
+    _database(tmp_path)
+    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+    db.attach_stripe_session(checkout["id"], "cs_test_paid")
     session = _paid_session(checkout)
     session.pop("payment_status")
 
     with pytest.raises(db.CheckoutConflict, match="not paid"):
-        db.process_paid_event("evt_missing_status", session, db_path=path)
+        db.process_paid_event("evt_missing_status", session)
 
 
 def test_refund_state_does_not_overwrite_other_order_states(tmp_path):
-    path = _database(tmp_path)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}], db_path=path)
-    db.attach_stripe_session(checkout["id"], "cs_test_paid", db_path=path)
-    db.process_paid_event("evt_paid", _paid_session(checkout), db_path=path)
+    _database(tmp_path)
+    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+    db.attach_stripe_session(checkout["id"], "cs_test_paid")
+    db.process_paid_event("evt_paid", _paid_session(checkout))
 
     assert (
         db.process_refund_event(
@@ -242,7 +367,6 @@ def test_refund_state_does_not_overwrite_other_order_states(tmp_path):
                 "payment_intent": "pi_test_paid",
                 "amount_refunded": 1000,
             },
-            db_path=path,
         )
         == "partial"
     )
@@ -254,12 +378,11 @@ def test_refund_state_does_not_overwrite_other_order_states(tmp_path):
                 "payment_intent": "pi_test_paid",
                 "amount_refunded": 2500,
             },
-            db_path=path,
         )
         == "full"
     )
 
-    order = db.confirmation_lookup("cs_test_paid", db_path=path)
+    order = db.confirmation_lookup("cs_test_paid")
     assert order["payment_state"] == "paid"
     assert order["fulfillment_state"] == "unfulfilled"
     assert order["review_state"] == "clear"
@@ -267,8 +390,7 @@ def test_refund_state_does_not_overwrite_other_order_states(tmp_path):
 
 
 def test_checkout_http_retry_reuses_reservation(tmp_path, monkeypatch):
-    path = _database(tmp_path)
-    monkeypatch.setattr(db, "DB_PATH", path)
+    _database(tmp_path)
     calls = 0
 
     def create_session(checkout):
@@ -296,28 +418,31 @@ def test_checkout_http_retry_reuses_reservation(tmp_path, monkeypatch):
     )
     assert retried.status_code == 200
     assert retried.json()["url"] == "https://checkout.stripe.test/session"
-    with db.connection(path) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM checkouts").fetchone()[0] == 1
+    with db.connection() as conn:
+        assert (
+            conn.execute("SELECT COUNT(*) AS count FROM checkouts").fetchone()["count"]
+            == 1
+        )
         assert (
             conn.execute(
-                "SELECT COUNT(*) FROM inventory_reservations WHERE state='active'"
-            ).fetchone()[0]
+                "SELECT COUNT(*) AS count FROM inventory_reservations "
+                "WHERE state='active'"
+            ).fetchone()["count"]
             == 1
         )
 
 
 def test_checkout_http_rejects_and_releases_a_stale_retry(tmp_path, monkeypatch):
-    path = _database(tmp_path)
-    monkeypatch.setattr(db, "DB_PATH", path)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}], db_path=path)
+    _database(tmp_path)
+    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
     stale_expiry = db._timestamp(datetime.now(UTC) + timedelta(minutes=29))
-    with db.connection(path, write=True) as conn:
+    with db.connection(write=True) as conn:
         conn.execute(
-            "UPDATE checkouts SET expires_at=? WHERE id=?",
+            "UPDATE checkouts SET expires_at=%s WHERE id=%s",
             (stale_expiry, checkout["id"]),
         )
         conn.execute(
-            "UPDATE inventory_reservations SET expires_at=? WHERE checkout_id=?",
+            "UPDATE inventory_reservations SET expires_at=%s WHERE checkout_id=%s",
             (stale_expiry, checkout["id"]),
         )
 
@@ -330,10 +455,13 @@ def test_checkout_http_rejects_and_releases_a_stale_retry(tmp_path, monkeypatch)
     )
 
     assert response.status_code == 409
-    with db.connection(path) as conn:
-        assert conn.execute("SELECT status FROM checkouts").fetchone()[0] == "failed"
+    with db.connection() as conn:
         assert (
-            conn.execute("SELECT state FROM inventory_reservations").fetchone()[0]
+            conn.execute("SELECT status FROM checkouts").fetchone()["status"]
+            == "failed"
+        )
+        assert (
+            conn.execute("SELECT state FROM inventory_reservations").fetchone()["state"]
             == "released"
         )
 
@@ -391,8 +519,7 @@ def test_stripe_client_uses_scoped_client_and_ignores_api_key_for_webhooks(monke
 def test_webhook_http_rejects_invalid_and_replays_paid_event_once(
     tmp_path, monkeypatch
 ):
-    path = _database(tmp_path)
-    monkeypatch.setattr(db, "DB_PATH", path)
+    _database(tmp_path)
     client = TestClient(app)
 
     invalid = client.post(
@@ -400,8 +527,8 @@ def test_webhook_http_rejects_invalid_and_replays_paid_event_once(
     )
     assert invalid.status_code == 400
 
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}], db_path=path)
-    db.attach_stripe_session(checkout["id"], "cs_test_paid", db_path=path)
+    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+    db.attach_stripe_session(checkout["id"], "cs_test_paid")
     event = {
         "id": "evt_http_paid",
         "type": "checkout.session.completed",
@@ -417,9 +544,17 @@ def test_webhook_http_rejects_invalid_and_replays_paid_event_once(
     first = client.post("/store/webhook", content=b"{}")
     replay = client.post("/store/webhook", content=b"{}")
     assert first.status_code == replay.status_code == 200
-    with db.connection(path) as conn:
-        assert conn.execute("SELECT stock_on_hand FROM variants").fetchone()[0] == 0
-        assert conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0] == 1
+    with db.connection() as conn:
+        assert (
+            conn.execute("SELECT stock_on_hand FROM variants").fetchone()[
+                "stock_on_hand"
+            ]
+            == 0
+        )
+        assert (
+            conn.execute("SELECT COUNT(*) AS count FROM orders").fetchone()["count"]
+            == 1
+        )
         ledger = conn.execute(
             "SELECT state,attempts FROM stripe_events WHERE event_id='evt_http_paid'"
         ).fetchone()

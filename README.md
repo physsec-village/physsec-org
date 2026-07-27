@@ -99,11 +99,38 @@ header rather than append to it; per-IP rate limiting depends on this boundary.
 
 ### Store configuration
 
-The store uses SQLite at `STORE_DB_PATH` (default `data/store.db`) and persists
-that directory through Docker Compose. A fresh database imports the bundled
-catalog with zero stock, so checkout remains unavailable until inventory is
-explicitly loaded. Prices and inventory are always resolved server-side in
-integer cents and browser carts contain only SKU/quantity pairs.
+The store uses the Supabase-managed PostgreSQL database configured by
+`DATABASE_URL`. Use the direct connection URL for a persistent IPv6-capable
+deployment, or Supabase's session pooler on an IPv4-only host. Production URLs
+must require TLS (`sslmode=require`). The database password belongs only in the
+deployment `.env`; it must not be committed or sent to the browser.
+
+Schema changes are versioned in `supabase/migrations`. Link this checkout to the
+project and apply pending migrations before deploying the application:
+
+```sh
+supabase link --project-ref xrszuoznhlnnvktdjzdy
+supabase db push
+```
+
+The migration creates a restricted, non-login `store_app` role. In the Supabase
+SQL editor, assign it a generated password and enable login:
+
+```sql
+alter role store_app login password 'GENERATE-A-UNIQUE-PASSWORD';
+```
+
+Use `store_app`, not the project-owner `postgres` role, in the application's
+`DATABASE_URL`. Keep the owner URL for migration commands only. If the deployment
+cannot reach the direct IPv6 endpoint, obtain the matching session-pooler URL
+from Supabase's Connect dialog.
+
+The store tables live in the private `store` schema, outside the browser-facing
+Data API surface, and access is revoked from `anon` and `authenticated`. A fresh
+database imports the bundled catalog with zero stock, so checkout remains
+unavailable until inventory is explicitly loaded. Prices and inventory are
+always resolved server-side in integer cents and browser carts contain only
+SKU/quantity pairs.
 
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Stripe Checkout.
 - `STORE_PUBLIC_ORIGIN` is the canonical HTTPS origin used for Stripe redirects.
@@ -116,11 +143,26 @@ integer cents and browser carts contain only SKU/quantity pairs.
   defaults to `0` so new deployments fail closed.
 
 Checkout creation atomically reserves inventory before contacting Stripe.
-Provider calls use the durable checkout UUID as their idempotency key. Signed
+Provider calls use the durable checkout ID as their idempotency key. Signed
 webhooks consume or release reservations and record an event ledger in the same
 transaction as order state. Payment, fulfillment, manual review, and refund
-states remain independent. `/readyz` verifies the SQLite schema and integrity;
+states remain independent. `/readyz` verifies PostgreSQL connectivity and the
+expected store schema version;
 `/healthz` remains the process liveness probe.
+
+Store integration tests run against disposable PostgreSQL rather than a mock or
+SQLite compatibility layer:
+
+```sh
+docker compose -f docker-compose.test.yml up -d
+PGPASSWORD=psv_test_password psql \
+  postgresql://postgres@127.0.0.1:55432/psv_test \
+  -f supabase/migrations/20260727000000_store_schema.sql
+uv run pytest
+```
+
+Set `TEST_DATABASE_URL` to override the local test URL. Never point tests at the
+hosted Supabase production database.
 
 ## Deployment Notes
 
