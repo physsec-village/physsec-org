@@ -7,6 +7,16 @@
         <a href="{{ url_for('get_involved_page') }}">Get Involved</a>
         {% if request.app.state.store_enabled %}
             <a href="{{ url_for('store_page') }}">Store</a>
+        {% else %}
+            <span
+                class="footer-disabled store-option-1"
+                tabindex="0"
+                aria-disabled="true"
+                data-tooltip="Store coming soon"
+            >
+                <span class="disabled-label">Store</span>
+                <span class="disabled-state">Soon</span>
+            </span>
         {% endif %}
         <a href="{{ url_for('contact_us_page') }}">Contact Us</a>
     </div>

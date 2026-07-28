@@ -101,6 +101,9 @@ def test_disabled_store_needs_no_database_and_is_not_public(monkeypatch):
     assert readiness.status_code == 200
     assert readiness.text == "ready"
     assert '/store">Store</a>' not in home.text
+    assert home.text.count('aria-disabled="true"') >= 3
+    assert home.text.count('<span class="disabled-label">Store</span>') == 3
+    assert home.text.count('<span class="disabled-state">Soon</span>') == 3
     assert "<loc>https://physsec.org/store</loc>" not in sitemap.text
     assert store.status_code == 404
     assert webhook.status_code == 404
