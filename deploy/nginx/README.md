@@ -8,6 +8,8 @@ the complete configuration, and gracefully reloads nginx.
 
 The deployment account cannot write nginx configuration. Sudoers permits only
 the helper's fixed slot, live-route query, and rollback commands.
+The host must provide `curl`, `flock` (util-linux), `ps` (procps), `awk`,
+`nginx`, and `systemctl`; the helper uses only fixed paths and slot names.
 
 ## One-time installation and legacy migration
 
