@@ -143,6 +143,31 @@ def test_catalog_bootstrap_resumes_a_partial_import(tmp_path):
     assert db.get_product_by_id("PSV-BYP-001") is not None
 
 
+def test_catalog_bootstrap_allows_longer_lock_wait(monkeypatch):
+    statements = []
+
+    class FakeConnection:
+        def execute(self, statement):
+            statements.append(statement)
+
+    class FakeConnectionContext:
+        def __enter__(self):
+            return FakeConnection()
+
+        def __exit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(db, "connection", lambda **_kwargs: FakeConnectionContext())
+
+    with db.catalog_bootstrap_lock():
+        pass
+
+    assert statements == [
+        "SET LOCAL lock_timeout TO '60s'",
+        ("SELECT pg_advisory_xact_lock(hashtext('physsec-store-catalog-bootstrap'))"),
+    ]
+
+
 def test_reservation_prevents_overselling_and_expiry_releases(tmp_path):
     _database(tmp_path)
 

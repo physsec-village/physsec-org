@@ -103,6 +103,7 @@ def close_pool() -> None:
 def catalog_bootstrap_lock() -> Iterator[None]:
     """Serialize resumable catalog bootstrap across application instances."""
     with connection(write=True) as conn:
+        conn.execute("SET LOCAL lock_timeout TO '60s'")
         conn.execute(
             "SELECT pg_advisory_xact_lock(hashtext('physsec-store-catalog-bootstrap'))"
         )
