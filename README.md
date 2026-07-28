@@ -21,7 +21,7 @@ This repository contains the FastAPI-based website for Physical Security Village
 - `templates/`: page templates, navbar, footer, base layout, 404 page
 - `static/`: global and page-specific CSS, logos, SVG assets
 - `Dockerfile`: container image definition
-- `docker-compose.yml`: single-service app deployment
+- `docker-compose.yml`: blue/green app slots and stable internal router
 - `psv-website.service`: example `systemd` unit for running Docker Compose on a host
 
 ## Routes
@@ -61,10 +61,12 @@ If you are not using `uv`, install from `pyproject.toml` with your preferred Pyt
 The containerized path is:
 
 ```bash
-docker compose up --build
+./deploy/deploy.sh
 ```
 
-The compose file publishes the app on `127.0.0.1:8080`.
+The compose router publishes the app on `127.0.0.1:8080`; the deployment script
+initializes its runtime route and uses the same health-gated behavior as
+production.
 
 ## Environment Variables
 
@@ -181,10 +183,13 @@ hosted Supabase production database.
   readiness. The compose file uses the liveness endpoint.
 - Deploys invoke [`deploy/deploy.sh`](deploy/deploy.sh) directly as the
   deployment account, avoiding interactive `sudo` in GitHub Actions. The
-  script builds the new image while the old container keeps serving, swaps
-  containers only after the new one passes its health check, and otherwise
-  rolls back to the previously tagged image (`psv-website:previous`) and fails
-  the deploy. The systemd unit's `ExecStart` and `ExecReload` use the same
+  script serializes deployments, builds an image into the inactive blue/green
+  slot while the active slot keeps serving, and waits for Compose health. It
+  then atomically updates the stable internal nginx router, reloads it, verifies
+  traffic reached the new slot, and only then stops the old slot. A failure
+  before or after the switch leaves or restores the old route. Runtime slot
+  state lives under the Git-ignored `data/deploy` directory. The systemd unit's
+  `ExecStart` and `ExecReload` use the same
   script for boot and manual service operations; changes to the unit itself
   require an administrator to run `systemctl daemon-reload` on the host.
 - A production nginx reverse-proxy configuration and security-header policy are
