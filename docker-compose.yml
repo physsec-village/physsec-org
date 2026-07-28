@@ -16,6 +16,8 @@ services:
       - "127.0.0.1:8080:8080"
     env_file:
       - .env
+    volumes:
+      - ./data/media:/psv-website/data/media
     environment:
       # Production startup fails unless Turnstile is fully configured.
       - APP_ENV=production

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Checkout | PSV Store | Physical Security Village{% endblock %}
+{% block description %}Check out your Physical Security Village store order.{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
+{% block styles %}
+<link href="/static/pages/store.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('store_page') }}">Store</a>
+            <span>/</span>
+            <span>Checkout</span>
+        </div>
+        <h1 class="page-title">Checkout</h1>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="page-shell">
+        <form id="checkoutForm" class="checkout-layout">
+            <div class="checkout-fields">
+                <div class="checkout-card">
+                    <div class="checkout-card-title">Secure checkout</div>
+                    <p>
+                        Your cart is validated against current inventory before
+                        you continue to Stripe. Stripe securely collects payment
+                        and shipping details; this site never handles card data.
+                    </p>
+                    <p class="form-error" id="checkoutError" role="alert" hidden></p>
+                </div>
+            </div>
+
+            <aside class="checkout-summary">
+                <div class="checkout-card-title">Order summary</div>
+                <div class="summary-items" id="summaryItems"></div>
+                <div class="summary-totals" id="summaryTotals">
+                    <div class="summary-row">
+                        <span>Subtotal</span>
+                        <span class="mono" id="summarySubtotal">$0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Shipping &amp; tax</span>
+                        <span>Calculated by Stripe</span>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary checkout-submit" id="placeOrder">
+                    Continue to secure checkout
+                </button>
+                <a href="{{ url_for('store_catalog_page') }}" class="btn btn-outline">Continue shopping</a>
+                <p class="summary-empty" id="summaryEmpty" hidden>
+                    Your cart is empty.
+                    <a href="{{ url_for('store_catalog_page') }}">Browse the store</a>
+                    to add items.
+                </p>
+            </aside>
+        </form>
+    </div>
+
+    {% include "store/cart.html" %}
+{% endblock %}

@@ -10,8 +10,12 @@ from .forms.email import get_mail_config
 from .forms.router import router as form_router
 from .forms.turnstile import get_turnstile_settings
 from .limiter import limiter
-from .router import router as root_router
 from .router import not_found
+from .router import router as root_router
+from .store import db
+from .store.config import store_enabled, validate_store_config
+from .store.router import router as store_router
+from .store.seed import bootstrap_catalog
 
 
 def rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONResponse:
@@ -34,13 +38,28 @@ async def lifespan(app: FastAPI):
     # Fail at startup, not on first submission, if required configuration is invalid
     get_mail_config()
     get_turnstile_settings()
-    yield
+    app.state.store_enabled = store_enabled()
+    if not app.state.store_enabled:
+        yield
+        return
+
+    validate_store_config()
+    db.open_pool()
+    try:
+        db.require_schema()
+        bootstrap_catalog()
+        yield
+    finally:
+        db.close_pool()
 
 
 app = FastAPI(exception_handlers=exceptions, lifespan=lifespan)
 app.state.limiter = limiter
+app.state.store_enabled = False
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/media", StaticFiles(directory=db.MEDIA_DIR, check_dir=False), name="media")
 
 app.include_router(root_router)
 app.include_router(form_router)
+app.include_router(store_router)

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "store/macros.html" import product_card, cat_icon with context %}
+{% block title %}PSV Store | Physical Security Village{% endblock %}
+{% block description %}Bypass tools, keyed-alike utility keys, RFID research hardware, and village merch from the Physical Security Village store.{% endblock %}
+{% block styles %}
+<link href="/static/pages/store.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="store-hero">
+            <div class="store-hero-copy">
+                <span class="store-eyebrow">Featured drop</span>
+                <h1 class="store-hero-title">{{ hero.name }}</h1>
+                <p class="store-hero-desc">{{ hero.desc }}</p>
+                <div class="store-hero-cta">
+                    <span class="price price-hero">{{ hero.price_str }}</span>
+                    <a href="{{ url_for('store_product_page', product_id=hero.id) }}" class="btn btn-primary">
+                        Shop now
+                        <svg viewBox="0 0 24 24">
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+            <div class="store-hero-art" role="img" aria-label="{{ hero.name }} photo placeholder">
+                {{ cat_icon(hero.cat) }}
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="page-shell">
+        <section class="store-section">
+            <div class="store-section-head">
+                <h2>Shop by Category</h2>
+                <a href="{{ url_for('store_catalog_page') }}" class="store-view-all">View all →</a>
+            </div>
+            <div class="cat-hub">
+                {% for c in categories %}
+                    <a href="{{ url_for('store_catalog_page') }}?cat={{ c.key }}" class="cat-hub-link">
+                        {{ c.label }}
+                        <svg viewBox="0 0 24 24">
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                        </svg>
+                    </a>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="store-section">
+            <div class="store-section-head">
+                <h2>Featured Kit</h2>
+            </div>
+            <div class="product-grid">
+                {% for p in featured %}
+                    {{ product_card(p, featured=true) }}
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+    {% include "store/cart.html" %}
+{% endblock %}

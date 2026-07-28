@@ -40,6 +40,12 @@ The app currently serves these user-facing routes:
 - `/forms/volunteer`
 - `/forms/calls`
 - `/forms/email` (`POST`)
+- `/store`
+- `/store/catalog`
+- `/store/product/{product_id}`
+- `/store/checkout`
+- `/store/confirmed`
+- `/store/webhook` (`POST`, Stripe-signed)
 
 ## Local Development
 
@@ -91,6 +97,79 @@ The compose file restricts Uvicorn's trusted proxy headers to Docker bridge
 networks. The reverse proxy must replace any client-supplied `X-Forwarded-For`
 header rather than append to it; per-IP rate limiting depends on this boundary.
 
+### Store configuration
+
+The store is disabled by default. While `STORE_ENABLED=false`, store routes are
+hidden, `/readyz` does not depend on PostgreSQL, and no store database or Stripe
+configuration is required. Set `STORE_ENABLED=true` only after applying the
+migration and configuring the deployment environment; enabled store
+misconfiguration fails application startup.
+
+The store uses the Supabase-managed PostgreSQL database configured by
+`DATABASE_URL`. Use the direct connection URL for a persistent IPv6-capable
+deployment, or Supabase's session pooler on an IPv4-only host. Production URLs
+must require TLS (`sslmode=require`). The database password belongs only in the
+deployment `.env`; it must not be committed or sent to the browser.
+
+Schema changes are versioned in `supabase/migrations`. Link this checkout to the
+project and apply pending migrations before deploying the application:
+
+```sh
+supabase link --project-ref xrszuoznhlnnvktdjzdy
+supabase db push
+```
+
+The migration creates a restricted, non-login `store_app` role. In the Supabase
+SQL editor, assign it a generated password and enable login:
+
+```sql
+alter role store_app login password 'GENERATE-A-UNIQUE-PASSWORD';
+```
+
+Use `store_app`, not the project-owner `postgres` role, in the application's
+`DATABASE_URL`. Keep the owner URL for migration commands only. If the deployment
+cannot reach the direct IPv6 endpoint, obtain the matching session-pooler URL
+from Supabase's Connect dialog.
+
+The store tables live in the private `store` schema, outside the browser-facing
+Data API surface, and access is revoked from `anon` and `authenticated`. A fresh
+database imports the bundled catalog with zero stock, so checkout remains
+unavailable until inventory is explicitly loaded. Prices and inventory are
+always resolved server-side in integer cents and browser carts contain only
+SKU/quantity pairs.
+
+- `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Stripe Checkout.
+- `STORE_PUBLIC_ORIGIN` is the canonical HTTPS origin used for Stripe redirects.
+- `STORE_SHIP_COUNTRIES` is a comma-separated country allowlist.
+- `STRIPE_SHIPPING_RATE_IDS` optionally supplies Stripe shipping rates.
+- `STORE_AUTOMATIC_TAX=true` enables Stripe Tax.
+- `STORE_RESERVATION_MINUTES` controls reservation lifetime from 31 minutes to
+  24 hours (default `35`, leaving a buffer above Stripe's 30-minute minimum).
+- `STORE_BOOTSTRAP_STOCK` controls initial stock during first-time import and
+  defaults to `0` so new deployments fail closed.
+
+Checkout creation atomically reserves inventory before contacting Stripe.
+Provider calls use the durable checkout ID as their idempotency key. Signed
+webhooks consume or release reservations and record an event ledger in the same
+transaction as order state. Payment, fulfillment, manual review, and refund
+states remain independent. `/readyz` verifies PostgreSQL connectivity and the
+expected store schema version;
+`/healthz` remains the process liveness probe.
+
+Store integration tests run against disposable PostgreSQL rather than a mock or
+SQLite compatibility layer:
+
+```sh
+docker compose -f docker-compose.test.yml up -d
+PGPASSWORD=psv_test_password psql \
+  postgresql://postgres@127.0.0.1:55432/psv_test \
+  -f supabase/migrations/20260727000000_store_schema.sql
+uv run pytest
+```
+
+Set `TEST_DATABASE_URL` to override the local test URL. Never point tests at the
+hosted Supabase production database.
+
 ## Deployment Notes
 
 - The `Dockerfile` installs the exact dependency versions in `uv.lock` with a
@@ -98,8 +177,8 @@ header rather than append to it; per-IP rate limiting depends on this boundary.
   with `fastapi run src/main.py --proxy-headers --port 8080`.
 - `psv-website.service` expects the repository to live at `/opt/psv-website`.
 - The service file is an example deployment artifact, not a portable installer; adjust paths and service management to match the target host.
-- The app serves a `/healthz` endpoint, and the compose file defines a matching
-  container health check.
+- The app serves `/healthz` for liveness and `/readyz` for store database
+  readiness. The compose file uses the liveness endpoint.
 - Deploys invoke [`deploy/deploy.sh`](deploy/deploy.sh) directly as the
   deployment account, avoiding interactive `sudo` in GitHub Actions. The
   script builds the new image while the old container keeps serving, swaps
@@ -129,8 +208,6 @@ The repository still contains several stubbed or provisional values that should 
 
 | File | Current placeholder | What should replace it |
 | --- | --- | --- |
-| `templates/navbar.html` | Store nav item disabled with `PSV Store coming soon` / `Store coming soon` | Real store URL or remove the nav item |
-| `templates/footer.html` | Store footer item disabled with `Store coming soon` | Real store URL or remove the footer item |
 | `templates/pages/get-involved.html` | `Sponsorship details coming soon` | Real sponsorship workflow, package, or contact path |
 
 ### Pages with intentionally incomplete content
@@ -156,4 +233,9 @@ The repository still contains several stubbed or provisional values that should 
 
 ## Current State Summary
 
-The site already has a coherent frontend structure, working contact and volunteer email paths, and locally managed game thumbnails. The main unfinished areas are organizational content, real event/archive data, store/sponsorship decisions, legacy game routes, and deployment-specific configuration.
+The site already has a coherent frontend structure, working contact and
+volunteer email paths, locally managed game thumbnails, and a Stripe-backed
+store commerce foundation. Store inventory and production Stripe configuration
+must be loaded before checkout is enabled. The main remaining areas are
+organizational content, real event/archive data, store administration,
+sponsorship decisions, legacy game routes, and deployment-specific operations.
