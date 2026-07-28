@@ -8,8 +8,8 @@ After=docker.service nginx.service
 Type=oneshot
 RemainAfterExit=yes
 ExecStartPre=/usr/bin/systemctl is-active --quiet nginx.service
-User=psv-deploy
-Group=psv-deploy
+User=github_deploy_dev_physsec_org
+Group=github_deploy_dev_physsec_org
 WorkingDirectory=/opt/psv-website
 # Boot and deploy both go through the serialized, health-gated blue/green
 # script. Host nginx keeps serving while the inactive application slot builds.
