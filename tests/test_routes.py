@@ -33,8 +33,12 @@ class RouteStatusTests(unittest.TestCase):
         with TestClient(app) as client:
             response = client.get("/")
 
-        self.assertIn("Physical Security Village | Hands-On Security Education", response.text)
-        self.assertIn('<link rel="canonical" href="https://physsec.org/"', response.text)
+        self.assertIn(
+            "Physical Security Village | Hands-On Security Education", response.text
+        )
+        self.assertIn(
+            '<link rel="canonical" href="https://physsec.org/"', response.text
+        )
         self.assertIn('property="og:description"', response.text)
 
     def test_robots_and_sitemap_are_served(self):
@@ -79,3 +83,24 @@ class RouteStatusTests(unittest.TestCase):
                     response = client.get(path)
                     self.assertEqual(response.status_code, 200)
                     self.assertEqual(response.headers["content-type"], "image/webp")
+
+
+def test_disabled_store_needs_no_database_and_is_not_public(monkeypatch):
+    monkeypatch.setenv("STORE_ENABLED", "false")
+    monkeypatch.delenv("DATABASE_URL")
+
+    with TestClient(app) as client:
+        health = client.get("/healthz")
+        readiness = client.get("/readyz")
+        home = client.get("/")
+        sitemap = client.get("/sitemap.xml")
+        store = client.get("/store")
+        webhook = client.post("/store/webhook", content=b"{}")
+
+    assert health.status_code == 200
+    assert readiness.status_code == 200
+    assert readiness.text == "ready"
+    assert '/store">Store</a>' not in home.text
+    assert "<loc>https://physsec.org/store</loc>" not in sitemap.text
+    assert store.status_code == 404
+    assert webhook.status_code == 404

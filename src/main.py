@@ -13,7 +13,7 @@ from .limiter import limiter
 from .router import not_found
 from .router import router as root_router
 from .store import db
-from .store.config import validate_store_config
+from .store.config import store_enabled, validate_store_config
 from .store.router import router as store_router
 from .store.seed import bootstrap_catalog
 
@@ -38,6 +38,11 @@ async def lifespan(app: FastAPI):
     # Fail at startup, not on first submission, if required configuration is invalid
     get_mail_config()
     get_turnstile_settings()
+    app.state.store_enabled = store_enabled()
+    if not app.state.store_enabled:
+        yield
+        return
+
     validate_store_config()
     db.open_pool()
     try:
@@ -50,6 +55,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(exception_handlers=exceptions, lifespan=lifespan)
 app.state.limiter = limiter
+app.state.store_enabled = False
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/media", StaticFiles(directory=db.MEDIA_DIR, check_dir=False), name="media")

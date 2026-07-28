@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import stripe
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
@@ -20,8 +20,19 @@ from .stripe_client import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/store")
 MAX_WEBHOOK_BYTES = 1024 * 1024
+
+
+def require_store_enabled(request: Request) -> None:
+    """Hide every store endpoint until its infrastructure is enabled."""
+    if not request.app.state.store_enabled:
+        raise HTTPException(status_code=404)
+
+
+router = APIRouter(
+    prefix="/store",
+    dependencies=[Depends(require_store_enabled)],
+)
 
 
 class CartItem(BaseModel):

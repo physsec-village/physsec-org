@@ -15,11 +15,10 @@ SITEMAP_PATHS = (
     "/contact",
     "/games",
     "/materials",
-    "/store",
-    "/store/catalog",
     "/forms/calls",
     "/forms/volunteer",
 )
+STORE_SITEMAP_PATHS = ("/store", "/store/catalog")
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -77,7 +76,9 @@ def healthz():
 
 
 @router.get("/readyz", include_in_schema=False)
-def readyz():
+def readyz(request: Request):
+    if not request.app.state.store_enabled:
+        return Response(content="ready", media_type="text/plain")
     try:
         status = db.readiness()
     except OSError, RuntimeError:
@@ -96,10 +97,11 @@ def robots_txt():
 
 
 @router.get("/sitemap.xml", include_in_schema=False)
-def sitemap_xml():
-    urls = "".join(
-        f"<url><loc>https://physsec.org{path}</loc></url>" for path in SITEMAP_PATHS
-    )
+def sitemap_xml(request: Request):
+    paths = SITEMAP_PATHS
+    if request.app.state.store_enabled:
+        paths += STORE_SITEMAP_PATHS
+    urls = "".join(f"<url><loc>https://physsec.org{path}</loc></url>" for path in paths)
     return Response(
         content=f'<?xml version="1.0" encoding="UTF-8"?>'
         f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>',

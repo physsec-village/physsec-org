@@ -9,7 +9,12 @@ from fastapi.testclient import TestClient
 from src.main import app
 from src.store import db, seed, stripe_client
 from src.store import router as store_router
-from src.store.config import bootstrap_stock, database_url, reservation_minutes
+from src.store.config import (
+    bootstrap_stock,
+    database_url,
+    reservation_minutes,
+    store_enabled,
+)
 from src.store.models import ProductInput, VariantInput
 from src.store.storefront import ProductView, VariantView
 
@@ -74,6 +79,13 @@ def test_store_numeric_configuration_is_validated(monkeypatch, name, value, read
 
     with pytest.raises(ValueError, match=name):
         reader()
+
+
+def test_store_feature_flag_is_validated(monkeypatch):
+    monkeypatch.setenv("STORE_ENABLED", "sometimes")
+
+    with pytest.raises(ValueError, match="STORE_ENABLED"):
+        store_enabled()
 
 
 def test_production_database_requires_tls(monkeypatch):

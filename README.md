@@ -99,6 +99,12 @@ header rather than append to it; per-IP rate limiting depends on this boundary.
 
 ### Store configuration
 
+The store is disabled by default. While `STORE_ENABLED=false`, store routes are
+hidden, `/readyz` does not depend on PostgreSQL, and no store database or Stripe
+configuration is required. Set `STORE_ENABLED=true` only after applying the
+migration and configuring the deployment environment; enabled store
+misconfiguration fails application startup.
+
 The store uses the Supabase-managed PostgreSQL database configured by
 `DATABASE_URL`. Use the direct connection URL for a persistent IPv6-capable
 deployment, or Supabase's session pooler on an IPv4-only host. Production URLs

@@ -12,6 +12,16 @@ MIN_RESERVATION_MINUTES = 31
 MAX_RESERVATION_MINUTES = 1440
 
 
+def store_enabled() -> bool:
+    """Return whether the store and its infrastructure should be active."""
+    value = os.getenv("STORE_ENABLED", "false").strip().lower()
+    if value in {"true", "1", "yes", "on"}:
+        return True
+    if value in {"false", "0", "no", "off"}:
+        return False
+    raise ValueError("STORE_ENABLED must be true or false.")
+
+
 def database_url() -> str:
     """Return the server-side PostgreSQL connection string."""
     value = os.getenv("DATABASE_URL", "").strip()
@@ -63,7 +73,7 @@ def bootstrap_stock() -> int:
 
 
 def validate_store_config() -> None:
-    """Fail startup early when store numeric settings are invalid."""
+    """Fail startup early when enabled store settings are invalid."""
     database_url()
     reservation_minutes()
     bootstrap_stock()

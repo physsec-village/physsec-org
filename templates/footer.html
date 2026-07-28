@@ -5,7 +5,9 @@
     <div class="footer-links">
         <a href="{{ url_for('about_us_page') }}">About</a>
         <a href="{{ url_for('get_involved_page') }}">Get Involved</a>
-        <a href="{{ url_for('store_page') }}">Store</a>
+        {% if request.app.state.store_enabled %}
+            <a href="{{ url_for('store_page') }}">Store</a>
+        {% endif %}
         <a href="{{ url_for('contact_us_page') }}">Contact Us</a>
     </div>
     <div class="footer-copy">© 2026 Physical Security Village</div>

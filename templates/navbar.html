@@ -16,7 +16,9 @@
         <li id="nav-home-link"><a href="{{ url_for('home_page') }}">Home</a></li>
         <li><a href="{{ url_for('about_us_page') }}">About Us</a></li>
         <li><a href="{{ url_for('get_involved_page') }}">Get Involved</a></li>
-        <li><a href="{{ url_for('store_page') }}">Store</a></li>
+        {% if request.app.state.store_enabled %}
+            <li><a href="{{ url_for('store_page') }}">Store</a></li>
+        {% endif %}
         <li><a href="{{ url_for('contact_us_page') }}">Contact Us</a></li>
     </ul>
 
@@ -113,7 +115,9 @@
     <a href="{{ url_for('get_involved_page') }}"
         >Get Involved</a
     >
-    <a href="{{ url_for('store_page') }}">Store</a>
+    {% if request.app.state.store_enabled %}
+        <a href="{{ url_for('store_page') }}">Store</a>
+    {% endif %}
     <a href="{{ url_for('contact_us_page') }}"
         >Contact Us</a
     >

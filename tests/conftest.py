@@ -33,6 +33,7 @@ os.environ.update(
         "MAIL_USERNAME": "test@example.com",
         "MAIL_PASSWORD": "test-password",
         "RECEIVER_EMAIL": "receiver@example.com",
+        "STORE_ENABLED": "true",
         "DATABASE_URL": TEST_DATABASE_URL,
     }
 )
