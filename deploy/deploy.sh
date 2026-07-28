@@ -18,7 +18,12 @@ route_tmp=
 state_tmp=
 legacy_container=
 legacy_handoff_complete=false
+route_switch_pending=false
 cleanup() {
+    if [ "$route_switch_pending" = true ]; then
+        write_route "$old_service" >/dev/null 2>&1 || true
+        docker compose exec -T router nginx -s reload >/dev/null 2>&1 || true
+    fi
     [ -z "$route_tmp" ] || rm -f "$route_tmp"
     [ -z "$state_tmp" ] || rm -f "$state_tmp"
     if [ -n "$legacy_container" ] && [ "$legacy_handoff_complete" = false ] &&
@@ -126,6 +131,7 @@ while :; do
     elapsed=$((elapsed + 2))
 done
 
+route_switch_pending=true
 write_route "$new_service"
 
 # The first blue/green deployment replaces the legacy single `app` container,
@@ -179,12 +185,13 @@ if ! route_matches "$new_service"; then
     echo "New route failed verification." >&2
     exit 1
 fi
-legacy_handoff_complete=true
 
 state_tmp=$STATE_FILE.tmp.$$
 printf '%s\n' "$inactive" >"$state_tmp"
 mv "$state_tmp" "$STATE_FILE"
 state_tmp=
+route_switch_pending=false
+legacy_handoff_complete=true
 
 # The old slot is stopped only after traffic through the stable port succeeds.
 docker compose stop "$old_service" >/dev/null 2>&1 || true

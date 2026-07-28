@@ -187,8 +187,9 @@ hosted Supabase production database.
   slot while the active slot keeps serving, and waits for Compose health. It
   then atomically updates the stable internal nginx router, reloads it, verifies
   traffic reached the new slot, and only then stops the old slot. A failure
-  before or after the switch leaves or restores the old route. Runtime slot
-  state lives under the Git-ignored `data/deploy` directory. The systemd unit's
+  or interruption before the new state is persisted leaves or restores the old
+  route. Runtime slot state lives under the Git-ignored `data/deploy` directory.
+  The systemd unit's
   `ExecStart` and `ExecReload` use the same
   script for boot and manual service operations; changes to the unit itself
   require an administrator to run `systemctl daemon-reload` on the host.
