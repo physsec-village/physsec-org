@@ -18,7 +18,7 @@ fi
 
 mkdir -p "$STATE_DIR"
 state_tmp=
-switched=false
+cutover_pending=false
 old_slot=
 new_service=
 
@@ -37,7 +37,7 @@ route_matches() {
 cleanup() {
     status=$?
     [ -z "$state_tmp" ] || rm -f "$state_tmp"
-    if [ "$status" -ne 0 ] && [ "$switched" = true ]; then
+    if [ "$status" -ne 0 ] && [ "$cutover_pending" = true ]; then
         if [ -n "$old_slot" ]; then
             echo "Deployment failed after cutover; restoring $old_slot." >&2
             switch_command "$old_slot" >/dev/null 2>&1 || true
@@ -131,8 +131,8 @@ while :; do
 done
 
 echo "Switching host nginx to $inactive."
+cutover_pending=true
 switch_command "$inactive"
-switched=true
 
 elapsed=0
 case "$inactive" in
@@ -152,7 +152,7 @@ state_tmp=$STATE_FILE.tmp.$$
 printf '%s\n' "$inactive" >"$state_tmp"
 mv "$state_tmp" "$STATE_FILE"
 state_tmp=
-switched=false
+cutover_pending=false
 
 # Keep the previous backend running for any gracefully draining nginx workers.
 # The next deployment waits for that recorded generation before reusing it.

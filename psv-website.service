@@ -1,7 +1,6 @@
 [Unit]
 Description=PSV Website (Docker Compose)
-Requires=docker.service
-Wants=nginx.service
+Requires=docker.service nginx.service
 After=docker.service nginx.service
 
 [Service]

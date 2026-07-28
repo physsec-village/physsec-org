@@ -63,12 +63,19 @@ write_config() {
     chmod 0644 "$destination"
 }
 
-record_draining_workers() {
+record_current_workers() {
     draining_slot=$1
     drain_tmp=$DRAINING_FILE.tmp.$$
     printf '%s\n' "$draining_slot" >"$drain_tmp"
-    ps -eo pid=,comm=,args= |
-        awk '$2 == "nginx" && $0 ~ /worker process is shutting down/ { print $1 }' |
+    master_pid=$(systemctl show --property MainPID --value nginx.service)
+    case "$master_pid" in
+        ''|0|*[!0-9]*)
+            echo "Could not determine the nginx master process." >&2
+            return 1
+            ;;
+    esac
+    ps -o pid= --ppid "$master_pid" |
+        awk '{ print $1 }' |
         while IFS= read -r worker_pid; do
             [ -r "/proc/$worker_pid/stat" ] || continue
             start_time=$(awk '{ print $22 }' "/proc/$worker_pid/stat")
@@ -139,11 +146,10 @@ cleanup() {
     status=$?
     if [ "$status" -ne 0 ] && [ "$changed" = true ]; then
         mv "$old" "$UPSTREAM_FILE"
+        record_current_workers "$target" >/dev/null 2>&1 || true
         if nginx -t >/dev/null 2>&1 &&
             systemctl reload nginx >/dev/null 2>&1; then
-            # The failed target generation is now the one draining.
-            sleep 1
-            record_draining_workers "$target" >/dev/null 2>&1 || true
+            :
         fi
     fi
     rm -f "$tmp" "$old"
@@ -160,12 +166,11 @@ write_config "$target" "$tmp"
 mv "$tmp" "$UPSTREAM_FILE"
 changed=true
 
-if ! nginx -t || ! systemctl reload nginx; then
+if ! nginx -t || ! record_current_workers "$live_slot" ||
+    ! systemctl reload nginx; then
     echo "nginx switch failed; restoring the live upstream." >&2
     exit 1
 fi
-sleep 1
-record_draining_workers "$live_slot"
 if [ "$(current_slot 2>/dev/null || true)" != "$target" ]; then
     echo "nginx did not serve the requested upstream; restoring the live upstream." >&2
     exit 1
