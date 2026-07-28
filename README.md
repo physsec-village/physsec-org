@@ -21,7 +21,7 @@ This repository contains the FastAPI-based website for Physical Security Village
 - `templates/`: page templates, navbar, footer, base layout, 404 page
 - `static/`: global and page-specific CSS, logos, SVG assets
 - `Dockerfile`: container image definition
-- `docker-compose.yml`: blue/green app slots and stable internal router
+- `docker-compose.yml`: blue/green app slots on distinct loopback ports
 - `psv-website.service`: example `systemd` unit for running Docker Compose on a host
 
 ## Routes
@@ -64,9 +64,10 @@ The containerized path is:
 ./deploy/deploy.sh
 ```
 
-The compose router publishes the app on `127.0.0.1:8080`; the deployment script
-initializes its runtime route and uses the same health-gated behavior as
-production.
+The production deployment script requires the host-nginx setup documented in
+[`deploy/nginx`](deploy/nginx/README.md). For local container development, run a
+single slot directly with `docker compose up app-blue`; it binds only to
+`127.0.0.1:8081`.
 
 ## Environment Variables
 
@@ -185,18 +186,22 @@ hosted Supabase production database.
   deployment account, avoiding interactive `sudo` in GitHub Actions. The
   script serializes deployments, builds an image into the inactive blue/green
   slot while the active slot keeps serving, and waits for Compose health. It
-  then atomically updates the stable internal nginx router, reloads it, verifies
-  traffic reached the new slot, and only then stops the old slot. A failure
-  or interruption before the new state is persisted leaves or restores the old
-  route. Runtime slot state lives under the Git-ignored `data/deploy` directory.
+  then asks a narrowly privileged, root-owned helper to atomically update and
+  gracefully reload the existing host nginx. It verifies host-nginx traffic
+  reached the new slot before persisting state. A failure or interruption
+  leaves or restores the old route. The previous backend remains running for
+  in-flight requests and is recreated as the inactive slot on the next deploy,
+  after the previous nginx worker generation has fully drained.
+  Runtime slot state lives under the Git-ignored `data/deploy` directory; the
+  helper determines the authoritative live route through host nginx and keeps
+  root-owned state under `/var/lib/physsec-deploy` for diagnostics.
   The systemd unit's
   `ExecStart` and `ExecReload` use the same
   script for boot and manual service operations; changes to the unit itself
   require an administrator to run `systemctl daemon-reload` on the host.
 - A production nginx reverse-proxy configuration and security-header policy are
   versioned under [`deploy/nginx`](deploy/nginx/README.md). Install them on the
-  host only after adapting certificate and distribution-specific paths, then
-  validate with `nginx -t` before reloading nginx.
+  host using the documented no-downtime legacy migration sequence.
 
 ## Placeholders To Replace
 

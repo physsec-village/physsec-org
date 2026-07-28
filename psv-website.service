@@ -1,14 +1,15 @@
 [Unit]
 Description=PSV Website (Docker Compose)
 Requires=docker.service
-After=docker.service
+Wants=nginx.service
+After=docker.service nginx.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/psv-website
 # Boot and deploy both go through the serialized, health-gated blue/green
-# script. The router remains up while the inactive application slot is built.
+# script. Host nginx keeps serving while the inactive application slot builds.
 ExecStart=/opt/psv-website/deploy/deploy.sh
 ExecReload=/opt/psv-website/deploy/deploy.sh
 ExecStop=/usr/bin/docker compose down

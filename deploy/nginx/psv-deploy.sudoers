@@ -1,0 +1,6 @@
+# Validate with: visudo -cf /etc/sudoers.d/psv-deploy
+github_deploy_dev_physsec_org ALL=(root) NOPASSWD: /usr/local/sbin/psv-switch-upstream blue
+github_deploy_dev_physsec_org ALL=(root) NOPASSWD: /usr/local/sbin/psv-switch-upstream green
+github_deploy_dev_physsec_org ALL=(root) NOPASSWD: /usr/local/sbin/psv-switch-upstream current
+github_deploy_dev_physsec_org ALL=(root) NOPASSWD: /usr/local/sbin/psv-switch-upstream drained
+github_deploy_dev_physsec_org ALL=(root) NOPASSWD: /usr/local/sbin/psv-switch-upstream rollback
