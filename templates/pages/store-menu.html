@@ -204,8 +204,13 @@
                 counts. Nothing is reserved and nothing leaves your phone.
             </p>
             <div class="cart-code" id="cartCode">
-                <div class="cart-code-symbol" id="cartCodeSymbol" aria-hidden="true"></div>
-                <p class="cart-code-hint">Show this at the register</p>
+                <div class="cart-code-symbol" id="cartCodeSymbol"></div>
+                <div class="cart-code-pager" id="cartCodePager" hidden>
+                    <button type="button" id="cartCodePrevious" aria-label="Previous QR code">←</button>
+                    <span class="mono" id="cartCodePosition" aria-live="polite"></span>
+                    <button type="button" id="cartCodeNext" aria-label="Next QR code">→</button>
+                </div>
+                <p class="cart-code-hint" id="cartCodeHint">Show this at the register</p>
                 <code class="cart-code-text mono" id="cartCodeText"></code>
             </div>
             <button type="button" class="btn btn-outline cart-clear" id="cartClear">Clear list</button>

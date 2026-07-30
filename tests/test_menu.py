@@ -132,7 +132,11 @@ class MenuPageTests(unittest.TestCase):
 
     def test_cart_assets_are_served(self):
         with TestClient(app) as client:
-            for path in ("/static/pages/store-menu.js", "/static/pages/qr.js"):
+            for path in (
+                "/static/pages/store-menu.js",
+                "/static/pages/store-menu-payload.js",
+                "/static/pages/qr.js",
+            ):
                 with self.subTest(path=path):
                     self.assertEqual(client.get(path).status_code, 200)
 

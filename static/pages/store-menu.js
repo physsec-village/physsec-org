@@ -3,9 +3,9 @@
 // there is no store backend behind this page.
 
 import { qrMatrix } from "./qr.js";
+import { payloads } from "./store-menu-payload.js";
 
 const STORAGE_KEY = "psv-menu-list-v1";
-const PAYLOAD_PREFIX = "PSV34";
 
 const rows = Array.from(document.querySelectorAll(".menu-row"));
 const groups = Array.from(document.querySelectorAll(".menu-group"));
@@ -27,6 +27,11 @@ const totalEl = document.getElementById("cartTotal");
 const countEl = document.getElementById("cartCount");
 const symbolEl = document.getElementById("cartCodeSymbol");
 const codeTextEl = document.getElementById("cartCodeText");
+const codePagerEl = document.getElementById("cartCodePager");
+const codePreviousEl = document.getElementById("cartCodePrevious");
+const codeNextEl = document.getElementById("cartCodeNext");
+const codePositionEl = document.getElementById("cartCodePosition");
+const codeHintEl = document.getElementById("cartCodeHint");
 
 // code -> {name, price} for everything on the page, read straight from the
 // markup so the catalogue never has to be duplicated in JS.
@@ -123,35 +128,32 @@ function setQuantity(code, qty) {
 
 /* ---------------- payload + symbol ---------------- */
 
-// `PSV34|KYS016001*2|BYP014002*1|T220` — compacted SKUs (the PSV- prefix and
-// dashes are implied) so the symbol stays low-density enough to scan off a
-// phone screen. T is the estimated total in whole dollars.
-function payload() {
-    const parts = [PAYLOAD_PREFIX];
-    for (const [code, qty] of list) parts.push(qty === 1 ? code : `${code}*${qty}`);
-    parts.push(`T${total()}`);
-    return parts.join("|");
+// `PSV34|Q1/2|KYS016001*2|BYP014002|T220` — compacted SKUs (the PSV- prefix
+// and dashes are implied). Q identifies this symbol's page and T repeats the
+// estimated total so every scan can be associated with the same list.
+function itemTokens() {
+    return Array.from(list, ([code, qty]) => (qty === 1 ? code : `${code}*${qty}`));
 }
 
-function renderSymbol(text) {
+let codePayloads = [];
+let codeIndex = 0;
+
+function renderSymbol() {
+    const text = codePayloads[codeIndex];
     symbolEl.replaceChildren();
-    let matrix;
-    try {
-        matrix = qrMatrix(text, { ecc: "M" });
-    } catch {
-        const fallback = document.createElement("p");
-        fallback.className = "cart-code-hint";
-        fallback.textContent = "List is too long to encode — read it out instead.";
-        symbolEl.append(fallback);
-        return;
-    }
+    const matrix = qrMatrix(text, { ecc: "M", maxVersion: 20 });
 
     const { size, modules } = matrix;
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
     svg.setAttribute("shape-rendering", "crispEdges");
     svg.setAttribute("role", "img");
-    svg.setAttribute("aria-label", "QR code for your list");
+    svg.setAttribute(
+        "aria-label",
+        codePayloads.length === 1
+            ? "QR code for your list"
+            : `QR code ${codeIndex + 1} of ${codePayloads.length} for your list`,
+    );
 
     // One path for every dark module keeps the DOM small and the edges sharp.
     let d = "";
@@ -165,6 +167,14 @@ function renderSymbol(text) {
     path.setAttribute("fill", "#000");
     svg.append(path);
     symbolEl.append(svg);
+    codeTextEl.textContent = text;
+
+    const multiple = codePayloads.length > 1;
+    codePagerEl.hidden = !multiple;
+    codePositionEl.textContent = `Code ${codeIndex + 1} of ${codePayloads.length}`;
+    codeHintEl.textContent = multiple
+        ? "Show every code at the register"
+        : "Show this at the register";
 }
 
 /* ---------------- rendering ---------------- */
@@ -203,6 +213,8 @@ function render() {
 
     if (count === 0) {
         symbolEl.replaceChildren();
+        codePayloads = [];
+        codeIndex = 0;
         return;
     }
 
@@ -243,9 +255,9 @@ function render() {
     }
 
     totalEl.textContent = `$${total()}`;
-    const text = payload();
-    codeTextEl.textContent = text;
-    renderSymbol(text);
+    codePayloads = payloads(itemTokens(), total());
+    codeIndex = Math.min(codeIndex, codePayloads.length - 1);
+    renderSymbol();
     restoreFocus(token);
 }
 
@@ -274,6 +286,16 @@ clearButton.addEventListener("click", () => {
     list.clear();
     save();
     render();
+});
+
+codePreviousEl.addEventListener("click", () => {
+    codeIndex = (codeIndex - 1 + codePayloads.length) % codePayloads.length;
+    renderSymbol();
+});
+
+codeNextEl.addEventListener("click", () => {
+    codeIndex = (codeIndex + 1) % codePayloads.length;
+    renderSymbol();
 });
 
 for (const button of document.querySelectorAll("[data-add]")) {

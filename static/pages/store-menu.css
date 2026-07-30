@@ -720,6 +720,38 @@
     font-size: 0.82rem;
 }
 
+.cart-code-pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7rem;
+}
+
+.cart-code-pager[hidden] {
+    display: none;
+}
+
+.cart-code-pager button {
+    width: 34px;
+    height: 30px;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.cart-code-pager button:hover {
+    background: var(--accent-soft);
+}
+
+.cart-code-pager span {
+    min-width: 5.5rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-align: center;
+}
+
 .cart-code-text {
     color: var(--muted);
     opacity: 0.75;

@@ -14,6 +14,7 @@ import unittest
 from pathlib import Path
 
 QR_JS = Path("static/pages/qr.js").resolve()
+PAYLOAD_JS = Path("static/pages/store-menu-payload.js").resolve()
 ECC_LEVELS = ("L", "M", "Q", "H")
 PAYLOADS = (
     "PSV34|BYP002*1|T5",
@@ -112,3 +113,36 @@ class QrEncoderTests(unittest.TestCase):
     def test_an_oversized_payload_raises_rather_than_truncating(self):
         with self.assertRaises(AssertionError):
             self.encode_in_js("x" * 5000, "H")
+
+    def make_payloads_in_js(self, tokens: list[str], total: int) -> list[str]:
+        source = (
+            f"import {{ payloads }} from {json.dumps(PAYLOAD_JS.as_uri())};\n"
+            f"console.log(JSON.stringify(payloads({json.dumps(tokens)}, {total})));\n"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", source],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return json.loads(proc.stdout)
+
+    def test_single_payload_has_page_identity(self):
+        pages = self.make_payloads_in_js(["BYP002*2", "KYS016001"], 45)
+        self.assertEqual(pages, ["PSV34|Q1/1|BYP002*2|KYS016001|T45"])
+
+    def test_large_list_is_split_on_item_boundaries(self):
+        tokens = [f"KYS{i:08d}*99" for i in range(100)]
+        pages = self.make_payloads_in_js(tokens, 12345)
+
+        self.assertGreater(len(pages), 1)
+        recovered = []
+        for index, page in enumerate(pages, 1):
+            with self.subTest(index=index):
+                parts = page.split("|")
+                self.assertEqual(parts[:2], ["PSV34", f"Q{index}/{len(pages)}"])
+                self.assertEqual(parts[-1], "T12345")
+                recovered.extend(parts[2:-1])
+                self.assertLessEqual(self.encode_in_js(page, "M")["version"], 20)
+        self.assertEqual(recovered, tokens)
