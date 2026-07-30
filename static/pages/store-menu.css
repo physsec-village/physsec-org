@@ -89,22 +89,6 @@
     display: none;
 }
 
-/* Stands in for the round + button the copy refers to. */
-.notice-plus {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.15rem;
-    height: 1.15rem;
-    margin: 0 0.1rem;
-    border-radius: 999px;
-    border: 1px solid var(--accent-strong);
-    color: var(--accent);
-    font-size: 0.8rem;
-    line-height: 1;
-    vertical-align: -0.2rem;
-}
-
 /* ---- section jump nav ---- */
 
 /* One line that scrolls sideways rather than three wrapped rows of pills. */
@@ -762,24 +746,6 @@
 }
 
 @media (max-width: 680px) {
-    /* The banner ran five lines deep on a phone, pushing the menu itself below
-       the fold. Tighten it and drop the reassurance, which the list panel
-       repeats anyway. */
-    .menu-inner .notice-banner {
-        gap: 0.7rem;
-        margin-bottom: 1.5rem;
-        padding: 0.85rem 0.95rem;
-    }
-
-    .menu-inner .notice-banner p {
-        font-size: 0.9rem;
-        line-height: 1.6;
-    }
-
-    .notice-aside {
-        display: none;
-    }
-
     .menu-toolbar {
         position: static;
     }
