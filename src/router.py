@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from .dependencies import templates
 from .forms.turnstile import get_turnstile_settings
+from .menu import MENU
 from .store import db
 
 router = APIRouter()
@@ -68,7 +69,11 @@ def materials_page(request: Request):
 
 @router.get("/menu", response_class=HTMLResponse)
 def store_menu_page(request: Request):
-    return templates.TemplateResponse(request=request, name="pages/store-menu.html")
+    return templates.TemplateResponse(
+        request=request,
+        name="pages/store-menu.html",
+        context={"menu": MENU},
+    )
 
 
 @router.get("/archives", response_class=HTMLResponse)
