@@ -15,6 +15,7 @@ SITEMAP_PATHS = (
     "/contact",
     "/games",
     "/materials",
+    "/menu",
     "/forms/calls",
     "/forms/volunteer",
 )
@@ -63,6 +64,11 @@ def games_page(request: Request):
 @router.get("/materials", response_class=HTMLResponse)
 def materials_page(request: Request):
     return templates.TemplateResponse(request=request, name="pages/materials.html")
+
+
+@router.get("/menu", response_class=HTMLResponse)
+def store_menu_page(request: Request):
+    return templates.TemplateResponse(request=request, name="pages/store-menu.html")
 
 
 @router.get("/archives", response_class=HTMLResponse)

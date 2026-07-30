@@ -59,6 +59,29 @@ class RouteStatusTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "ok")
 
+    def test_store_menu_lists_current_event_and_no_dropped_supplier(self):
+        with TestClient(app) as client:
+            menu = client.get("/menu")
+            sitemap = client.get("/sitemap.xml")
+
+        self.assertEqual(menu.status_code, 200)
+        self.assertIn("DEF CON 34", menu.text)
+        self.assertNotIn("DEF CON 32", menu.text)
+        self.assertNotIn("DC32", menu.text)
+        self.assertIn("<loc>https://physsec.org/menu</loc>", sitemap.text)
+        # Covert Instruments is no longer a supplier, so none of their SKUs
+        # (including every bump key, the bump hammer and the air wedge) may
+        # reappear on the menu.
+        for dropped in (
+            "Covert Instruments",
+            "Covert Companion",
+            "Replicant",
+            "Bump",
+            "Air Wedge",
+        ):
+            with self.subTest(dropped=dropped):
+                self.assertNotIn(dropped, menu.text)
+
     def test_missing_page_returns_404(self):
         with TestClient(app) as client:
             response = client.get("/definitely-missing")

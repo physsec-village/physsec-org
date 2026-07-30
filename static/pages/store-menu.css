@@ -1,0 +1,382 @@
+.menu-inner {
+    width: min(1180px, 100%);
+    margin: 0 auto;
+}
+
+.menu-toolbar {
+    position: sticky;
+    top: calc(var(--nav-h) + 0.5rem);
+    z-index: 3;
+}
+
+.menu-toolbar .search-wrap {
+    min-width: min(100%, 20rem);
+}
+
+/* ---- section jump nav ---- */
+
+.menu-jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 2.5rem;
+}
+
+.menu-jump a {
+    padding: 0.5rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-soft);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition:
+        border-color var(--transition),
+        color var(--transition);
+}
+
+.menu-jump a:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* ---- sections ---- */
+
+.menu-section {
+    margin-bottom: 3.5rem;
+    scroll-margin-top: calc(var(--nav-h) + 5.5rem);
+}
+
+.menu-section[hidden],
+.menu-group[hidden],
+.menu-item[hidden] {
+    display: none;
+}
+
+.menu-group + .menu-group {
+    margin-top: 2.25rem;
+}
+
+.menu-sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.7rem;
+    font-family: "Bebas Neue", sans-serif;
+    font-size: 1.6rem;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    color: var(--text);
+}
+
+.menu-tag {
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-strong);
+    color: var(--accent);
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.menu-lede,
+.menu-prose p {
+    max-width: 46rem;
+    margin-bottom: 1.2rem;
+    color: var(--muted);
+    font-size: 0.97rem;
+    line-height: 1.75;
+}
+
+.menu-prose p:last-child {
+    margin-bottom: 0;
+}
+
+.menu-lede a,
+.menu-prose a,
+.menu-item-desc a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.menu-lede a:hover,
+.menu-prose a:hover,
+.menu-item-desc a:hover {
+    text-decoration: underline;
+}
+
+.menu-prose strong {
+    color: var(--text);
+}
+
+/* ---- items ---- */
+
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(clamp(260px, 30vw, 320px), 100%), 1fr));
+    gap: 1rem;
+    align-items: start;
+}
+
+.menu-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    height: 100%;
+    padding: 1.1rem 1.2rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition:
+        border-color var(--transition),
+        box-shadow var(--transition);
+}
+
+.menu-item:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow);
+}
+
+.menu-item-feature {
+    background: linear-gradient(135deg, var(--accent-soft), transparent 60%), var(--surface);
+    border-color: var(--accent-strong);
+}
+
+.menu-item-wide {
+    grid-column: 1 / -1;
+}
+
+.menu-item-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+
+.menu-item-head h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.35;
+    text-wrap: pretty;
+}
+
+/* Dotted leader between the item name and its price, menu-style. */
+.leader {
+    flex: 1;
+    min-width: 1rem;
+    height: 0;
+    border-bottom: 1px dotted var(--border-strong);
+    transform: translateY(-0.25rem);
+}
+
+.menu-price {
+    flex-shrink: 0;
+    color: var(--accent);
+    font-family: "Share Tech Mono", monospace;
+    font-size: 1.05rem;
+    white-space: nowrap;
+}
+
+.menu-item-desc {
+    color: var(--muted);
+    font-size: 0.92rem;
+    line-height: 1.7;
+}
+
+.menu-item-note {
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.84rem;
+    line-height: 1.65;
+}
+
+.menu-flag {
+    color: var(--warning);
+    font-family: "Share Tech Mono", monospace;
+}
+
+.menu-badge {
+    width: fit-content;
+    padding: 0.24rem 0.6rem;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-strong);
+    color: var(--accent);
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+}
+
+/* ---- lists inside items ---- */
+
+.menu-list {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding-left: 1.15rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.menu-list li::marker {
+    color: var(--accent);
+}
+
+.menu-list-cols {
+    grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+    column-gap: 1.5rem;
+}
+
+/* ---- 27-in-1 card function list ---- */
+
+.menu-details {
+    margin-top: 0.35rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--border);
+}
+
+.menu-details summary {
+    cursor: pointer;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.menu-details summary:hover {
+    color: var(--accent);
+}
+
+.menu-numbered {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
+    gap: 0.5rem 1.75rem;
+    margin: 1rem 0 0;
+    padding-left: 1.4rem;
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.65;
+}
+
+.menu-numbered li::marker {
+    color: var(--accent);
+    font-family: "Share Tech Mono", monospace;
+}
+
+.menu-numbered strong {
+    color: var(--text);
+}
+
+/* ---- reference table ---- */
+
+.table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+}
+
+.menu-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.menu-table th,
+.menu-table td {
+    padding: 0.7rem 0.9rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.menu-table thead th {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.menu-table tbody th {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.menu-table tbody td {
+    color: var(--muted);
+    font-family: "Share Tech Mono", monospace;
+}
+
+.menu-table tbody tr:last-child th,
+.menu-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ---- footer bits ---- */
+
+.menu-empty {
+    justify-items: center;
+    padding: 3.5rem 0;
+    text-align: center;
+}
+
+/* .empty-state sets display:grid, which would otherwise beat [hidden]. */
+.menu-empty[hidden] {
+    display: none;
+}
+
+.menu-empty svg {
+    width: 1.6rem;
+    height: 1.6rem;
+}
+
+.menu-legal {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+}
+
+.menu-legal svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    margin-top: 0.15rem;
+    flex-shrink: 0;
+    color: var(--accent);
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2;
+}
+
+.menu-legal p {
+    color: var(--muted);
+    font-size: 0.92rem;
+    line-height: 1.7;
+}
+
+.menu-legal strong {
+    color: var(--text);
+}
+
+@media (max-width: 680px) {
+    .menu-toolbar {
+        position: static;
+    }
+
+    .menu-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .menu-jump {
+        margin-bottom: 2rem;
+    }
+
+    .menu-sub {
+        font-size: 1.45rem;
+    }
+}

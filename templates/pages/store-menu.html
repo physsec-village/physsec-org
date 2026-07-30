@@ -1,0 +1,1471 @@
+{% extends "base.html" %}
+{% block title %}DEF CON 34 Store Menu | Physical Security Village{% endblock %}
+{% block description %}The Physical Security Village store menu for DEF CON 34: bypass tools, keyed-alike utility keys, elevator keys, Lishi picks, RFID fobs, and gear. All proceeds go towards putting on the Village.{% endblock %}
+{% block styles %}
+<link href="/static/pages/store-menu.css" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <span>DEF CON 34 Store Menu</span>
+        </div>
+        <h1 class="page-title">DEF CON 34<br /><em>Store Menu</em></h1>
+        <p class="page-summary">
+            Everything the Physical Security Village sells at our DEF CON 34
+            table, with prices in USD. All proceeds go towards putting on the
+            Village at DEF CON.
+        </p>
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="menu-inner">
+        <div class="notice-banner">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <p>
+                <strong>All proceeds go towards putting on the Village at DEF
+                CON.</strong> Did you know the Physical Security Village used to
+                be called the Lock Bypass Village? That is why we carry so many
+                bypass tools — if you aren't familiar with how any of these are
+                used, come try them out in the Village.
+            </p>
+        </div>
+
+        <div class="filter-bar menu-toolbar">
+            <span class="filter-label">Find an item</span>
+            <div class="search-wrap">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <label class="visually-hidden" for="menuSearch">Search the store menu</label>
+                <input type="search" id="menuSearch" placeholder="Search tools, keys, prices…" autocomplete="off" />
+            </div>
+            <span class="filter-meta" id="menuCount" aria-live="polite" aria-atomic="true"></span>
+        </div>
+
+        <!-- A div with role, not <nav>: nav.css styles the bare `nav` tag as
+             the fixed site header. -->
+        <div class="menu-jump" role="navigation" aria-label="Menu sections">
+            <a href="#bypass-tools">Bypass Tools</a>
+            <a href="#lockpicking">Lockpicking &amp; Decoding</a>
+            <a href="#lishi">Lishi Tools</a>
+            <a href="#keyed-alike">Keyed Alike</a>
+            <a href="#specialty-keys">Specialty Keys</a>
+            <a href="#elevator">Elevator Keys</a>
+            <a href="#gear">Gear &amp; Swag</a>
+        </div>
+
+        <!-- ============ BYPASS TOOLS ============ -->
+        <section class="menu-section" id="bypass-tools">
+            <div class="section-heading">
+                <h2>Bypass Tools</h2>
+                <p>
+                    Tools that open a door without touching the lock cylinder.
+                    Most of these have a working demo in the Village — come try
+                    them on our doors before you buy.
+                </p>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Latch Retraction Tools</h3>
+                <p class="menu-lede">
+                    Push or pull a latch that does not have an engaged
+                    deadlatch. Try it in the Village.
+                </p>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Bare Metal Latch Slip</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Rubber Handle Latch Slip</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Keychain Latch Slip</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Fits on a keychain and great for EDC.
+                        </p>
+                        <span class="menu-badge">Designed by PSV staff</span>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Latch Poker</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Used for retracting the latch plate — more
+                            ergonomic, but thicker.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Auto Entry Tool (“Slim Jim”)</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$30</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Insert this through the window slot of a car to hook
+                            into the locking mechanism and unlock the car.
+                        </p>
+                        <span class="menu-badge">Designed by PSV staff</span>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Padlock Shims (pack of 20)</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$20</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            For shimming padlocks open without a key by getting
+                            between the shackle and the locking mechanism.
+                        </p>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Handle-Actuation Bypass</h3>
+                <p class="menu-lede">
+                    Reach around a door and hit the handle on the other side.
+                </p>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Thumbturn Bypass Tool (J-Tool)</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$40</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Bypasses thumbturn deadbolts — insert through the
+                            crack of a double door or under a commercial door,
+                            and turn the thumbturn on the other side. Try it in
+                            the Village.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Double Door Tool</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$25</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Insert this between two doors to hit the crashbar on
+                            the other side.
+                        </p>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Disassembly &amp; Force Tools</h3>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Hinge Pin Remover</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$20</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Don't spend too long attacking the lock side of a
+                            door if the hinge side is weaker. This makes quick
+                            work of removing the hinge pin.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Lock Box Hinge Pin Remover</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$20</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            A narrower tool designed to remove the hinge pin on
+                            lockboxes (e.g. Knox-style boxes).
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Screwdriver Set</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$25</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Bits for most torx and security screws, RFID reader
+                            removal, lock disassembly, and so on — as well as
+                            electronics disassembly tools, all in a handy
+                            compact case.
+                        </p>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Other Bypass Tools</h3>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Adams-Rite Commercial Door Hook</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$30</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            This revolutionary discovery by the LockPickingLawyer
+                            exploits a vulnerability in many Adams-Rite brand
+                            commercial deadbolts — insert the hook beside the
+                            bolt and use it to catch the unlocking pin, causing
+                            the latch to retract.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Magnetic Sensing Probe</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Detect where a door's magnetic contact sensor is and
+                            which polarity it has. Then insert your own magnet
+                            to defeat the sensor and open the door without
+                            triggering the alarm. Try these in the Village on
+                            every door with a white “ALARM” sign over it.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Zener Diodes (pack of 140)</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$15</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Bypass normally-closed alarm systems that use
+                            end-of-line resistors: measure the voltage, then
+                            jumper the wires with a zener diode of that voltage
+                            in series. Includes 10 each of 3.3V, 3.9V, 4.7V,
+                            5.1V, 6.2V, 6.8V, 8.2V, 10V, 12V, 15V, 16V, 18V, 20V
+                            and 24V.
+                        </p>
+                    </article>
+                    <article class="menu-item menu-item-wide">
+                        <div class="menu-item-head">
+                            <h4>Bypass &amp; Measurement Wallet Card</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$40</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Designed in house by the Village, this stainless
+                            wallet card does 27 different things.
+                        </p>
+                        <span class="menu-badge">Designed by PSV staff</span>
+                        <details class="menu-details">
+                            <summary>All 27 functions</summary>
+                            <ol class="menu-numbered">
+                                <li><strong>Large Latch Slip</strong> — insert behind a latch to retract it</li>
+                                <li><strong>Small Latch Slip</strong> — same as above</li>
+                                <li><strong>Latch Shove</strong> — retract latches with the bevel facing you</li>
+                                <li><strong>General Key Gauge</strong> — slide a key up as far as it goes on each cut; the number is the cut depth in thousandths of an inch</li>
+                                <li><strong>Schlage Key Gauge</strong> — slide a Schlage key down as far as it goes; the step it stops at is the cut depth</li>
+                                <li><strong>Medeco Key Gauge</strong> — general key gauge markings for Medeco depths</li>
+                                <li><strong>Kwikset Key Gauge</strong> — general key gauge markings for Kwikset depths</li>
+                                <li><strong>Pin Gauge</strong> — slide a pin (or tiny key) as high as it goes to read pin lengths in thou</li>
+                                <li><strong>Wire Gauge</strong> — slide a wire as high as it goes to read the AWG measure</li>
+                                <li><strong>Tubular Key Gauge</strong> — hold a tubular cut up to each of the eight steps to see which it matches</li>
+                                <li><strong>Medeco Biaxial Fore / Aft Gauge</strong> — place the shoulder at the “m” marking and match the cuts to the tick marks</li>
+                                <li><strong>Grid for Key Photographing</strong> — place a key on the grid and photograph it to allow perspective correction later</li>
+                                <li><strong>Keyway Photographing Hole / Lanyard Hole</strong> — photograph the keyway head on while keeping the camera in focus</li>
+                                <li><strong>Level / Plumb Bob</strong> — dangle the card from the bottom left hole; the c-clamp point at top right points vertical from it</li>
+                                <li><strong>Spanner Screwdriver</strong> — 6mm spanner screws, common on HID wall readers</li>
+                                <li><strong>⅜" Wrench</strong> — a very low quality wrench</li>
+                                <li><strong>¼" Wrench</strong> — a very low quality wrench, but smaller</li>
+                                <li><strong>Ruler</strong> — a short ruler; the wrench edge corresponds to 0</li>
+                                <li><strong>Compass</strong> — ¼" spaced holes that can be spun to make circles of ¼" increment size</li>
+                                <li><strong>Protractor</strong> — markings show the angle up from the card bottom</li>
+                                <li><strong>Medeco Pin Angle Reference</strong> — looking from above, tell left, centre and right pins apart relative to their tab in classic (90°) and biaxial (180°)</li>
+                                <li><strong>Tension Wrench</strong> — works in a pinch</li>
+                                <li><strong>Tubular Tension Wrench</strong> — insert the rectangle into the cutout and the triangle into the edge of the card</li>
+                                <li><strong>Terminal Block Jumper</strong> — jumper out enterphones and door relays to gain access</li>
+                                <li><strong>C-Clamp Remover</strong> — press into the c-clamp on the rear of a lock</li>
+                                <li><strong>Rim and Mortise Cylinder Drilling Jig</strong> — insert a key into the keyway hole; the round hole is now over the rim retaining screw. Centre punch the location, flip the card to get the other side, then drill. There is also a marking for where a mortise retaining screw will be</li>
+                                <li><strong>RFID Blocker</strong> — keep this card in your wallet and it blocks RFID reads except when touching the wallet (similar performance to other RFID wallet blockers that <em>only</em> do that)</li>
+                            </ol>
+                        </details>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ LOCKPICKING & DECODING ============ -->
+        <section class="menu-section" id="lockpicking">
+            <div class="section-heading">
+                <h2>Lockpicking &amp; Decoding</h2>
+            </div>
+            <div class="menu-group">
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Auto Jigglers (set of 10)</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Unlocks many automotive and wafer locks. Try each
+                            one — chances are high it'll open the door.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Warded Pick Set</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Use these on warded locks as if they were the key —
+                            to hit the unlocking levers while missing the wards.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Decoder Bundle — .006" and .010"</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$30</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Insert these thin shims between the wheel and
+                            housing of many combination locks to feel for the
+                            notch and deduce the combination.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>UV Light and Pen Combo</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Detect frequently used buttons by seeing where the
+                            ink has been rubbed off — or write secret messages
+                            to your friends. There's a demo in the Village.
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ LISHI TOOLS ============ -->
+        <section class="menu-section" id="lishi">
+            <div class="section-heading">
+                <h2>Lishi Tools — $100 Each</h2>
+                <p>
+                    Lishi tools are revolutionary lockpicks. If you are
+                    unfamiliar with them, we encourage you to look up some of
+                    the excellent content creators like LockPickingLawyer and
+                    LockNoob have put out.
+                </p>
+            </div>
+
+            <div class="menu-group">
+                <div class="menu-prose">
+                    <p>
+                        A Lishi simulates a key: use the numbered grid to
+                        position the pick at the exact position of each pin,
+                        then push down until you feel, hear or see the “click”
+                        of the pin being set. Once the lock is picked, the plug
+                        is turned and the key pins are trapped within it. The
+                        pick can now decode the lock — read the depths off the
+                        grid and you can make a functioning key for it.
+                    </p>
+                    <p>
+                        Lishis also make picking much faster, quieter, easier to
+                        learn and easier to perform when security pins are
+                        present. <strong>The biggest drawback is that they only
+                        work in one type of lock each.</strong>
+                    </p>
+                    <p>
+                        PSV has 8 models for sale at DEF CON 34, and every one is
+                        a genuine Lishi made in Mr. Li's factory. If you are new
+                        to Lishis and don't know what to get, we recommend
+                        starting with the SC4 if you live or work in North
+                        America, or the Y1 if you live elsewhere.
+                    </p>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>SC4 — Schlage “C” keyway, 6 pin</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$100</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Many residential, commercial and institutional
+                            buildings use the Schlage “C” keyway. If you only
+                            get one Lishi pick and you're in North America, it
+                            should be this one.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>SC20 — Schlage “L” master keyway, 6 pin</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$100</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            The “L” keyway fits “C”, “E”, “F”, “G” and “H”. C is
+                            by far the most common, with 98% market share. The
+                            SC20 gets all of them, but it is thin and more
+                            breakable than the SC4.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Kwikset KW5</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$100</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Kwikset locks are extremely common on residential
+                            and single-storefront commercial doors in North
+                            America.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>American Lock AM5</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$100</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            For use on American padlocks.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Master Lock M1</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$100</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Most Master brand padlocks use this keyway.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>BE2 — BEST “A” keyway, 7 pin</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$100</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            BEST locks are commonly seen in institutional and
+                            large industrial plants with extensive master
+                            keying. The “A” keyway is by far the most common.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Schlage Everest C123</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$100</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Schlage Everest tends to be seen in large multi-unit
+                            residential, and some institutional settings.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Yale Y1, 6 pin</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$100</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Yale-made locks are less common now, but the Y1
+                            keyway is used by many Abus padlocks and is very
+                            common in Europe. If you are European and only get
+                            one Lishi, it should be this one.
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ KEYED ALIKE ============ -->
+        <section class="menu-section" id="keyed-alike">
+            <div class="section-heading">
+                <h2>Keyed Alike</h2>
+                <p>All PSV keys are cut keyed-alike.</p>
+            </div>
+
+            <div class="menu-group">
+                <div class="menu-grid">
+                    <article class="menu-item menu-item-feature menu-item-wide">
+                        <div class="menu-item-head">
+                            <h4>PSV Common Keyed Alike Set</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$50</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            The most common and useful keys in one set.
+                        </p>
+                        <ul class="menu-list menu-list-cols">
+                            <li>Handcuff Key</li>
+                            <li>CH751 (many product camlocks)</li>
+                            <li>EK333 (server racks)</li>
+                            <li>A126 (older enterphones, other camlocks)</li>
+                            <li>Cross Key (utilities, fixtures)</li>
+                            <li>CC1 (golf carts)</li>
+                            <li>FEO-K1 (elevator fire service) <span class="menu-flag">†</span></li>
+                            <li>EPCO 1 (elevator special service)</li>
+                            <li>X4001 (elevator special service)</li>
+                        </ul>
+                        <p class="menu-item-note">
+                            <span class="menu-flag">†</span> If we don't approve
+                            you to possess an FEO-K1, the set without one is
+                            $40.
+                        </p>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Individual Keys</h3>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Cable Keyrings</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$1</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Nice screw-together keyrings — free with the
+                            purchase of keys or fobs.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Metal Handcuff Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            In case you forget your handcuff keys at home. Works
+                            on all standard model North American handcuffs.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Plastic Pop-Button Handcuff Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            These pop onto clothing and will not set off metal
+                            detectors. Three colours: green, black and beige.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Cross Key (3 colours)</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Used to secure things that don't quite need a key:
+                            streetcars, subways, gas caps, Industrial Control
+                            System boxes, garbage cans, older elevators,
+                            commercial building hose bibs, advertisement panels
+                            in bus stops, and so on. Also known as a
+                            “Sillcock”, “Water” or “Zurn” key.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>EK333</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Server racks (Emka — very common).
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>CAT74 — Bobrick TP / paper towel dispensers</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Remember how everyone ran out of TP at the start of
+                            COVID? This is your key to a clean butt in the
+                            end-times.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Utility Panel Key (1416)</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Many utility and plumbing hose panels use these, as
+                            well as some paper towel dispensers.
+                        </p>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Common Off-the-Shelf Cam Locks</h3>
+                <p class="menu-lede">
+                    These keys fit locks that are sold as parts for other
+                    equipment. Since it is cheaper to make millions of the exact
+                    same lock rather than a different one for each new product,
+                    the same keys get used in many places.
+                </p>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>CH751</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Gas caps, gas pumps, everything on most RVs,
+                            Dominion voting machines, many cash registers, and
+                            so on.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>501CH</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Siemens equipment, Schindler elevators,
+                            Cutler-Hammer breaker panels, and many others.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>A126</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Older Linear enterphones, automatic door openers,
+                            lab equipment lockouts, keyswitches on computers,
+                            and so on.
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SPECIALTY KEYS ============ -->
+        <section class="menu-section" id="specialty-keys">
+            <div class="section-heading">
+                <h2>Specialty Keys</h2>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Heavy Equipment Keys</h3>
+                <div class="menu-grid">
+                    <article class="menu-item menu-item-feature">
+                        <div class="menu-item-head">
+                            <h4>Set of all Heavy Equipment Keys</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$25</span>
+                        </div>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Golf Cart Key (CC1)</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">Fits Club Car brand equipment.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Skyjack Scissorlift Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">Fits Skyjack brand scissorlifts.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Tractor Key (1147)</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Fits Massey Ferguson, some John Deere and others.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Common Forklift Key (1430)</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Clark, Gehl, Yale, Hyster, Komatsu, Crown and
+                            others.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Mitsubishi Forklift Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">Fits Mitsubishi forklifts.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>CAT ignition</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Ignition and cab for newer CATs.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>CAT disconnect</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Battery disconnect for newer CATs, ignition for
+                            older CATs.
+                        </p>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Enterphone Keys</h3>
+                <p class="menu-lede">
+                    Building intercoms — “enterphones” — are used to buzz up and
+                    access a building, but for most models all the logic resides
+                    in the unit itself, and they are keyed alike. Use the key to
+                    open the unit, then jumper out the leads or wave a magnet
+                    over the relay to unlock the door. Try it in the Village.
+                </p>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Linear A126 Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Doorking (DKS) 16120 Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Linear 222343 Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>MIRCOM 549 Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Construction Keys</h3>
+                <p class="menu-lede">
+                    Construction locks are used while a building is being built,
+                    and are supposed to be swapped out for different locks once
+                    construction is complete. This occasionally doesn't happen.
+                    If you ever see an IC core (figure 8 shape) painted black or
+                    orange (Schlage) or green (BEST), it will be keyed to one of
+                    these. We cut our Schlage construction keys on black
+                    anodised blanks so the key matches the lock.
+                </p>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Schlage Black/Orange ICA</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Schlage Black/Orange ICB</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Schlage Black/Orange ICC</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                    </article>
+                    <article class="menu-item menu-item-feature">
+                        <div class="menu-item-head">
+                            <h4>Set of all 3 Schlage Construction Keys</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$20</span>
+                        </div>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>BEST Green Construction Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Ford Fleet Keys</h3>
+                <p class="menu-lede">
+                    When a large company or department orders a fleet of
+                    vehicles using the same key, Ford often keys it to one of
+                    seven keys — with 1284X being the most common. Many fleet
+                    vehicles across the continent (utility trucks, police
+                    cruisers, taxicabs) are keyed to one of these. We carry the
+                    7 most common: 0135X, 0151X, 0576X, 1111X, 1284X, 1294X and
+                    1435X.
+                </p>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Individual Ford fleet key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                    </article>
+                    <article class="menu-item menu-item-feature">
+                        <div class="menu-item-head">
+                            <h4>Set of all 7 Ford fleet keys</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$60</span>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Cabinet Keys</h3>
+                <div class="menu-grid">
+                    <article class="menu-item menu-item-wide">
+                        <div class="menu-item-head">
+                            <h4>National Cabinet Key Set</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$25</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Many National Cabinet locks are keyed to one of
+                            these six, with C415A being most common. National
+                            locks are also used in other equipment like ICS
+                            boxes. We carry the 6 most common: C346A, C390A,
+                            C413A, C415A, C420A and C642A. Individual keys are
+                            $5 each.
+                        </p>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">New York City Keys</h3>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Citywide 1620 Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Works on some elevators, locked subway entrances,
+                            construction site key boxes and some firehouse doors
+                            in NYC.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Elevator 2642 Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Fire service for elevators in NYC; works on most
+                            fire panels too.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Electrical Panel Key</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Street lamp boxes and circuit breaker panels.
+                        </p>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Fire and Alarm Panel Keys</h3>
+                <p class="menu-lede">
+                    Fire and alarm panels by these manufacturers are all keyed
+                    alike.
+                </p>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>CAT15</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Harrington and Edward Systems Technology (EST)
+                            panels.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>CAT30</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">Summit and Mircom panels.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>CAT45</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            GE, Edward Systems Technology (EST) and Edwards
+                            panels.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>CAT60</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$5</span>
+                        </div>
+                        <p class="menu-item-desc">Gamewell panels.</p>
+                    </article>
+                    <article class="menu-item menu-item-feature">
+                        <div class="menu-item-head">
+                            <h4>Full set of fire and alarm panel keys</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$20</span>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">TSA Keys</h3>
+                <div class="menu-grid">
+                    <article class="menu-item menu-item-wide">
+                        <div class="menu-item-head">
+                            <h4>TSA002 and TSA007 Keys</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$15</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            All TSA locks use the same keys, to allow the TSA to
+                            inspect the bag. There are 7 TSA keys, but #7 is by
+                            far the most common — 90% of newly manufactured TSA
+                            locks — and TSA007 and 002 together account for 99%
+                            of locks you'll find in use today. $10 individually.
+                        </p>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Automotive Set</h3>
+                <div class="menu-grid">
+                    <article class="menu-item menu-item-feature menu-item-wide">
+                        <div class="menu-item-head">
+                            <h4>Automotive Set</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$30</span>
+                        </div>
+                        <ul class="menu-list menu-list-cols">
+                            <li>1284X</li>
+                            <li>Tryout Key (GM)</li>
+                            <li>Tryout Key (Ford)</li>
+                            <li>Tryout Key (Chrysler)</li>
+                            <li>CC1 Golf Cart Key</li>
+                        </ul>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ ELEVATOR KEYS ============ -->
+        <section class="menu-section" id="elevator">
+            <div class="section-heading">
+                <h2>Elevator Keys — $10 Each</h2>
+                <p>
+                    If you only get one elevator key, it should be the EPCO1 or
+                    the X4001.
+                </p>
+            </div>
+
+            <div class="menu-group">
+                <div class="menu-grid">
+                    <article class="menu-item menu-item-feature menu-item-wide">
+                        <div class="menu-item-head">
+                            <h4>Set of Most Common</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$40</span>
+                        </div>
+                        <ul class="menu-list menu-list-cols">
+                            <li>EPCO1 (most cabinets, many lockouts)</li>
+                            <li>EPCO2 (some floor lockouts)</li>
+                            <li>X4001 (many cabinets, lockouts)</li>
+                            <li>X4002 (some floor lockouts)</li>
+                            <li>FEO-K1 (national fire service) <span class="menu-flag">†</span></li>
+                        </ul>
+                    </article>
+                    <article class="menu-item menu-item-feature menu-item-wide">
+                        <div class="menu-item-head">
+                            <h4>Elevator Master Set — contains everything</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$180</span>
+                        </div>
+                        <ul class="menu-list menu-list-cols">
+                            <li>FEO-K1 <span class="menu-flag">†</span></li>
+                            <li>EPCO1, EPCO2, MFD-1</li>
+                            <li>MAD X4001–X4008</li>
+                            <li>Innovation EX511–EX515</li>
+                            <li>KONE 1–5</li>
+                        </ul>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">MAD Fixtures <span class="menu-tag">very common</span></h3>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>X4001</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Independent service, light, fan, locked cabinet.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>X4002</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">Run/stop, inspection service.</p>
+                    </article>
+                    <article class="menu-item menu-item-feature">
+                        <div class="menu-item-head">
+                            <h4>Set of X4001–X4008</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$70</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            X4003–X4008 are common for security floor lockouts.
+                        </p>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">EPCO Fixtures <span class="menu-tag">very common</span></h3>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>EPCO1</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Independent service, light, fan.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>EPCO2</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">Inspection service, run/stop.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>MFD-1</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">EPCO fire service.</p>
+                    </article>
+                    <article class="menu-item menu-item-feature">
+                        <div class="menu-item-head">
+                            <h4>Set of all 3 EPCO</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$25</span>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">KONE Fixtures <span class="menu-tag">semi-common</span></h3>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>KONE1</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">Run/stop, inspection key.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>KONE2</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">Light/fan, locked cabinet.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>KONE3</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">Fire service.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>KONE4</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">Independent service.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>KONE5</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">Floor lockout.</p>
+                    </article>
+                    <article class="menu-item menu-item-feature">
+                        <div class="menu-item-head">
+                            <h4>Set of KONE 1–5</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$40</span>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Innovation Fixtures <span class="menu-tag">semi-common</span></h3>
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>EX511</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">Light.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>EX512</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">Stop/run, fan.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>EX513</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Independent service, light/fan, cabinet.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>EX514</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">Inspection.</p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>EX515</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-desc">Fire service.</p>
+                    </article>
+                    <article class="menu-item menu-item-feature">
+                        <div class="menu-item-head">
+                            <h4>Set of all Innovation Keys</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$40</span>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">National Fire Service Key</h3>
+                <div class="menu-grid">
+                    <article class="menu-item menu-item-wide">
+                        <div class="menu-item-head">
+                            <h4>FEO-K1 <span class="menu-flag">†</span></h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$10</span>
+                        </div>
+                        <p class="menu-item-note">
+                            <span class="menu-flag">†</span> We will not sell
+                            these to just anyone — you will be vetted.
+                        </p>
+                    </article>
+                </div>
+            </div>
+
+            <div class="menu-group">
+                <h3 class="menu-sub">Quick Reference</h3>
+                <div class="table-scroll">
+                    <table class="menu-table">
+                        <caption class="visually-hidden">Which elevator key operates which function, by fixture manufacturer</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Fixture</th>
+                                <th scope="col">Ind. service</th>
+                                <th scope="col">Inspection</th>
+                                <th scope="col">Fire</th>
+                                <th scope="col">Light</th>
+                                <th scope="col">Fan</th>
+                                <th scope="col">Stop</th>
+                                <th scope="col">Floor lockouts</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row">EPCO</th>
+                                <td>EPCO1</td>
+                                <td>EPCO2</td>
+                                <td>MFD-1</td>
+                                <td>EPCO1</td>
+                                <td>EPCO1</td>
+                                <td>EPCO2</td>
+                                <td>EPCO1, 2, 3…</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Innovation</th>
+                                <td>EX513</td>
+                                <td>EX514</td>
+                                <td>EX515</td>
+                                <td>EX511, EX513</td>
+                                <td>EX512, EX513</td>
+                                <td>EX512</td>
+                                <td>EX516–519; rarely 520–529</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">MAD</th>
+                                <td>X4001</td>
+                                <td>X4002</td>
+                                <td>FEO-K1</td>
+                                <td>X4001</td>
+                                <td>X4001</td>
+                                <td>X4002</td>
+                                <td>X4001–X4008…</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">KONE</th>
+                                <td>KONE4</td>
+                                <td>KONE1</td>
+                                <td>KONE3</td>
+                                <td>KONE2</td>
+                                <td>KONE2</td>
+                                <td>KONE1</td>
+                                <td>KONE5</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ GEAR & SWAG ============ -->
+        <section class="menu-section" id="gear">
+            <div class="section-heading">
+                <h2>Other Physsec Gear &amp; Swag</h2>
+            </div>
+            <div class="menu-group">
+                <div class="menu-grid">
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Rewriteable Fobs</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$1</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            T5577 (125kHz low frequency) fobs — good for HID,
+                            IOProx, Indala, AWID and many others. Choose from 10
+                            different colours.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>MiFare S50 “Chinese Magic” — Sector 0 Writable</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$1</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Common for hotels and some commercial buildings.
+                            Choose from 6 different colours.
+                        </p>
+                    </article>
+                    <article class="menu-item">
+                        <div class="menu-item-head">
+                            <h4>Handcuffs</h4>
+                            <span class="leader" aria-hidden="true"></span>
+                            <span class="menu-price">$40</span>
+                        </div>
+                        <p class="menu-item-desc">
+                            Standard police-issue handcuffs (Chicago model
+                            1000). Comes with 2 keys.
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <div class="empty-state menu-empty" id="menuEmpty" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <p>No items match “<span id="menuEmptyQuery"></span>”. Try a different term, or come ask us at the table.</p>
+        </div>
+
+        <div class="menu-legal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            <p>
+                <strong>Authorized use only.</strong> These items are sold for
+                education, research, and lawful security testing. Prices are in
+                USD and stock varies over the weekend — come find us in the
+                Village to check what is on the table.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            const search = document.getElementById("menuSearch");
+            const count = document.getElementById("menuCount");
+            const empty = document.getElementById("menuEmpty");
+            const emptyQuery = document.getElementById("menuEmptyQuery");
+            const items = Array.from(document.querySelectorAll(".menu-item"));
+            const groups = Array.from(document.querySelectorAll(".menu-group"));
+            const sections = Array.from(document.querySelectorAll(".menu-section"));
+
+            const haystacks = new Map(
+                items.map((item) => [
+                    item,
+                    item.textContent.toLowerCase().replace(/\s+/g, " "),
+                ]),
+            );
+
+            function setCount(shown) {
+                count.textContent = `${shown} item${shown !== 1 ? "s" : ""}`;
+            }
+
+            function filter() {
+                const query = search.value.trim().toLowerCase();
+                let shown = 0;
+
+                items.forEach((item) => {
+                    const match = !query || haystacks.get(item).includes(query);
+                    item.hidden = !match;
+                    if (match) shown += 1;
+                });
+
+                // Sub-headings, intro copy and reference tables live in the
+                // group alongside their items, so hide the whole group once
+                // none of its items survive the filter.
+                groups.forEach((group) => {
+                    const hasVisible =
+                        group.querySelector(".menu-item:not([hidden])") !== null;
+                    group.hidden = Boolean(query) && !hasVisible;
+                });
+
+                sections.forEach((section) => {
+                    const hasVisible =
+                        section.querySelector(".menu-item:not([hidden])") !== null;
+                    section.hidden = Boolean(query) && !hasVisible;
+                });
+
+                emptyQuery.textContent = search.value.trim();
+                empty.hidden = shown !== 0;
+                setCount(shown);
+            }
+
+            search.addEventListener("input", filter);
+            setCount(items.length);
+        })();
+    </script>
+{% endblock %}
