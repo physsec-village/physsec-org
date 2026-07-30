@@ -12,13 +12,11 @@
                 class="row-thumb"
                 src="{{ url_for('static', path='/images/menu/' ~ item.image) }}"
                 alt="{{ item.name }}"
-                width="56"
-                height="56"
+                width="112"
+                height="80"
                 loading="lazy"
                 decoding="async"
             />
-        {% else %}
-            <span class="row-thumb row-thumb-empty" aria-hidden="true"></span>
         {% endif %}
         <div class="row-main">
         <div class="row-line">
@@ -84,9 +82,11 @@
                 <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <p>
-                <strong>All proceeds go towards putting on the Village at DEF
-                CON.</strong> Build a list as you browse, then show the code at
-                the table and we'll ring it up.
+                <strong>Build your list as you browse.</strong> Tap
+                <span class="notice-plus" aria-hidden="true">+</span> on anything
+                you want, then show the code at the table and we'll ring it up.
+                It stays on your phone — nothing is sent anywhere and nothing is
+                reserved.
             </p>
         </div>
 
@@ -139,7 +139,7 @@
                             </div>
                         {% endif %}
                         {% if group.items %}
-                            <ul class="menu-rows">
+                            <ul class="menu-rows{% if group.items | length == 1 %} menu-rows-single{% endif %}">
                                 {% for item in group.items %}{{ row(item) }}{% endfor %}
                             </ul>
                         {% endif %}
