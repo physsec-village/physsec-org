@@ -104,6 +104,32 @@ class MenuPageTests(unittest.TestCase):
         self.assertGreater(panels, 0)
         self.assertLess(panels, len(ITEMS) / 3)
 
+    def test_footnote_markers_become_linked_superscripts(self):
+        with TestClient(app) as client:
+            page = client.get("/menu").text
+
+        # No raw marker may survive to the reader.
+        self.assertNotIn("[^", page)
+        self.assertNotIn("†", page)
+
+        referenced = set(re.findall(r'href="#fn-(\d+)"', page))
+        defined = set(re.findall(r'id="fn-(\d+)"', page))
+        self.assertTrue(referenced, "expected at least one footnote reference")
+        self.assertEqual(referenced - defined, set(), "reference with no footnote")
+        self.assertEqual(defined - referenced, set(), "footnote nothing points at")
+
+    def test_cart_labels_are_free_of_footnote_markup(self):
+        """The marker must not leak into the cart or the image alt text."""
+        with TestClient(app) as client:
+            page = client.get("/menu").text
+
+        for attribute in re.findall(r'data-name="([^"]*)"', page):
+            with self.subTest(attribute=attribute):
+                self.assertNotIn("[^", attribute)
+        for alt in re.findall(r'alt="([^"]*)"', page):
+            with self.subTest(alt=alt):
+                self.assertNotIn("[^", alt)
+
     def test_cart_assets_are_served(self):
         with TestClient(app) as client:
             for path in ("/static/pages/store-menu.js", "/static/pages/qr.js"):

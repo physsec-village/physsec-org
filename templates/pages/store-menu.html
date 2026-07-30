@@ -11,7 +11,7 @@
             <img
                 class="row-thumb"
                 src="{{ url_for('static', path='/images/menu/' ~ item.image) }}"
-                alt="{{ item.name }}"
+                alt="{{ item.name | replace('[^1]', '') | replace('[^2]', '') }}"
                 width="112"
                 height="80"
                 loading="lazy"
@@ -20,16 +20,16 @@
         {% endif %}
         <div class="row-main">
         <div class="row-line">
-            <span class="row-name">{{ item.name }}</span>
+            <span class="row-name">{{ item.name | footnotes }}</span>
             <span class="leader" aria-hidden="true"></span>
             <span class="row-price mono">${{ item.price }}{% if item.price_suffix %} {{ item.price_suffix }}{% endif %}</span>
             <button
                 type="button"
                 class="row-add"
                 data-add="{{ item.code }}"
-                data-name="{{ item.name }}"
+                data-name="{{ item.name | replace('[^1]', '') | replace('[^2]', '') }}"
                 data-price="{{ item.price }}"
-                aria-label="Add {{ item.name }} to cart"
+                aria-label="Add {{ item.name | replace('[^1]', '') | replace('[^2]', '') }} to cart"
             >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <line x1="12" y1="5" x2="12" y2="19" />
@@ -41,7 +41,7 @@
         {% if item.desc %}<p class="row-desc">{{ item.desc }}</p>{% endif %}
         {% if item.bullets %}
             <ul class="row-bullets">
-                {% for b in item.bullets %}<li>{{ b }}</li>{% endfor %}
+                {% for b in item.bullets %}<li>{{ b | footnotes }}</li>{% endfor %}
             </ul>
         {% endif %}
         {% if item.details %}
@@ -176,17 +176,11 @@
             <p>No items match “<span id="menuEmptyQuery"></span>”. Try a different term, or come ask us at the table.</p>
         </div>
 
-        <div class="menu-legal">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-            <p>
-                <strong>Authorized use only.</strong> These items are sold for
-                education, research, and lawful security testing. Prices are in
-                USD and stock varies over the weekend — come find us in the
-                Village to check what is on the table.
-            </p>
-        </div>
+        <ol class="menu-footnotes">
+            {% for note in footnotes %}
+                <li id="fn-{{ loop.index }}">{{ note }}</li>
+            {% endfor %}
+        </ol>
     </div>
 
     <div class="cart-backdrop" id="cartBackdrop" hidden></div>

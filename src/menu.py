@@ -134,22 +134,6 @@ MENU: tuple[Section, ...] = (
                 title="Disassembly & Force Tools",
                 items=(
                     Item(
-                        code="TBD001",
-                        image="tbd001.webp",
-                        name="Hinge Pin Remover",
-                        price=20,
-                        sku=None,
-                        desc="Don't spend too long attacking the lock side of a door if the hinge side is weaker. This makes quick work of removing the hinge pin.",
-                    ),
-                    Item(
-                        code="TBD002",
-                        image="tbd002.webp",
-                        name="Lock Box Hinge Pin Remover",
-                        price=20,
-                        sku=None,
-                        desc="A narrower tool designed to remove the hinge pin on lockboxes (e.g. Knox-style boxes).",
-                    ),
-                    Item(
                         code="MSC003",
                         image="msc003.webp",
                         name="Screwdriver Set",
@@ -363,11 +347,10 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="TBD004",
-                        name="PSV Common Keyed Alike Set",
+                        name="PSV Common Keyed Alike Set[^2]",
                         price=50,
                         sku=None,
                         desc="The most common and useful keys in one set.",
-                        note="† If we don't approve you to possess an FEO-K1, the set without one is $40.",
                         bullets=(
                             "Handcuff Key",
                             "CH751 (many product camlocks)",
@@ -375,7 +358,7 @@ MENU: tuple[Section, ...] = (
                             "A126 (older enterphones, other camlocks)",
                             "Cross Key (utilities, fixtures)",
                             "CC1 (golf carts)",
-                            "FEO-K1 (elevator fire service) †",
+                            "FEO-K1 (elevator fire service)[^1]",
                             "EPCO 1 (elevator special service)",
                             "X4001 (elevator special service)",
                         ),
@@ -777,7 +760,7 @@ MENU: tuple[Section, ...] = (
                             "EPCO2 (some floor lockouts)",
                             "X4001 (many cabinets, lockouts)",
                             "X4002 (some floor lockouts)",
-                            "FEO-K1 (national fire service) †",
+                            "FEO-K1 (national fire service)[^1]",
                         ),
                         feature=True,
                     ),
@@ -787,7 +770,7 @@ MENU: tuple[Section, ...] = (
                         price=180,
                         sku=None,
                         bullets=(
-                            "FEO-K1 †",
+                            "FEO-K1[^1]",
                             "EPCO1, EPCO2, MFD-1",
                             "MAD X4001–X4008",
                             "Innovation EX511–EX515",
@@ -962,10 +945,9 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="KYS023",
-                        name="FEO-K1 †",
+                        name="FEO-K1[^1]",
                         price=10,
                         sku="PSV-KYS-023",
-                        note="† We will not sell these to just anyone — you will be vetted.",
                     ),
                 ),
             ),
@@ -1029,6 +1011,14 @@ MENU: tuple[Section, ...] = (
             ),
         ),
     ),
+)
+
+
+FOOTNOTES: tuple[str, ...] = (
+    "FEO-K1 is the national elevator fire service key. We will not sell one to "
+    "just anyone — you will be vetted before we do.",
+    "If we don't approve you to possess an FEO-K1, the PSV Common Keyed Alike "
+    "Set without one is $40.",
 )
 
 
