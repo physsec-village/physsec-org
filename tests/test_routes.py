@@ -59,11 +59,21 @@ class RouteStatusTests(unittest.TestCase):
             content = client.get("/content")
 
         self.assertEqual(games.status_code, 200)
-        self.assertIn("noindex", games.text)
+        self.assertIn(
+            '<meta name="robots" content="noindex,follow"',
+            games.text,
+        )
         self.assertIn('aria-controls="alarm-levels"', games.text)
         self.assertEqual(content.status_code, 200)
         self.assertNotIn('href="http://testserver/games"', content.text)
         self.assertNotIn('href="/games"', content.text)
+        self.assertRegex(
+            content.text,
+            r'<div class="content-card-link content-card-disabled" '
+            r'aria-disabled="true">\s*<article class="content-card">\s*'
+            r'<h3>\s*Games\s*<span class="disabled-state">Soon</span>[\s\S]*'
+            r'<div class="content-card-footer">Coming soon</div>',
+        )
 
     def test_healthz_is_served(self):
         with TestClient(app) as client:
