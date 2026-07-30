@@ -31,25 +31,27 @@
     margin-left: 0;
 }
 
-.menu-count {
+.page-kicker {
     color: var(--muted);
-    font-size: 0.86rem;
-    white-space: nowrap;
+    font-size: 0.92rem;
+    order: 2;
 }
 
+/* Icon only: the label cost a chunk of a phone's toolbar width for a word
+   the cart glyph already says. */
 .cart-open {
+    position: relative;
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    min-height: 42px;
-    padding: 0.45rem 1rem;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
     border-radius: 999px;
     border: 1px solid var(--accent-strong);
     background: var(--accent-soft);
     color: var(--text);
     cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 600;
     transition: border-color var(--transition);
 }
 
@@ -58,25 +60,33 @@
 }
 
 .cart-open svg {
-    width: 1.05rem;
-    height: 1.05rem;
+    width: 1.2rem;
+    height: 1.2rem;
     fill: none;
     stroke: currentcolor;
     stroke-width: 2;
 }
 
 .cart-count {
-    min-width: 1.35rem;
-    height: 1.35rem;
-    padding: 0 0.4rem;
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 1.2rem;
+    height: 1.2rem;
+    padding: 0 0.3rem;
     border-radius: 999px;
+    border: 2px solid var(--bg);
     background: var(--accent);
     color: #09100c;
-    font-size: 0.74rem;
+    font-size: 0.7rem;
     font-weight: 700;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+.cart-count[hidden] {
+    display: none;
 }
 
 /* Stands in for the round + button the copy refers to. */
@@ -97,14 +107,27 @@
 
 /* ---- section jump nav ---- */
 
+/* One line that scrolls sideways rather than three wrapped rows of pills. */
 .menu-jump {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.5rem;
-    margin-bottom: 2.5rem;
+    margin-bottom: 2rem;
+    padding-bottom: 0.15rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+}
+
+.menu-jump::-webkit-scrollbar {
+    display: none;
 }
 
 .menu-jump a {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    white-space: nowrap;
     padding: 0.45rem 0.85rem;
     border: 1px solid var(--border);
     border-radius: 999px;
@@ -759,6 +782,14 @@
 
     .menu-toolbar {
         position: static;
+    }
+
+    /* The strip always overflows at this width, so fade the trailing edge to
+       show there is more to swipe to. */
+    .menu-jump {
+        margin-right: -1rem;
+        padding-right: 1rem;
+        mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
     }
 
     .menu-rows {

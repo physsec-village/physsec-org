@@ -12,7 +12,6 @@ const groups = Array.from(document.querySelectorAll(".menu-group"));
 const sections = Array.from(document.querySelectorAll(".menu-section"));
 
 const search = document.getElementById("menuSearch");
-const countLabel = document.getElementById("menuCount");
 const empty = document.getElementById("menuEmpty");
 const emptyQuery = document.getElementById("menuEmptyQuery");
 
@@ -45,10 +44,6 @@ const haystacks = new Map(
     rows.map((row) => [row, row.textContent.toLowerCase().replace(/\s+/g, " ")]),
 );
 
-function setCount(shown) {
-    countLabel.textContent = `${shown} item${shown === 1 ? "" : "s"}`;
-}
-
 function filter() {
     const query = search.value.trim().toLowerCase();
     let shown = 0;
@@ -70,11 +65,9 @@ function filter() {
 
     emptyQuery.textContent = search.value.trim();
     empty.hidden = shown !== 0;
-    setCount(shown);
 }
 
 search.addEventListener("input", filter);
-setCount(rows.length);
 
 /* ---------------- list state ---------------- */
 
