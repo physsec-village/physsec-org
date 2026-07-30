@@ -19,7 +19,6 @@ class Item:
     price_suffix: str = ""
     desc: str = ""
     note: str = ""
-    badge: str = ""
     bullets: tuple[str, ...] = ()
     details: tuple[str, ...] = ()
     feature: bool = False
@@ -52,7 +51,6 @@ MENU: tuple[Section, ...] = (
     Section(
         slug="bypass-tools",
         title="Bypass Tools",
-        blurb="Tools that open a door without touching the lock cylinder. Most of these have a working demo in the Village — come try them on our doors before you buy.",
         groups=(
             Group(
                 title="Latch Retraction Tools",
@@ -79,7 +77,6 @@ MENU: tuple[Section, ...] = (
                         price=5,
                         sku="PSV-BYP-006",
                         desc="Fits on a keychain and great for EDC.",
-                        badge="Designed by PSV staff",
                     ),
                     Item(
                         code="BYP011",
@@ -96,7 +93,6 @@ MENU: tuple[Section, ...] = (
                         price=30,
                         sku="PSV-BYP-009",
                         desc="Insert this through the window slot of a car to hook into the locking mechanism and unlock the car.",
-                        badge="Designed by PSV staff",
                     ),
                     Item(
                         code="BYP001",
@@ -177,7 +173,6 @@ MENU: tuple[Section, ...] = (
                         price=40,
                         sku="PSV-BYP-012",
                         desc="Designed in house by the Village, this stainless wallet card does 27 different things.",
-                        badge="Designed by PSV staff",
                         details=(
                             "Large Latch Slip — insert behind a latch to retract it",
                             "Small Latch Slip — same as above",

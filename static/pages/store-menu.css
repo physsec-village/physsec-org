@@ -350,16 +350,6 @@
     font-size: 0.81rem;
 }
 
-.row-badge {
-    width: fit-content;
-    padding: 0.15rem 0.5rem;
-    border-radius: 999px;
-    background: var(--accent-soft);
-    border: 1px solid var(--accent-strong);
-    color: var(--accent);
-    font-size: 0.68rem;
-}
-
 .row-bullets {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr));
