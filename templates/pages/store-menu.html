@@ -7,6 +7,20 @@
 
 {% macro row(item) %}
     <li class="menu-row{% if item.feature %} menu-row-feature{% endif %}" data-code="{{ item.code }}">
+        {% if item.image %}
+            <img
+                class="row-thumb"
+                src="{{ url_for('static', path='/images/menu/' ~ item.image) }}"
+                alt="{{ item.name }}"
+                width="56"
+                height="56"
+                loading="lazy"
+                decoding="async"
+            />
+        {% else %}
+            <span class="row-thumb row-thumb-empty" aria-hidden="true"></span>
+        {% endif %}
+        <div class="row-main">
         <div class="row-line">
             <span class="row-name">{{ item.name }}</span>
             <span class="leader" aria-hidden="true"></span>
@@ -41,6 +55,7 @@
             </details>
         {% endif %}
         {% if item.note %}<p class="row-note">{{ item.note }}</p>{% endif %}
+        </div>
     </li>
 {% endmacro %}
 

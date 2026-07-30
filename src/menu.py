@@ -23,6 +23,7 @@ class Item:
     bullets: tuple[str, ...] = ()
     details: tuple[str, ...] = ()
     feature: bool = False
+    image: str = ""
 
 
 @dataclass(frozen=True)
@@ -59,18 +60,21 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="BYP002",
+                        image="byp002.webp",
                         name="Bare Metal Latch Slip",
                         price=5,
                         sku="PSV-BYP-002",
                     ),
                     Item(
                         code="BYP015001",
+                        image="byp015001.webp",
                         name="Rubber Handle Latch Slip",
                         price=10,
                         sku="PSV-BYP-015-001",
                     ),
                     Item(
                         code="BYP006",
+                        image="byp006.webp",
                         name="Keychain Latch Slip",
                         price=5,
                         sku="PSV-BYP-006",
@@ -79,6 +83,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP011",
+                        image="byp011.webp",
                         name="Latch Poker",
                         price=5,
                         sku="PSV-BYP-011",
@@ -86,6 +91,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP009",
+                        image="byp009.webp",
                         name="Auto Entry Tool (“Slim Jim”)",
                         price=30,
                         sku="PSV-BYP-009",
@@ -94,6 +100,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP001",
+                        image="byp001.webp",
                         name="Padlock Shims (pack of 20)",
                         price=20,
                         sku="PSV-BYP-001",
@@ -107,6 +114,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="BYP010",
+                        image="byp010.webp",
                         name="Thumbturn Bypass Tool (J-Tool)",
                         price=40,
                         sku="PSV-BYP-010",
@@ -114,6 +122,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP016001",
+                        image="byp016001.webp",
                         name="Double Door Tool",
                         price=25,
                         sku="PSV-BYP-016-001",
@@ -126,6 +135,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="TBD001",
+                        image="tbd001.webp",
                         name="Hinge Pin Remover",
                         price=20,
                         sku=None,
@@ -133,6 +143,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="TBD002",
+                        image="tbd002.webp",
                         name="Lock Box Hinge Pin Remover",
                         price=20,
                         sku=None,
@@ -140,6 +151,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="MSC003",
+                        image="msc003.webp",
                         name="Screwdriver Set",
                         price=25,
                         sku="PSV-MSC-003",
@@ -152,6 +164,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="BYP018001",
+                        image="byp018001.webp",
                         name="Adams-Rite Commercial Door Hook",
                         price=30,
                         sku="PSV-BYP-018-001",
@@ -159,6 +172,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP007",
+                        image="byp007.webp",
                         name="Magnetic Sensing Probe",
                         price=10,
                         sku="PSV-BYP-007",
@@ -166,6 +180,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP013",
+                        image="byp013.webp",
                         name="Zener Diodes (pack of 140)",
                         price=15,
                         sku="PSV-BYP-013",
@@ -173,6 +188,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP012",
+                        image="byp012.webp",
                         name="Bypass & Measurement Wallet Card",
                         price=40,
                         sku="PSV-BYP-012",
@@ -220,6 +236,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="BYP003",
+                        image="byp003.webp",
                         name="Auto Jigglers (set of 10)",
                         price=10,
                         sku="PSV-BYP-003",
@@ -227,6 +244,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP018",
+                        image="byp018.webp",
                         name="Warded Pick Set",
                         price=10,
                         sku="PSV-BYP-018",
@@ -234,6 +252,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="TBD003",
+                        image="tbd003.webp",
                         name='Decoder Bundle — .006" and .010"',
                         price=30,
                         sku=None,
@@ -241,6 +260,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="MSC005",
+                        image="msc005.webp",
                         name="UV Light and Pen Combo",
                         price=5,
                         sku="PSV-MSC-005",
@@ -268,6 +288,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="BYP014002",
+                        image="byp014002.webp",
                         name="SC4 — Schlage “C” keyway, 6 pin",
                         price=100,
                         sku="PSV-BYP-014-002",
@@ -275,6 +296,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP014009",
+                        image="byp014009.webp",
                         name="SC20 — Schlage “L” master keyway, 6 pin",
                         price=100,
                         sku="PSV-BYP-014-009",
@@ -282,6 +304,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP014004",
+                        image="byp014004.webp",
                         name="Kwikset KW5",
                         price=100,
                         sku="PSV-BYP-014-004",
@@ -289,6 +312,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP014023",
+                        image="byp014023.webp",
                         name="American Lock AM5",
                         price=100,
                         sku="PSV-BYP-014-023",
@@ -296,6 +320,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP014024",
+                        image="byp014024.webp",
                         name="Master Lock M1",
                         price=100,
                         sku="PSV-BYP-014-024",
@@ -303,6 +328,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP014025",
+                        image="byp014025.webp",
                         name="BE2 — BEST “A” keyway, 7 pin",
                         price=100,
                         sku="PSV-BYP-014-025",
@@ -310,6 +336,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP014010",
+                        image="byp014010.webp",
                         name="Schlage Everest C123",
                         price=100,
                         sku="PSV-BYP-014-010",
@@ -317,6 +344,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="BYP014013",
+                        image="byp014013.webp",
                         name="Yale Y1, 6 pin",
                         price=100,
                         sku="PSV-BYP-014-013",
@@ -360,6 +388,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="MSC001",
+                        image="msc001.webp",
                         name="Cable Keyrings",
                         price=1,
                         sku="PSV-MSC-001",
@@ -367,6 +396,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS003",
+                        image="kys003.webp",
                         name="Metal Handcuff Key",
                         price=5,
                         sku="PSV-KYS-003",
@@ -374,6 +404,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="TBD005",
+                        image="tbd005.webp",
                         name="Plastic Pop-Button Handcuff Key",
                         price=10,
                         sku=None,
@@ -381,6 +412,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="TBD006",
+                        image="tbd006.webp",
                         name="Cross Key (3 colours)",
                         price=5,
                         sku=None,
@@ -388,6 +420,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS021",
+                        image="kys021.webp",
                         name="EK333",
                         price=5,
                         sku="PSV-KYS-021",
@@ -395,6 +428,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS016005",
+                        image="kys016005.webp",
                         name="CAT74 — Bobrick TP / paper towel dispensers",
                         price=5,
                         sku="PSV-KYS-016-005",
@@ -402,6 +436,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS034",
+                        image="kys034.webp",
                         name="Utility Panel Key (1416)",
                         price=5,
                         sku="PSV-KYS-034",
@@ -415,6 +450,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="KYS001",
+                        image="kys001.webp",
                         name="CH751",
                         price=5,
                         sku="PSV-KYS-001",
@@ -422,6 +458,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS019",
+                        image="kys019.webp",
                         name="501CH",
                         price=5,
                         sku="PSV-KYS-019",
@@ -429,6 +466,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS014",
+                        image="kys014.webp",
                         name="A126",
                         price=5,
                         sku="PSV-KYS-014",
@@ -454,6 +492,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS018",
+                        image="kys018.webp",
                         name="Golf Cart Key (CC1)",
                         price=5,
                         sku="PSV-KYS-018",
@@ -461,6 +500,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS027",
+                        image="kys027.webp",
                         name="Skyjack Scissorlift Key",
                         price=5,
                         sku="PSV-KYS-027",
@@ -468,6 +508,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS008",
+                        image="kys008.webp",
                         name="Tractor Key (1147)",
                         price=5,
                         sku="PSV-KYS-008",
@@ -475,6 +516,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS024",
+                        image="kys024.webp",
                         name="Common Forklift Key (1430)",
                         price=5,
                         sku="PSV-KYS-024",
@@ -482,6 +524,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS030",
+                        image="kys030.webp",
                         name="Mitsubishi Forklift Key",
                         price=5,
                         sku="PSV-KYS-030",
@@ -489,6 +532,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS017",
+                        image="kys017.webp",
                         name="CAT ignition",
                         price=5,
                         sku="PSV-KYS-017",
@@ -496,6 +540,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS029",
+                        image="kys029.webp",
                         name="CAT disconnect",
                         price=5,
                         sku="PSV-KYS-029",
@@ -515,18 +560,21 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS020001",
+                        image="kys020001.webp",
                         name="Doorking (DKS) 16120 Key",
                         price=10,
                         sku="PSV-KYS-020-001",
                     ),
                     Item(
                         code="KYS020002",
+                        image="kys020002.webp",
                         name="Linear 222343 Key",
                         price=10,
                         sku="PSV-KYS-020-002",
                     ),
                     Item(
                         code="KYS020003",
+                        image="kys020003.webp",
                         name="MIRCOM 549 Key",
                         price=5,
                         sku="PSV-KYS-020-003",
@@ -557,6 +605,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="TBD008",
+                        image="tbd008.webp",
                         name="Set of all 3 Schlage Construction Keys",
                         price=20,
                         sku=None,
@@ -564,6 +613,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS035001",
+                        image="kys035001.webp",
                         name="BEST Green Construction Key",
                         price=10,
                         sku="PSV-KYS-035-001",
@@ -576,12 +626,14 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="TBD009",
+                        image="tbd009.webp",
                         name="Individual Ford fleet key",
                         price=10,
                         sku=None,
                     ),
                     Item(
                         code="TBD010",
+                        image="tbd010.webp",
                         name="Set of all 7 Ford fleet keys",
                         price=60,
                         sku=None,
@@ -594,6 +646,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="TBD011",
+                        image="tbd011.webp",
                         name="National Cabinet Key Set",
                         price=25,
                         sku=None,
@@ -606,6 +659,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="KYS012",
+                        image="kys012.webp",
                         name="Citywide 1620 Key",
                         price=5,
                         sku="PSV-KYS-012",
@@ -613,6 +667,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS013",
+                        image="kys013.webp",
                         name="Elevator 2642 Key",
                         price=5,
                         sku="PSV-KYS-013",
@@ -620,6 +675,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="KYS032",
+                        image="kys032.webp",
                         name="Electrical Panel Key",
                         price=5,
                         sku="PSV-KYS-032",
@@ -661,6 +717,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="TBD012",
+                        image="tbd012.webp",
                         name="Full set of fire and alarm panel keys",
                         price=20,
                         sku=None,
@@ -673,6 +730,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="TBD013",
+                        image="tbd013.webp",
                         name="TSA002 and TSA007 Keys",
                         price=15,
                         sku=None,
@@ -685,6 +743,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="TBD014",
+                        image="tbd014.webp",
                         name="Automotive Set",
                         price=30,
                         sku=None,
@@ -744,6 +803,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="KYS028001",
+                        image="kys028001.webp",
                         name="X4001",
                         price=10,
                         sku="PSV-KYS-028-001",
@@ -841,6 +901,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="TBD018",
+                        image="tbd018.webp",
                         name="Set of KONE 1–5",
                         price=40,
                         sku=None,
@@ -942,6 +1003,7 @@ MENU: tuple[Section, ...] = (
                 items=(
                     Item(
                         code="RFID002002",
+                        image="rfid002002.webp",
                         name="Rewriteable Fobs",
                         price=1,
                         sku="PSV-RFID-002-002",
@@ -949,6 +1011,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="RFID002001",
+                        image="rfid002001.webp",
                         name="MiFare S50 “Chinese Magic” — Sector 0 Writable",
                         price=1,
                         sku="PSV-RFID-002-001",
@@ -956,6 +1019,7 @@ MENU: tuple[Section, ...] = (
                     ),
                     Item(
                         code="MSC002",
+                        image="msc002.webp",
                         name="Handcuffs",
                         price=40,
                         sku="PSV-MSC-002",

@@ -1,5 +1,6 @@
 import csv
 import re
+from pathlib import Path
 import unittest
 
 from fastapi.testclient import TestClient
@@ -56,6 +57,29 @@ class MenuDataTests(unittest.TestCase):
                 with self.subTest(item=item.name):
                     self.assertEqual(prices[item.code], item.price)
             prices[item.code] = item.price
+
+    def test_item_photos_exist_and_are_not_shared(self):
+        """A photo filename is derived from the code, so it cannot drift."""
+        seen: dict[str, str] = {}
+        for item in ITEMS:
+            if not item.image:
+                continue
+            with self.subTest(item=item.name):
+                path = Path("static/images/menu") / item.image
+                self.assertTrue(path.is_file(), f"missing {path}")
+                self.assertEqual(item.image, f"{item.code.lower()}.webp")
+                self.assertNotIn(item.image, seen, f"also used by {seen.get(item.image)}")
+                seen[item.image] = item.name
+
+    def test_photos_are_small_enough_to_ship(self):
+        for path in Path("static/images/menu").glob("*.webp"):
+            with self.subTest(image=path.name):
+                self.assertLess(path.stat().st_size, 40_000)
+
+    def test_no_orphaned_photos(self):
+        referenced = {i.image for i in ITEMS if i.image}
+        on_disk = {p.name for p in Path("static/images/menu").glob("*")}
+        self.assertEqual(on_disk - referenced, set())
 
     def test_section_slugs_are_unique(self):
         slugs = [section.slug for section in MENU]
