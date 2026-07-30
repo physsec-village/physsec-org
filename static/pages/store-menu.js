@@ -3,7 +3,7 @@
 // there is no store backend behind this page.
 
 import { qrMatrix } from "./qr.js";
-import { payloads } from "./store-menu-payload.js";
+import { MAX_QR_VERSION, payloads } from "./store-menu-payload.js";
 
 const STORAGE_KEY = "psv-menu-list-v1";
 
@@ -141,7 +141,7 @@ let codeIndex = 0;
 function renderSymbol() {
     const text = codePayloads[codeIndex];
     symbolEl.replaceChildren();
-    const matrix = qrMatrix(text, { ecc: "M", maxVersion: 20 });
+    const matrix = qrMatrix(text, { ecc: "M", maxVersion: MAX_QR_VERSION });
 
     const { size, modules } = matrix;
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

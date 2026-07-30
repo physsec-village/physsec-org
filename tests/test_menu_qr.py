@@ -144,5 +144,7 @@ class QrEncoderTests(unittest.TestCase):
                 self.assertEqual(parts[:2], ["PSV34", f"Q{index}/{len(pages)}"])
                 self.assertEqual(parts[-1], "T12345")
                 recovered.extend(parts[2:-1])
-                self.assertLessEqual(self.encode_in_js(page, "M")["version"], 20)
+                matrix = self.encode_in_js(page, "M")
+                self.assertLessEqual(matrix["version"], 6)
+                self.assertLessEqual(matrix["size"], 41)
         self.assertEqual(recovered, tokens)

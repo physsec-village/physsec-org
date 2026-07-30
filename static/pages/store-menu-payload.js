@@ -1,6 +1,7 @@
 import { qrMatrix } from "./qr.js";
 
 const PAYLOAD_PREFIX = "PSV34";
+export const MAX_QR_VERSION = 6;
 
 function pagePayload(tokens, total, index, pageCount) {
     return [PAYLOAD_PREFIX, `Q${index}/${pageCount}`, ...tokens, `T${total}`].join("|");
@@ -8,7 +9,7 @@ function pagePayload(tokens, total, index, pageCount) {
 
 function fits(text) {
     try {
-        qrMatrix(text, { ecc: "M", maxVersion: 20 });
+        qrMatrix(text, { ecc: "M", maxVersion: MAX_QR_VERSION });
         return true;
     } catch {
         return false;
