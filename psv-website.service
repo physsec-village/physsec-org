@@ -1,11 +1,13 @@
 [Unit]
 Description=PSV Website (Docker Compose)
-Requires=docker.service nginx.service
+Requires=docker.service
+Wants=nginx.service
 After=docker.service nginx.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+ExecStartPre=/usr/bin/systemctl is-active --quiet nginx.service
 WorkingDirectory=/opt/psv-website
 # Boot and deploy both go through the serialized, health-gated blue/green
 # script. Host nginx keeps serving while the inactive application slot builds.
