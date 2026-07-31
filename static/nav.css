@@ -40,6 +40,8 @@ nav.is-scrolled {
     height: 2.65rem;
     display: flex;
     align-items: center;
+    border-radius: 0.5rem;
+    overflow: hidden;
 }
 
 .logo-icon img {
