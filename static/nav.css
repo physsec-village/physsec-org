@@ -30,14 +30,14 @@ nav.is-scrolled {
 .nav-logo {
     display: inline-flex;
     align-items: center;
-    height: 100%;
     gap: 0.8rem;
     text-decoration: none;
     color: var(--text);
 }
 
 .logo-icon {
-    height: 100%;
+    width: 2.65rem;
+    height: 2.65rem;
     display: flex;
     align-items: center;
 }
