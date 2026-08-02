@@ -13,7 +13,7 @@ SKU_PATTERN = re.compile(r"^PSV-[A-Z]+-\d{3}(-\d{3})?$")
 
 
 def store_skus() -> set[str]:
-    with open("src/store/products.tsv") as fh:
+    with open("src/store/products.tsv", encoding="utf-8") as fh:
         return {row[1] for row in csv.reader(fh, delimiter="\t") if len(row) >= 2}
 
 
@@ -100,7 +100,7 @@ class MenuPageTests(unittest.TestCase):
         with TestClient(app) as client:
             page = client.get("/menu").text
 
-        panels = page.count('<ul class="menu-rows">')
+        panels = page.count('<ul class="menu-rows')
         self.assertGreater(panels, 0)
         self.assertLess(panels, len(ITEMS) / 3)
 

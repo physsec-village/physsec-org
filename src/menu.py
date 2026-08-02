@@ -445,7 +445,7 @@ MENU: tuple[Section, ...] = (
                     Item(
                         code="KYS014",
                         image="kys014.webp",
-                        name="A126",
+                        name="Linear A126 Key",
                         price=5,
                         sku="PSV-KYS-014",
                         desc="Older Linear enterphones, automatic door openers, lab equipment lockouts, keyswitches on computers, and so on.",
@@ -1009,6 +1009,7 @@ MENU: tuple[Section, ...] = (
 )
 
 
+# Tuple order is load-bearing: marker numbers and generated IDs are positional.
 FOOTNOTES: tuple[str, ...] = (
     "FEO-K1 is the national elevator fire service key. We will not sell one to "
     "just anyone — you will be vetted before we do.",

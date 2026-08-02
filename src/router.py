@@ -72,7 +72,7 @@ def store_menu_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="pages/store-menu.html",
-        context={"menu": MENU, "footnotes": FOOTNOTES},
+        context={"menu": MENU, "menu_footnotes": FOOTNOTES},
     )
 
 

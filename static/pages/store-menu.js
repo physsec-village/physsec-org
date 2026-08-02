@@ -32,11 +32,15 @@ const codePreviousEl = document.getElementById("cartCodePrevious");
 const codeNextEl = document.getElementById("cartCodeNext");
 const codePositionEl = document.getElementById("cartCodePosition");
 const codeHintEl = document.getElementById("cartCodeHint");
+const addButtons = Array.from(document.querySelectorAll("[data-add]"));
+const modalBackground = Array.from(
+    document.querySelectorAll("body > header, main > .menu-inner, body > footer"),
+);
 
 // code -> {name, price} for everything on the page, read straight from the
 // markup so the catalogue never has to be duplicated in JS.
 const catalogue = new Map();
-for (const button of document.querySelectorAll("[data-add]")) {
+for (const button of addButtons) {
     catalogue.set(button.dataset.add, {
         name: button.dataset.name,
         price: Number(button.dataset.price),
@@ -203,7 +207,7 @@ function render() {
     countEl.hidden = count === 0;
     countEl.textContent = String(count);
 
-    for (const button of document.querySelectorAll("[data-add]")) {
+    for (const button of addButtons) {
         button.classList.toggle("is-added", list.has(button.dataset.add));
     }
 
@@ -264,6 +268,7 @@ function render() {
 /* ---------------- panel plumbing ---------------- */
 
 function openPanel() {
+    for (const element of modalBackground) element.inert = true;
     panel.hidden = false;
     backdrop.hidden = false;
     closeButton.focus();
@@ -272,6 +277,7 @@ function openPanel() {
 function closePanel() {
     panel.hidden = true;
     backdrop.hidden = true;
+    for (const element of modalBackground) element.inert = false;
     openButton.focus();
 }
 
@@ -298,7 +304,7 @@ codeNextEl.addEventListener("click", () => {
     renderSymbol();
 });
 
-for (const button of document.querySelectorAll("[data-add]")) {
+for (const button of addButtons) {
     button.addEventListener("click", () => {
         const code = button.dataset.add;
         setQuantity(code, (list.get(code) || 0) + 1);

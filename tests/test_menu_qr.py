@@ -3,18 +3,20 @@
 `static/pages/qr.js` is hand-written, so a subtle bug there would produce a
 symbol that renders but does not scan — something no page test would catch.
 These tests compare its module matrix against the `qrcode` package, which the
-project does not depend on: it is looked up on the system interpreter and the
-tests skip when either that or node is unavailable.
+project uses only for development. The tests skip outside CI when node is
+unavailable.
 """
 
 import json
 import shutil
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
-QR_JS = Path("static/pages/qr.js").resolve()
-PAYLOAD_JS = Path("static/pages/store-menu-payload.js").resolve()
+REPO_ROOT = Path(__file__).resolve().parent.parent
+QR_JS = REPO_ROOT / "static" / "pages" / "qr.js"
+PAYLOAD_JS = REPO_ROOT / "static" / "pages" / "store-menu-payload.js"
 ECC_LEVELS = ("L", "M", "Q", "H")
 PAYLOADS = (
     "PSV34|BYP002*1|T5",
@@ -42,28 +44,28 @@ print(json.dumps({"version": qr.version,
 """
 
 
-def system_python_with_qrcode() -> str | None:
-    for candidate in ("/usr/bin/python3", "python3"):
-        path = shutil.which(candidate) or candidate
-        try:
-            probe = subprocess.run(
-                [path, "-c", "import qrcode"], capture_output=True, timeout=30
-            )
-        except (OSError, subprocess.SubprocessError):
-            continue
-        if probe.returncode == 0:
-            return path
-    return None
-
-
 class QrEncoderTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.python = system_python_with_qrcode()
-        if cls.python is None:
-            raise unittest.SkipTest("no interpreter with the qrcode package")
+        cls.python = sys.executable
+        if subprocess.run(
+            [cls.python, "-c", "import qrcode"], capture_output=True, timeout=30
+        ).returncode:
+            raise unittest.SkipTest("qrcode development dependency is unavailable")
         if shutil.which("node") is None:
             raise unittest.SkipTest("node is not installed")
+
+    def run_node(self, source: str, *, expect_success: bool = True):
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", source],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if expect_success:
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            return json.loads(proc.stdout)
+        return proc
 
     def encode_in_js(self, payload: str, ecc: str) -> dict:
         source = (
@@ -72,14 +74,7 @@ class QrEncoderTests(unittest.TestCase):
             f"{{ ecc: {json.dumps(ecc)} }});\n"
             "console.log(JSON.stringify(out));\n"
         )
-        proc = subprocess.run(
-            ["node", "--input-type=module", "-e", source],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        return json.loads(proc.stdout)
+        return self.run_node(source)
 
     def encode_reference(self, payload: str, ecc: str) -> dict:
         proc = subprocess.run(
@@ -111,22 +106,20 @@ class QrEncoderTests(unittest.TestCase):
         self.assertLessEqual(matrix["size"], 41)
 
     def test_an_oversized_payload_raises_rather_than_truncating(self):
-        with self.assertRaises(AssertionError):
-            self.encode_in_js("x" * 5000, "H")
+        source = (
+            f"import {{ qrMatrix }} from {json.dumps(QR_JS.as_uri())};\n"
+            f"qrMatrix({json.dumps('x' * 5000)}, {{ ecc: \"H\" }});\n"
+        )
+        proc = self.run_node(source, expect_success=False)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("Data does not fit", proc.stderr)
 
     def make_payloads_in_js(self, tokens: list[str], total: int) -> list[str]:
         source = (
             f"import {{ payloads }} from {json.dumps(PAYLOAD_JS.as_uri())};\n"
             f"console.log(JSON.stringify(payloads({json.dumps(tokens)}, {total})));\n"
         )
-        proc = subprocess.run(
-            ["node", "--input-type=module", "-e", source],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        return json.loads(proc.stdout)
+        return self.run_node(source)
 
     def test_single_payload_has_page_identity(self):
         pages = self.make_payloads_in_js(["BYP002*2", "KYS016001"], 45)

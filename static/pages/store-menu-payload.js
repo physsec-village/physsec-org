@@ -2,18 +2,22 @@ import { qrMatrix } from "./qr.js";
 
 const PAYLOAD_PREFIX = "PSV34";
 export const MAX_QR_VERSION = 6;
+// Verified against qrMatrix: version 6 with ECC M holds 106 byte-mode bytes.
+const MAX_PAYLOAD_BYTES = 106;
+const encoder = new TextEncoder();
 
 function pagePayload(tokens, total, index, pageCount) {
     return [PAYLOAD_PREFIX, `Q${index}/${pageCount}`, ...tokens, `T${total}`].join("|");
 }
 
 function fits(text) {
+    if (encoder.encode(text).length <= MAX_PAYLOAD_BYTES) return true;
     try {
         qrMatrix(text, { ecc: "M", maxVersion: MAX_QR_VERSION });
-        return true;
     } catch {
         return false;
     }
+    return true;
 }
 
 /**

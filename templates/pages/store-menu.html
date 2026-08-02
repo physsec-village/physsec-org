@@ -11,7 +11,7 @@
             <img
                 class="row-thumb"
                 src="{{ url_for('static', path='/images/menu/' ~ item.image) }}"
-                alt="{{ item.name | replace('[^1]', '') | replace('[^2]', '') }}"
+                alt=""
                 width="112"
                 height="80"
                 loading="lazy"
@@ -27,9 +27,9 @@
                 type="button"
                 class="row-add"
                 data-add="{{ item.code }}"
-                data-name="{{ item.name | replace('[^1]', '') | replace('[^2]', '') }}"
+                data-name="{{ item.name | strip_footnotes }}"
                 data-price="{{ item.price }}"
-                aria-label="Add {{ item.name | replace('[^1]', '') | replace('[^2]', '') }} to cart"
+                aria-label="Add {{ item.name | strip_footnotes }} to cart"
             >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <line x1="12" y1="5" x2="12" y2="19" />
@@ -161,7 +161,7 @@
         </div>
 
         <ol class="menu-footnotes">
-            {% for note in footnotes %}
+            {% for note in menu_footnotes %}
                 <li id="fn-{{ loop.index }}">{{ note }}</li>
             {% endfor %}
         </ol>

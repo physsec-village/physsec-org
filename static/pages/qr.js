@@ -223,7 +223,7 @@ function maskBit(mask, r, c) {
   if (mask === 2) return c % 3 === 0;
   if (mask === 3) return (r + c) % 3 === 0;
   if (mask === 4) return (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0;
-  if (mask === 5) return (r * c) % 2 + (r * c) % 3 === 0;
+  if (mask === 5) return ((r * c) % 2 + (r * c) % 3) === 0;
   if (mask === 6) return ((r * c) % 2 + (r * c) % 3) % 2 === 0;
   return ((r * c) % 3 + (r + c) % 2) % 2 === 0;
 }
