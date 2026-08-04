@@ -16,7 +16,6 @@ SITEMAP_PATHS = (
     "/contact",
     "/games",
     "/materials",
-    "/menu",
     "/forms/calls",
     "/forms/volunteer",
 )
