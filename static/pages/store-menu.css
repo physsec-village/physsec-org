@@ -1,0 +1,825 @@
+.menu-inner {
+    width: min(1180px, 100%);
+    margin: 0 auto;
+}
+
+.mono {
+    font-family: "Share Tech Mono", monospace;
+}
+
+/* ---- toolbar ---- */
+
+.menu-toolbar {
+    position: sticky;
+    top: calc(var(--nav-h) + 0.5rem);
+    z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    padding: 0.85rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    backdrop-filter: blur(16px);
+}
+
+.menu-toolbar .search-wrap {
+    flex: 1;
+    min-width: min(100%, 16rem);
+    margin-left: 0;
+}
+
+.page-kicker {
+    color: var(--muted);
+    font-size: 0.92rem;
+    order: 2;
+}
+
+/* Icon only: the label cost a chunk of a phone's toolbar width for a word
+   the cart glyph already says. */
+.cart-open {
+    position: relative;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid var(--accent-strong);
+    background: var(--accent-soft);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color var(--transition);
+}
+
+.cart-open:hover {
+    border-color: var(--accent);
+}
+
+.cart-open svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2;
+}
+
+.cart-count {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 1.2rem;
+    height: 1.2rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    border: 2px solid var(--bg);
+    background: var(--accent);
+    color: #09100c;
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cart-count[hidden] {
+    display: none;
+}
+
+/* ---- section jump nav ---- */
+
+/* One line that scrolls sideways rather than three wrapped rows of pills. */
+.menu-jump {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    padding-bottom: 0.15rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+}
+
+.menu-jump::-webkit-scrollbar {
+    display: none;
+}
+
+.menu-jump a {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    white-space: nowrap;
+    padding: 0.45rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-soft);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.84rem;
+    transition:
+        border-color var(--transition),
+        color var(--transition);
+}
+
+.menu-jump a:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* ---- sections ---- */
+
+.menu-section {
+    margin-bottom: 3.25rem;
+    scroll-margin-top: calc(var(--nav-h) + 5.5rem);
+}
+
+.menu-section[hidden],
+.menu-group[hidden],
+.menu-row[hidden] {
+    display: none;
+}
+
+.menu-group + .menu-group {
+    margin-top: 2rem;
+}
+
+.menu-sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.65rem;
+    padding-left: 0.7rem;
+    border-left: 3px solid var(--accent);
+    font-family: "Bebas Neue", sans-serif;
+    font-size: 1.55rem;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    line-height: 1.1;
+}
+
+.menu-tag {
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-strong);
+    color: var(--accent);
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.64rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.menu-lede,
+.menu-prose p {
+    max-width: 46rem;
+    margin-bottom: 1rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.75;
+}
+
+.menu-prose p:last-child {
+    margin-bottom: 1rem;
+}
+
+.menu-prose strong {
+    color: var(--text);
+}
+
+/* ---- item rows ----
+   One panel per group with hairline-separated rows, rather than a card per
+   item: 93 bordered boxes read as noise at this density. */
+
+.menu-rows {
+    list-style: none;
+    display: grid;
+    /* Two across at full width. Three fitted, but names wrapped mid-phrase and
+       the price leaders collapsed to stubs. */
+    grid-template-columns: repeat(auto-fill, minmax(min(27rem, 100%), 1fr));
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.menu-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.05rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    transition: background var(--transition);
+}
+
+/* A lone item would otherwise sit in one column with the other left blank. */
+.menu-rows-single {
+    grid-template-columns: 1fr;
+}
+
+.menu-row:hover .row-thumb {
+    border-color: rgba(31, 179, 90, 0.35);
+}
+
+.row-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+/* Binder photos are cut-outs on white, so they get a light tile of their own
+   rather than sitting straight on the dark surface. Off-white rather than pure
+   white: 63 pure-white squares on a dark page read as stickers. */
+.row-thumb {
+    flex-shrink: 0;
+    /* Landscape, not square: most of these tools are long and thin, and a
+       280x51 latch slip contained in a square tile renders as a sliver. */
+    width: 112px;
+    height: 80px;
+    border-radius: 12px;
+    object-fit: contain;
+    background: linear-gradient(160deg, #fdfdfb, #eef0ea);
+    border: 1px solid var(--border-strong);
+    padding: 7px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    transition: border-color var(--transition);
+}
+
+/* Items with no photo simply run full width. Reserving the tile's space left a
+   phantom gap that read as a broken image. */
+
+.menu-row:hover {
+    background: var(--surface-soft);
+}
+
+.menu-row-feature {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, var(--accent-soft), transparent 55%);
+}
+
+.row-line {
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+}
+
+.row-name {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.35;
+    text-wrap: pretty;
+}
+
+/* Dotted leader between name and price, the way a printed menu sets it. It
+   only earns its place with room to run, so it is hidden once it would be a
+   stub rather than a line. */
+.leader {
+    flex: 1;
+    min-width: 1.5rem;
+    height: 0;
+    border-bottom: 1px dotted var(--border-strong);
+    transform: translateY(-0.3rem);
+    opacity: 0.7;
+}
+
+.row-price {
+    flex-shrink: 0;
+    color: var(--accent);
+    font-size: 1.05rem;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.row-add {
+    flex-shrink: 0;
+    align-self: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+        border-color var(--transition),
+        color var(--transition),
+        background var(--transition);
+}
+
+.row-add svg {
+    width: 0.9rem;
+    height: 0.9rem;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2.4;
+}
+
+.row-add:hover,
+.row-add:focus-visible {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.row-add.is-added {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #09100c;
+}
+
+.row-desc,
+.row-note {
+    color: var(--muted);
+    font-size: 0.87rem;
+    line-height: 1.65;
+    max-width: 44rem;
+}
+
+.row-note {
+    padding-top: 0.4rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.81rem;
+}
+
+.row-bullets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr));
+    gap: 0.2rem 1.5rem;
+    margin: 0.15rem 0 0;
+    padding-left: 1.1rem;
+    color: var(--muted);
+    font-size: 0.86rem;
+    line-height: 1.55;
+}
+
+.row-bullets li::marker {
+    color: var(--accent);
+}
+
+.row-details {
+    margin-top: 0.35rem;
+}
+
+.row-details summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.row-details summary:hover {
+    color: var(--accent);
+}
+
+.row-numbered {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
+    gap: 0.4rem 1.6rem;
+    margin: 0.8rem 0 0.3rem;
+    padding-left: 1.3rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+
+.row-numbered li::marker {
+    color: var(--accent);
+    font-family: "Share Tech Mono", monospace;
+}
+
+.row-numbered strong {
+    color: var(--text);
+}
+
+/* ---- reference table ---- */
+
+.table-scroll {
+    margin-top: 0.25rem;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+}
+
+.menu-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.86rem;
+}
+
+.menu-table th,
+.menu-table td {
+    padding: 0.65rem 0.85rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.menu-table thead th {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 0.76rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.menu-table tbody th {
+    font-weight: 600;
+}
+
+.menu-table tbody td {
+    color: var(--muted);
+    font-family: "Share Tech Mono", monospace;
+}
+
+.menu-table tbody tr:last-child th,
+.menu-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ---- empty state & footnotes ---- */
+
+.menu-empty {
+    display: grid;
+    gap: 0.75rem;
+    justify-items: center;
+    padding: 3.5rem 0;
+    text-align: center;
+    color: var(--muted);
+}
+
+.menu-empty[hidden] {
+    display: none;
+}
+
+.menu-empty svg {
+    width: 1.6rem;
+    height: 1.6rem;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 1.8;
+}
+
+/* Superscript reference, sized so it never disturbs the line it sits on. */
+.fn-ref {
+    font-size: 0.68em;
+    line-height: 0;
+    margin-left: 0.1em;
+}
+
+.fn-ref a {
+    color: var(--accent);
+    text-decoration: none;
+    padding: 0 0.15em;
+}
+
+.fn-ref a:hover {
+    text-decoration: underline;
+}
+
+.menu-footnotes {
+    margin: 3rem 0 0;
+    padding: 1.4rem 0 0 1.2rem;
+    border-top: 1px solid var(--border);
+    display: grid;
+    gap: 0.6rem;
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.7;
+}
+
+.menu-footnotes li::marker {
+    color: var(--accent);
+    font-family: "Share Tech Mono", monospace;
+}
+
+/* Briefly flag the note that was jumped to, so it is findable in a long list. */
+.menu-footnotes li:target {
+    color: var(--text);
+}
+
+.menu-footnotes li:target::marker {
+    font-weight: 700;
+}
+
+/* ---- cart panel ---- */
+
+.cart-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    background: rgba(6, 9, 11, 0.6);
+    backdrop-filter: blur(2px);
+}
+
+.cart-backdrop[hidden],
+.cart-panel[hidden] {
+    display: none;
+}
+
+.cart-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1401;
+    width: min(420px, 100%);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-elevated);
+    border-left: 1px solid var(--border);
+    box-shadow: -20px 0 60px rgba(0, 0, 0, 0.4);
+}
+
+.cart-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.2rem 1.35rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.cart-head h2 {
+    font-family: "Bebas Neue", sans-serif;
+    font-size: 1.6rem;
+    font-weight: 400;
+    letter-spacing: 0.03em;
+}
+
+.cart-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-soft);
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cart-close:hover {
+    color: var(--text);
+}
+
+.cart-close svg {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2;
+}
+
+.cart-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem 1.35rem;
+}
+
+.cart-empty {
+    padding: 2.5rem 0;
+    color: var(--muted);
+    font-size: 0.93rem;
+    line-height: 1.7;
+    text-align: center;
+}
+
+.cart-empty[hidden] {
+    display: none;
+}
+
+.cart-lines {
+    list-style: none;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.cart-line {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.35rem 0.75rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.cart-line:last-child {
+    border-bottom: none;
+}
+
+.cart-line-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.cart-line-total {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.9rem;
+    text-align: right;
+}
+
+.cart-qty {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.cart-qty button {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    line-height: 1;
+}
+
+.cart-qty button:hover {
+    background: var(--accent-soft);
+}
+
+.cart-qty span {
+    min-width: 1.5rem;
+    text-align: center;
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.85rem;
+}
+
+.cart-foot {
+    padding: 1.15rem 1.35rem;
+    border-top: 1px solid var(--border);
+    display: grid;
+    gap: 0.8rem;
+}
+
+.cart-foot[hidden] {
+    display: none;
+}
+
+.cart-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+.cart-total strong {
+    color: var(--text);
+    font-size: 1.3rem;
+}
+
+.cart-fineprint {
+    color: var(--muted);
+    opacity: 0.8;
+    font-size: 0.76rem;
+    line-height: 1.55;
+}
+
+.cart-code {
+    display: grid;
+    justify-items: center;
+    gap: 0.5rem;
+    padding: 0.9rem;
+    background: var(--surface-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+/* The symbol is always rendered on white with a quiet zone, whatever the
+   site theme, because scanners need the contrast. */
+.cart-code-symbol {
+    padding: 10px;
+    background: #fff;
+    border-radius: 6px;
+    line-height: 0;
+}
+
+.cart-code-symbol svg {
+    display: block;
+    width: clamp(150px, 42vw, 190px);
+    height: auto;
+    image-rendering: pixelated;
+}
+
+.cart-code-hint {
+    color: var(--muted);
+    font-size: 0.82rem;
+}
+
+.cart-code-pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7rem;
+}
+
+.cart-code-pager[hidden] {
+    display: none;
+}
+
+.cart-code-pager button {
+    width: 34px;
+    height: 30px;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.cart-code-pager button:hover {
+    background: var(--accent-soft);
+}
+
+.cart-code-pager span {
+    min-width: 5.5rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-align: center;
+}
+
+.cart-code-text {
+    color: var(--muted);
+    opacity: 0.75;
+    font-size: 0.64rem;
+    word-break: break-all;
+    text-align: center;
+    line-height: 1.4;
+}
+
+.cart-clear {
+    width: 100%;
+    min-height: 40px;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 680px) {
+    .menu-toolbar {
+        position: static;
+    }
+
+    /* The strip always overflows at this width, so fade the trailing edge to
+       show there is more to swipe to. */
+    .menu-jump {
+        margin-right: -1rem;
+        padding-right: 1rem;
+        mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+    }
+
+    .menu-rows {
+        grid-template-columns: 1fr;
+    }
+
+    .menu-row {
+        gap: 0.75rem;
+        padding: 0.9rem 0.85rem;
+    }
+
+    .row-thumb {
+        width: 84px;
+        height: 64px;
+        border-radius: 10px;
+        padding: 5px;
+    }
+
+    /* Name, price and button all competing on one narrow line forced titles
+       to wrap three deep. The price goes on its own line instead, and the
+       leader has no room to be anything but a stub. */
+    .row-line {
+        flex-wrap: wrap;
+        column-gap: 0.5rem;
+    }
+
+    .row-name {
+        flex: 1 0 100%;
+    }
+
+    .leader {
+        display: none;
+    }
+
+    .row-price {
+        font-size: 1rem;
+    }
+
+    .row-add {
+        margin-left: auto;
+    }
+
+    .cart-clear {
+        width: 100%;
+    }
+}

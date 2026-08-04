@@ -1,0 +1,41 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: psv_test
+          POSTGRES_PASSWORD: psv_test_password
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d psv_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply test schema
+        env:
+          PGPASSWORD: psv_test_password
+        run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 55432 -U postgres -d psv_test -f supabase/migrations/20260727000000_store_schema.sql
+      - run: uv run pytest
