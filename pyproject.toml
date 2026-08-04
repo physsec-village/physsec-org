@@ -17,7 +17,6 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
-    "qrcode>=8.2,<9",
 ]
 
 [tool.pytest.ini_options]

@@ -87,14 +87,15 @@ class MenuDataTests(unittest.TestCase):
 
 
 class MenuPageTests(unittest.TestCase):
-    def test_page_renders_every_item_with_add_controls(self):
+    def test_page_renders_every_item_without_cart_controls(self):
         with TestClient(app) as client:
             page = client.get("/menu").text
 
         self.assertEqual(page.count('<li class="menu-row'), len(ITEMS))
-        for item in ITEMS:
-            with self.subTest(item=item.name):
-                self.assertIn(f'data-add="{item.code}"', page)
+        self.assertNotIn("data-add=", page)
+        self.assertNotIn("cartOpen", page)
+        self.assertNotIn("cartPanel", page)
+        self.assertNotIn("My list", page)
 
     def test_rows_are_grouped_into_shared_panels_not_one_card_each(self):
         with TestClient(app) as client:
@@ -118,30 +119,25 @@ class MenuPageTests(unittest.TestCase):
         self.assertEqual(referenced - defined, set(), "reference with no footnote")
         self.assertEqual(defined - referenced, set(), "footnote nothing points at")
 
-    def test_cart_labels_are_free_of_footnote_markup(self):
-        """The marker must not leak into the cart or the image alt text."""
+    def test_image_labels_are_free_of_footnote_markup(self):
+        """The marker must not leak into image alt text."""
         with TestClient(app) as client:
             page = client.get("/menu").text
 
-        for attribute in re.findall(r'data-name="([^"]*)"', page):
-            with self.subTest(attribute=attribute):
-                self.assertNotIn("[^", attribute)
         for alt in re.findall(r'alt="([^"]*)"', page):
             with self.subTest(alt=alt):
                 self.assertNotIn("[^", alt)
 
-    def test_cart_assets_are_served(self):
+    def test_search_asset_is_served(self):
         with TestClient(app) as client:
             for path in (
                 "/static/pages/store-menu.js",
-                "/static/pages/store-menu-payload.js",
-                "/static/pages/qr.js",
             ):
                 with self.subTest(path=path):
                     self.assertEqual(client.get(path).status_code, 200)
 
     def test_page_still_works_without_javascript(self):
-        """The price list is server-rendered; JS only adds search and the list."""
+        """The price list is server-rendered; JS only adds search."""
         with TestClient(app) as client:
             page = client.get("/menu").text
 
