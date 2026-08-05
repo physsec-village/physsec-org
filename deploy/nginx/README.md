@@ -65,9 +65,43 @@ keys; preview Compose forces the store off. Configure these secrets on the
 
 - `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and the existing `DEPLOY_PATH`;
 - `PREVIEW_ROOT`, the absolute VPS directory for temporary git worktrees;
-- `PREVIEW_ENV_FILE`, the absolute path to the host-managed environment file;
-- `CLOUDFLARE_ZONE_ID`; and
-- `CLOUDFLARE_API_TOKEN`, scoped to DNS Write for only the `physsec.org` zone.
+- `PREVIEW_ENV_FILE`, the absolute path to the host-managed environment file.
+
+Cloudflare credentials stay on the VPS. Install the constrained helper from a
+trusted `main` checkout so the deployment account cannot modify it:
+
+```bash
+sudo install -o root -g root -m 0755 deploy/physsec-preview-dns \
+  /usr/local/sbin/physsec-preview-dns
+sudo install -d -o root -g root -m 0700 /etc/physsec-preview
+sudoedit /etc/physsec-preview/cloudflare-zone-id
+sudoedit /etc/physsec-preview/cloudflare-curl.conf
+sudo chmod 0600 /etc/physsec-preview/cloudflare-*
+```
+
+`cloudflare-zone-id` contains only the 32-character zone ID. The curl config
+contains the API token without exposing it in a process command line:
+
+```text
+silent
+show-error
+fail-with-body
+header = "Authorization: Bearer REPLACE_WITH_ZONE_SCOPED_TOKEN"
+```
+
+The token needs only DNS Write access to the `physsec.org` zone. Install a
+sudoers rule with `sudo visudo -f /etc/sudoers.d/physsec-preview-dns`, replacing
+the username if necessary:
+
+```sudoers
+github_deploy_dev_physsec_org ALL=(root) NOPASSWD: /usr/local/sbin/physsec-preview-dns *
+```
+
+Although sudo permits arguments, the root-owned helper accepts exactly two and
+constructs the hostname, record type, target, and API endpoint internally. Its
+only capabilities are creating/updating or deleting `pr-1.physsec.org` through
+`pr-9999.physsec.org`. The GitHub runner never receives the Cloudflare token or
+zone ID.
 
 The workflow deliberately uses `pull_request_target` so its definition and
 secrets come from the trusted base branch. It refuses fork PRs and only deploys
