@@ -1,0 +1,62 @@
+#!/bin/sh
+# Root-owned capability helper for managing only physsec.org PR preview records.
+set -eu
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+action=${1:-}
+preview_id=${2:-}
+config_dir=/etc/physsec-preview
+zone_file=$config_dir/cloudflare-zone-id
+curl_config=$config_dir/cloudflare-curl.conf
+
+[ "$#" -eq 2 ] || { echo "Usage: physsec-preview-dns create|delete PR_NUMBER" >&2; exit 2; }
+case "$action" in create|delete) ;; *) echo "Action must be create or delete." >&2; exit 2 ;; esac
+case "$preview_id" in
+    [1-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]) ;;
+    *) echo "Preview ID must be a canonical number between 1 and 9999." >&2; exit 2 ;;
+esac
+[ -r "$zone_file" ] && [ -r "$curl_config" ] || {
+    echo "Cloudflare helper configuration is unavailable." >&2
+    exit 1
+}
+
+IFS= read -r zone_id < "$zone_file"
+case "$zone_id" in *[!0-9a-f]*|'') echo "Invalid Cloudflare zone ID." >&2; exit 1 ;; esac
+[ "${#zone_id}" -eq 32 ] || { echo "Invalid Cloudflare zone ID." >&2; exit 1; }
+
+hostname="pr-$preview_id.physsec.org"
+api="https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records"
+records="$(curl --connect-timeout 5 --max-time 30 --config "$curl_config" --get "$api" \
+    --data-urlencode "type=CNAME" --data-urlencode "name=$hostname")"
+printf '%s' "$records" | jq -e '.success == true' >/dev/null
+record_ids="$(printf '%s' "$records" | jq -r '.result[].id')"
+
+if [ "$action" = delete ]; then
+    printf '%s\n' "$record_ids" | while IFS= read -r record_id; do
+        [ -n "$record_id" ] || continue
+        case "$record_id" in *[!0-9a-f]*|'') echo "Invalid DNS record ID." >&2; exit 1 ;; esac
+        response="$(curl --connect-timeout 5 --max-time 30 --config "$curl_config" \
+            --request DELETE "$api/$record_id")"
+        printf '%s' "$response" | jq -e '.success == true' >/dev/null
+    done
+    echo "Removed DNS for $hostname."
+    exit 0
+fi
+
+body="$(jq -cn --arg name "$hostname" \
+    '{type:"CNAME", name:$name, content:"physsec.org", ttl:1, proxied:true, comment:"GitHub PR preview"}')"
+record_id="$(printf '%s' "$record_ids" | sed -n '1p')"
+if [ -n "$record_id" ]; then
+    case "$record_id" in *[!0-9a-f]*) echo "Invalid DNS record ID." >&2; exit 1 ;; esac
+    endpoint="$api/$record_id"
+    method=PUT
+else
+    endpoint="$api"
+    method=POST
+fi
+response="$(curl --connect-timeout 5 --max-time 30 --config "$curl_config" \
+    --request "$method" "$endpoint" --header "Content-Type: application/json" \
+    --data "$body")"
+printf '%s' "$response" | jq -e '.success == true' >/dev/null
+echo "Configured DNS for $hostname."
