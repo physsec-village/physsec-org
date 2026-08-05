@@ -45,6 +45,8 @@ gateway and install the preview virtual host once:
 docker compose -f deploy/preview-gateway/docker-compose.yml up -d
 sudo install -D -m 0644 deploy/nginx/previews.physsec.org.conf \
   /etc/nginx/sites-available/physsec-previews.conf
+sudo install -D -m 0644 deploy/nginx/cloudflare-real-ip.conf \
+  /etc/nginx/snippets/cloudflare-real-ip.conf
 sudo ln -sfn /etc/nginx/sites-available/physsec-previews.conf \
   /etc/nginx/sites-enabled/physsec-previews.conf
 sudo nginx -t
@@ -107,8 +109,14 @@ The workflow deliberately uses `pull_request_target` so its definition and
 secrets come from the trusted base branch. It refuses fork PRs and only deploys
 PRs whose authors are owners, members, or collaborators. The Compose definition
 also comes from the trusted base checkout; PR code is used only as the image
-build context. Closing a PR removes its exact DNS record, containers, network,
-media volume, images, and worktree.
+build context. Closing a PR removes its exact DNS record, containers, media
+volume, images, and worktree. The external `psv-previews` gateway network stays
+in place for other and future previews.
+
+The checked-in real-IP snippet trusts only Cloudflare's published proxy ranges
+before accepting `CF-Connecting-IP`. Compare it periodically with Cloudflare's
+current IPv4 and IPv6 lists, reinstall it, validate nginx, and reload when the
+published ranges change.
 
 The production virtual host redirects HTTP and `www.physsec.org` requests to
 the canonical `https://physsec.org` origin. It proxies the apex domain to

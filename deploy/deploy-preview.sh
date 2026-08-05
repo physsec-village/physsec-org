@@ -45,10 +45,17 @@ fi
 
 compose build
 if ! compose up -d --wait --wait-timeout 120; then
+    rolled_back=false
     if docker image inspect "$image:previous" >/dev/null 2>&1; then
         echo "Preview failed its health check; rolling back." >&2
-        docker tag "$image:previous" "$image:latest"
-        compose up -d --no-build --wait --wait-timeout 120
+        if docker tag "$image:previous" "$image:latest" && \
+            compose up -d --no-build --wait --wait-timeout 120; then
+            rolled_back=true
+        fi
+    fi
+    if [ "$rolled_back" = false ]; then
+        echo "No healthy rollback is available; removing the failed preview." >&2
+        compose down --volumes --remove-orphans || true
     fi
     exit 1
 fi

@@ -187,9 +187,9 @@ hosted Supabase production database.
   the deploy. The systemd unit's `ExecStart` and `ExecReload` use the same
   script for boot and manual service operations; changes to the unit itself
   require an administrator to run `systemctl daemon-reload` on the host.
-- Trusted same-repository pull requests deploy isolated previews at
-  `pr-<number>.physsec.org`. The workflow creates and removes exact proxied
-  Cloudflare DNS records and cleans up the Compose project when the PR closes.
+- Trusted same-repository pull requests numbered 1 through 9999 deploy isolated
+  previews at `pr-<number>.physsec.org`. The workflow creates and removes exact
+  proxied Cloudflare DNS records and cleans up the Compose project when the PR closes.
   See [`deploy/nginx`](deploy/nginx/README.md) for the required GitHub secrets
   and one-time VPS, TLS, and nginx setup.
 - A production nginx reverse-proxy configuration and security-header policy are
