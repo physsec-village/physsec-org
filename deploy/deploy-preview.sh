@@ -7,13 +7,15 @@ revision=${2:-}
 preview_root=${3:-}
 preview_env_file=${4:-}
 
-case "$preview_id" in *[!0-9]*|'') echo "Preview ID must be numeric." >&2; exit 2 ;; esac
+case "$preview_id" in
+    [1-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]) ;;
+    *) echo "Preview ID must be a canonical number between 1 and 9999." >&2; exit 2 ;;
+esac
 case "$revision" in *[!0-9a-f]*|'') echo "Revision must be a lowercase Git SHA." >&2; exit 2 ;; esac
 [ "${#revision}" -eq 40 ] || { echo "Revision must be a complete Git SHA." >&2; exit 2; }
 case "$preview_root" in /*) ;; *) echo "PREVIEW_ROOT must be an absolute path." >&2; exit 2 ;; esac
 case "$preview_env_file" in /*) ;; *) echo "PREVIEW_ENV_FILE must be an absolute path." >&2; exit 2 ;; esac
 [ "$preview_root" != / ] || { echo "PREVIEW_ROOT cannot be /." >&2; exit 2; }
-[ "$preview_id" -le 9999 ] || { echo "Preview IDs above 9999 are not supported by the hostname matcher." >&2; exit 2; }
 [ -f "$preview_env_file" ] || { echo "Preview environment file does not exist." >&2; exit 2; }
 
 control_compose="$PWD/docker-compose.preview.yml"

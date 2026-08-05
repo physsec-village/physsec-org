@@ -12,11 +12,10 @@ curl_config=$config_dir/cloudflare-curl.conf
 
 [ "$#" -eq 2 ] || { echo "Usage: physsec-preview-dns create|delete PR_NUMBER" >&2; exit 2; }
 case "$action" in create|delete) ;; *) echo "Action must be create or delete." >&2; exit 2 ;; esac
-case "$preview_id" in *[!0-9]*|'') echo "Preview ID must be numeric." >&2; exit 2 ;; esac
-[ "$preview_id" -ge 1 ] && [ "$preview_id" -le 9999 ] || {
-    echo "Preview ID must be between 1 and 9999." >&2
-    exit 2
-}
+case "$preview_id" in
+    [1-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]) ;;
+    *) echo "Preview ID must be a canonical number between 1 and 9999." >&2; exit 2 ;;
+esac
 [ -r "$zone_file" ] && [ -r "$curl_config" ] || {
     echo "Cloudflare helper configuration is unavailable." >&2
     exit 1
