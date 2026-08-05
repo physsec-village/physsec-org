@@ -32,28 +32,49 @@ Run the reload only after `nginx -t` succeeds. Remove or disable any older
 virtual host that claims these domain names so nginx does not select an
 unexpected server block.
 
-## Development site
+## Pull request previews
 
-`dev.physsec.org.conf` proxies the isolated development Compose project on
-`127.0.0.1:8081`. Before enabling it, point the `dev.physsec.org` DNS record at
-the VPS and provision a certificate at the paths declared in the config. Then:
+Trusted pull requests from this repository deploy to
+`pr-<number>.physsec.org`. Each preview gets an exact, proxied Cloudflare CNAME
+and an isolated Compose project on the `psv-previews` Docker network. A small
+gateway resolves each project's network alias and listens only on
+`127.0.0.1:8081`. PR numbers from 1 through 9999 are supported. Start the
+gateway and install the preview virtual host once:
 
 ```bash
-sudo install -D -m 0644 deploy/nginx/dev.physsec.org.conf \
-  /etc/nginx/sites-available/dev.physsec-org.conf
-sudo ln -sfn /etc/nginx/sites-available/dev.physsec-org.conf \
-  /etc/nginx/sites-enabled/dev.physsec-org.conf
+docker compose -f deploy/preview-gateway/docker-compose.yml up -d
+sudo install -D -m 0644 deploy/nginx/previews.physsec.org.conf \
+  /etc/nginx/sites-available/physsec-previews.conf
+sudo ln -sfn /etc/nginx/sites-available/physsec-previews.conf \
+  /etc/nginx/sites-enabled/physsec-previews.conf
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-The development deployment uses its own checkout, `.env.dev`, image names,
-Compose project, media directory, loopback port, and rollback image. Do not
-reuse production database, Stripe, or Turnstile secrets. At minimum,
-`.env.dev` must set `TURNSTILE_ALLOWED_HOSTNAMES=dev.physsec.org` and
-`STORE_PUBLIC_ORIGIN=https://dev.physsec.org`; use Turnstile test keys if the
-test environment should not process real challenges. Start from the committed
-`.env.dev.example` and keep the populated file only on the VPS.
+The config expects the origin certificate at Certbot's conventional
+`/etc/letsencrypt/live/physsec.org` path and that certificate must include
+`*.physsec.org`. A Let's Encrypt wildcard requires DNS validation. With the DNS
+records proxied, Cloudflare supplies its Universal SSL certificate to browsers
+and validates the Let's Encrypt certificate at nginx when the zone uses Full
+(strict) encryption.
+
+Create a root directory and preview environment file owned by the deployment
+account. Start the latter from `.env.preview.example` and use Turnstile test
+keys; preview Compose forces the store off. Configure these secrets on the
+`previews` GitHub Environment (or as repository secrets):
+
+- `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and the existing `DEPLOY_PATH`;
+- `PREVIEW_ROOT`, the absolute VPS directory for temporary git worktrees;
+- `PREVIEW_ENV_FILE`, the absolute path to the host-managed environment file;
+- `CLOUDFLARE_ZONE_ID`; and
+- `CLOUDFLARE_API_TOKEN`, scoped to DNS Write for only the `physsec.org` zone.
+
+The workflow deliberately uses `pull_request_target` so its definition and
+secrets come from the trusted base branch. It refuses fork PRs and only deploys
+PRs whose authors are owners, members, or collaborators. The Compose definition
+also comes from the trusted base checkout; PR code is used only as the image
+build context. Closing a PR removes its exact DNS record, containers, network,
+media volume, images, and worktree.
 
 The production virtual host redirects HTTP and `www.physsec.org` requests to
 the canonical `https://physsec.org` origin. It proxies the apex domain to
