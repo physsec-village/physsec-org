@@ -36,23 +36,20 @@
                     <div class="content-card-footer">Coming soon</div>
                 </article>
             </div>
-            <a href="{{ url_for('games_page') }}" class="content-card-link">
+            <div class="content-card-link content-card-disabled" aria-disabled="true">
                 <article class="content-card">
-                    <h3>Games</h3>
+                    <h3>
+                        Games
+                        <span class="disabled-state">Soon</span>
+                    </h3>
                     <p>
                         Interactive online exercises that demonstrate common
                         physical security weaknesses and the reasoning behind
                         practical mitigations.
                     </p>
-                    <div class="content-card-footer">
-                        Launch games
-                        <svg viewBox="0 0 24 24">
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                            <polyline points="12 5 19 12 12 19" />
-                        </svg>
-                    </div>
+                    <div class="content-card-footer">Coming soon</div>
                 </article>
-            </a>
+            </div>
             <a href="{{ url_for('materials_page') }}" class="content-card-link">
                 <article class="content-card">
                     <h3>Resources</h3>

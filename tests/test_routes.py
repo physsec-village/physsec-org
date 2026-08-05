@@ -51,6 +51,29 @@ class RouteStatusTests(unittest.TestCase):
         self.assertEqual(sitemap.status_code, 200)
         self.assertEqual(sitemap.headers["content-type"], "application/xml")
         self.assertIn("<loc>https://physsec.org/forms/volunteer</loc>", sitemap.text)
+        self.assertNotIn("<loc>https://physsec.org/games</loc>", sitemap.text)
+
+    def test_games_page_is_live_but_not_publicly_advertised(self):
+        with TestClient(app) as client:
+            games = client.get("/games")
+            content = client.get("/content")
+
+        self.assertEqual(games.status_code, 200)
+        self.assertIn(
+            '<meta name="robots" content="noindex,follow"',
+            games.text,
+        )
+        self.assertIn('aria-controls="alarm-levels"', games.text)
+        self.assertEqual(content.status_code, 200)
+        self.assertNotIn('href="http://testserver/games"', content.text)
+        self.assertNotIn('href="/games"', content.text)
+        self.assertRegex(
+            content.text,
+            r'<div class="content-card-link content-card-disabled" '
+            r'aria-disabled="true">\s*<article class="content-card">\s*'
+            r'<h3>\s*Games\s*<span class="disabled-state">Soon</span>[\s\S]*'
+            r'<div class="content-card-footer">Coming soon</div>',
+        )
 
     def test_healthz_is_served(self):
         with TestClient(app) as client:
