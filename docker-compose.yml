@@ -1,26 +1,30 @@
+x-app: &app
+  build: .
+  image: ${APP_IMAGE:-psv-website:latest}
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 10s
+  env_file:
+    - .env
+  volumes:
+    - ./data/media:/psv-website/data/media
+  environment:
+    - APP_ENV=production
+    # Host nginx connects over loopback; forwarded headers therefore come from
+    # the Docker gateway as observed by the container.
+    - FORWARDED_ALLOW_IPS=172.16.0.0/12
+
 services:
-  app:
-    build: .
-    # Deterministic image name so deploy/deploy.sh can tag the previous
-    # release for rollback.
-    image: psv-website:latest
-    restart: unless-stopped
-    healthcheck:
-      # The slim base image has no curl/wget; probe with the stdlib instead.
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+  app-blue:
+    <<: *app
     ports:
-      - "127.0.0.1:8080:8080"
-    env_file:
-      - .env
-    volumes:
-      - ./data/media:/psv-website/data/media
-    environment:
-      # Production startup fails unless Turnstile is fully configured.
-      - APP_ENV=production
-      # Trust proxy headers only from Docker bridge networks. The reverse
-      # proxy must overwrite, rather than append to, X-Forwarded-For.
-      - FORWARDED_ALLOW_IPS=172.16.0.0/12
+      - "127.0.0.1:8081:8080"
+
+  app-green:
+    <<: *app
+    ports:
+      - "127.0.0.1:8082:8080"

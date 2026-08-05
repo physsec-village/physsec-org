@@ -21,7 +21,7 @@ This repository contains the FastAPI-based website for Physical Security Village
 - `templates/`: page templates, navbar, footer, base layout, 404 page
 - `static/`: global and page-specific CSS, logos, SVG assets
 - `Dockerfile`: container image definition
-- `docker-compose.yml`: single-service app deployment
+- `docker-compose.yml`: blue/green app slots on distinct loopback ports
 - `psv-website.service`: example `systemd` unit for running Docker Compose on a host
 
 ## Routes
@@ -61,10 +61,13 @@ If you are not using `uv`, install from `pyproject.toml` with your preferred Pyt
 The containerized path is:
 
 ```bash
-docker compose up --build
+./deploy/deploy.sh
 ```
 
-The compose file publishes the app on `127.0.0.1:8080`.
+The production deployment script requires the host-nginx setup documented in
+[`deploy/nginx`](deploy/nginx/README.md). For local container development, run a
+single slot directly with `docker compose up app-blue`; it binds only to
+`127.0.0.1:8081`.
 
 ## Environment Variables
 
@@ -181,16 +184,24 @@ hosted Supabase production database.
   readiness. The compose file uses the liveness endpoint.
 - Deploys invoke [`deploy/deploy.sh`](deploy/deploy.sh) directly as the
   deployment account, avoiding interactive `sudo` in GitHub Actions. The
-  script builds the new image while the old container keeps serving, swaps
-  containers only after the new one passes its health check, and otherwise
-  rolls back to the previously tagged image (`psv-website:previous`) and fails
-  the deploy. The systemd unit's `ExecStart` and `ExecReload` use the same
+  script serializes deployments, builds an image into the inactive blue/green
+  slot while the active slot keeps serving, and waits for Compose health. It
+  then asks a narrowly privileged, root-owned helper to atomically update and
+  gracefully reload the existing host nginx. It verifies host-nginx traffic
+  reached the new slot before persisting state. A failure or interruption
+  leaves or restores the old route. The previous backend remains running for
+  in-flight requests and is recreated as the inactive slot on the next deploy,
+  after the previous nginx worker generation has fully drained.
+  Runtime slot state lives under the Git-ignored `data/deploy` directory; the
+  helper determines the authoritative live route through host nginx and keeps
+  root-owned state under `/var/lib/physsec-deploy` for diagnostics.
+  The systemd unit's
+  `ExecStart` and `ExecReload` use the same
   script for boot and manual service operations; changes to the unit itself
   require an administrator to run `systemctl daemon-reload` on the host.
 - A production nginx reverse-proxy configuration and security-header policy are
   versioned under [`deploy/nginx`](deploy/nginx/README.md). Install them on the
-  host only after adapting certificate and distribution-specific paths, then
-  validate with `nginx -t` before reloading nginx.
+  host using the documented no-downtime legacy migration sequence.
 
 ## Placeholders To Replace
 

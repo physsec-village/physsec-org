@@ -1,0 +1,193 @@
+#!/bin/sh
+# Install as /usr/local/sbin/psv-switch-upstream, owned and writable by root.
+set -eu
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+UPSTREAM_FILE=/etc/nginx/physsec-active-upstream.conf
+STATE_DIR=/var/lib/physsec-deploy
+STATE_FILE=$STATE_DIR/active-slot
+PREVIOUS_SLOT_FILE=$STATE_DIR/previous-slot
+DRAINING_FILE=$STATE_DIR/draining-workers
+ROUTE_URL=https://physsec.org/healthz
+ROUTE_RESOLVE=physsec.org:443:127.0.0.1
+
+exec 9>/run/lock/physsec-upstream-switch.lock
+if ! flock -n 9; then
+    echo "Another nginx upstream switch is already running." >&2
+    exit 1
+fi
+
+slot_port() {
+    case "$1" in
+        legacy) printf '%s\n' 8080 ;;
+        blue) printf '%s\n' 8081 ;;
+        green) printf '%s\n' 8082 ;;
+        *)
+            echo "Invalid upstream slot: $1" >&2
+            return 2
+            ;;
+    esac
+}
+
+current_slot() {
+    # The selected address remains authoritative even when its container is
+    # temporarily down during host boot, so inspect headers on error responses.
+    port=$(curl -sS --noproxy '*' --max-time 10 \
+        --resolve "$ROUTE_RESOLVE" -D - -o /dev/null "$ROUTE_URL" |
+        tr -d '\r' |
+        sed -n 's/^X-PSV-Upstream:[[:space:]]*127\.0\.0\.1:\([0-9][0-9]*\)[[:space:]]*$/\1/ip' |
+        head -n 1)
+    case "$port" in
+        8080) printf '%s\n' legacy ;;
+        8081) printf '%s\n' blue ;;
+        8082) printf '%s\n' green ;;
+        *)
+            echo "Could not determine the backend currently served by nginx." >&2
+            return 1
+            ;;
+    esac
+}
+
+write_config() {
+    slot=$1
+    destination=$2
+    port=$(slot_port "$slot")
+    {
+        printf '# slot: %s\n' "$slot"
+        printf 'upstream psv_backend {\n'
+        printf '    server 127.0.0.1:%s;\n' "$port"
+        printf '    keepalive 32;\n'
+        printf '}\n'
+    } >"$destination"
+    chmod 0644 "$destination"
+}
+
+record_current_workers() {
+    draining_slot=$1
+    drain_tmp=$DRAINING_FILE.tmp.$$
+    printf '%s\n' "$draining_slot" >"$drain_tmp"
+    master_pid=$(systemctl show --property MainPID --value nginx.service)
+    case "$master_pid" in
+        ''|0|*[!0-9]*)
+            echo "Could not determine the nginx master process." >&2
+            return 1
+            ;;
+    esac
+    ps -o pid= --ppid "$master_pid" |
+        awk '{ print $1 }' |
+        while IFS= read -r worker_pid; do
+            [ -r "/proc/$worker_pid/stat" ] || continue
+            start_time=$(awk '{ print $22 }' "/proc/$worker_pid/stat")
+            printf '%s:%s\n' "$worker_pid" "$start_time"
+        done >>"$drain_tmp"
+    chmod 0644 "$drain_tmp"
+    mv "$drain_tmp" "$DRAINING_FILE"
+    drain_tmp=
+}
+
+case "${1-}" in
+    current)
+        [ "$#" -eq 1 ] || exit 2
+        current_slot
+        exit
+        ;;
+    drained)
+        [ "$#" -eq 1 ] || exit 2
+        [ -s "$DRAINING_FILE" ] || exit 0
+        draining_slot=$(sed -n '1p' "$DRAINING_FILE")
+        [ "$(current_slot)" != "$draining_slot" ] || exit 0
+        sed -n '2,$p' "$DRAINING_FILE" |
+            while IFS=: read -r worker_pid recorded_start; do
+                [ -n "$worker_pid" ] && [ -n "$recorded_start" ] || continue
+                [ -r "/proc/$worker_pid/stat" ] || continue
+                current_start=$(awk '{ print $22 }' "/proc/$worker_pid/stat")
+                if [ "$current_start" = "$recorded_start" ]; then
+                    exit 1
+                fi
+            done
+        exit
+        ;;
+    rollback)
+        [ "$#" -eq 1 ] && [ -s "$PREVIOUS_SLOT_FILE" ] || {
+            echo "No upstream slot is available to roll back." >&2
+            exit 2
+        }
+        target=$(cat "$PREVIOUS_SLOT_FILE")
+        record_previous=false
+        ;;
+    blue|green)
+        [ "$#" -eq 1 ] || exit 2
+        target=$1
+        record_previous=true
+        ;;
+    *)
+        echo "Usage: psv-switch-upstream blue|green|current|drained|rollback" >&2
+        exit 2
+        ;;
+esac
+
+target_port=$(slot_port "$target")
+curl -fsS --noproxy '*' --max-time 5 \
+    "http://127.0.0.1:$target_port/healthz" >/dev/null
+
+# Build rollback configuration from the route nginx is actually serving. The
+# checked-in file may be ahead of live workers after an untrappable SIGKILL.
+live_slot=$(current_slot)
+install -d -o root -g root -m 0755 "$STATE_DIR"
+tmp=$UPSTREAM_FILE.tmp.$$
+old=$UPSTREAM_FILE.old.$$
+previous_tmp=
+state_tmp=
+drain_tmp=
+changed=false
+
+cleanup() {
+    status=$?
+    if [ "$status" -ne 0 ] && [ "$changed" = true ]; then
+        mv "$old" "$UPSTREAM_FILE"
+        record_current_workers "$target" >/dev/null 2>&1 || true
+        if nginx -t >/dev/null 2>&1 &&
+            systemctl reload nginx >/dev/null 2>&1; then
+            :
+        fi
+    fi
+    rm -f "$tmp" "$old"
+    [ -z "$previous_tmp" ] || rm -f "$previous_tmp"
+    [ -z "$state_tmp" ] || rm -f "$state_tmp"
+    [ -z "$drain_tmp" ] || rm -f "$drain_tmp"
+    exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+
+write_config "$live_slot" "$old"
+write_config "$target" "$tmp"
+mv "$tmp" "$UPSTREAM_FILE"
+changed=true
+
+if ! nginx -t || ! record_current_workers "$live_slot" ||
+    ! systemctl reload nginx; then
+    echo "nginx switch failed; restoring the live upstream." >&2
+    exit 1
+fi
+if [ "$(current_slot 2>/dev/null || true)" != "$target" ]; then
+    echo "nginx did not serve the requested upstream; restoring the live upstream." >&2
+    exit 1
+fi
+
+if [ "$record_previous" = true ]; then
+    previous_tmp=$PREVIOUS_SLOT_FILE.tmp.$$
+    printf '%s\n' "$live_slot" >"$previous_tmp"
+    chmod 0644 "$previous_tmp"
+    mv "$previous_tmp" "$PREVIOUS_SLOT_FILE"
+    previous_tmp=
+fi
+
+state_tmp=$STATE_FILE.tmp.$$
+printf '%s\n' "$target" >"$state_tmp"
+chmod 0644 "$state_tmp"
+mv "$state_tmp" "$STATE_FILE"
+state_tmp=
+
+changed=false
