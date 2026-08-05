@@ -1,7 +1,7 @@
 <div align="center">
   <img src="static/psv-compact-logo.svg" alt="Physical Security Village" width="160">
 
-  # Physical Security Village
+  <h1>Physical Security Village</h1>
 
   The website and online store for [Physical Security Village](https://physsec.org).
 </div>
