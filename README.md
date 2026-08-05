@@ -187,6 +187,12 @@ hosted Supabase production database.
   the deploy. The systemd unit's `ExecStart` and `ExecReload` use the same
   script for boot and manual service operations; changes to the unit itself
   require an administrator to run `systemctl daemon-reload` on the host.
+- Pushes to `dev` deploy an isolated test instance at `dev.physsec.org` through
+  `.github/workflows/deploy-dev.yml`. The `development` GitHub Environment must
+  provide `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and `DEV_DEPLOY_PATH`; the last
+  value points to a separate VPS checkout containing a host-managed `.env.dev`.
+  See [`deploy/nginx`](deploy/nginx/README.md) for one-time DNS, TLS, and nginx
+  setup.
 - A production nginx reverse-proxy configuration and security-header policy are
   versioned under [`deploy/nginx`](deploy/nginx/README.md). Install them on the
   host only after adapting certificate and distribution-specific paths, then

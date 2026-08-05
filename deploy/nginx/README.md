@@ -32,6 +32,29 @@ Run the reload only after `nginx -t` succeeds. Remove or disable any older
 virtual host that claims these domain names so nginx does not select an
 unexpected server block.
 
+## Development site
+
+`dev.physsec.org.conf` proxies the isolated development Compose project on
+`127.0.0.1:8081`. Before enabling it, point the `dev.physsec.org` DNS record at
+the VPS and provision a certificate at the paths declared in the config. Then:
+
+```bash
+sudo install -D -m 0644 deploy/nginx/dev.physsec.org.conf \
+  /etc/nginx/sites-available/dev.physsec-org.conf
+sudo ln -sfn /etc/nginx/sites-available/dev.physsec-org.conf \
+  /etc/nginx/sites-enabled/dev.physsec-org.conf
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+The development deployment uses its own checkout, `.env.dev`, image names,
+Compose project, media directory, loopback port, and rollback image. Do not
+reuse production database, Stripe, or Turnstile secrets. At minimum,
+`.env.dev` must set `TURNSTILE_ALLOWED_HOSTNAMES=dev.physsec.org` and
+`STORE_PUBLIC_ORIGIN=https://dev.physsec.org`; use Turnstile test keys if the
+test environment should not process real challenges. Start from the committed
+`.env.dev.example` and keep the populated file only on the VPS.
+
 The production virtual host redirects HTTP and `www.physsec.org` requests to
 the canonical `https://physsec.org` origin. It proxies the apex domain to
 `127.0.0.1:8080`, the concrete loopback address on which Compose publishes the
