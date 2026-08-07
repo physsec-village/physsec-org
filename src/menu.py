@@ -6,6 +6,8 @@ August 7, 2026 export. Keeping the snapshot separate makes future Odoo exports
 straightforward to diff and audit.
 """
 
+import re
+from collections import defaultdict
 from csv import DictReader
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -63,17 +65,26 @@ def _load_menu() -> tuple[Section, ...]:
         "Misc": "Other Gear & Swag",
         "Sets": "Sets",
     }
+    unmapped_categories = {row["category"] for row in rows} - category_titles.keys()
+    if unmapped_categories:
+        names = ", ".join(sorted(unmapped_categories))
+        raise ValueError(f"Unmapped menu categories: {names}")
+
     sections = []
     for category, title in category_titles.items():
         category_rows = (row for row in rows if row["category"] == category)
         items = []
-        for index, row in enumerate(category_rows, start=1):
+        fallback_counts: defaultdict[str, int] = defaultdict(int)
+        for row in category_rows:
             sku = row["sku"] or None
-            code = (
-                sku.removeprefix("PSV-").replace("-", "")
-                if sku
-                else f"ODOO-{category.upper().replace(' ', '-')}-{index}"
-            )
+            if sku:
+                code = sku.removeprefix("PSV-").replace("-", "")
+            else:
+                name_slug = re.sub(r"[^A-Z0-9]+", "-", row["name"].upper()).strip("-")
+                base_code = f"ODOO-{category.upper().replace(' ', '-')}-{name_slug}"
+                fallback_counts[base_code] += 1
+                occurrence = fallback_counts[base_code]
+                code = base_code if occurrence == 1 else f"{base_code}-{occurrence}"
             image_name = f"{code.lower()}.webp"
             image = image_name if (path.parent.parent / "static/images/menu" / image_name).is_file() else ""
             items.append(

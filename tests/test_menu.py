@@ -8,9 +8,16 @@ from src.main import app
 from src.menu import MENU, Item
 
 ITEMS: list[Item] = [item for s in MENU for g in s.groups for item in g.items]
+EXPECTED_SECTION_COUNTS = {
+    "Bypass Tools": 11,
+    "Covert Instruments": 23,
+    "Keys": 73,
+    "Other Gear & Swag": 19,
+    "Sets": 12,
+}
 class MenuDataTests(unittest.TestCase):
     def test_every_item_is_priced_and_named(self):
-        self.assertEqual(len(ITEMS), 138)
+        self.assertEqual(len(ITEMS), sum(EXPECTED_SECTION_COUNTS.values()))
         for item in ITEMS:
             with self.subTest(item=item.name):
                 self.assertTrue(item.name.strip())
@@ -19,24 +26,22 @@ class MenuDataTests(unittest.TestCase):
 
     def test_sections_match_the_exported_odoo_categories(self):
         counts = {section.title: len(section.groups[0].items) for section in MENU}
-        self.assertEqual(
-            counts,
-            {
-                "Bypass Tools": 11,
-                "Covert Instruments": 23,
-                "Keys": 73,
-                "Other Gear & Swag": 19,
-                "Sets": 12,
-            },
-        )
+        self.assertEqual(counts, EXPECTED_SECTION_COUNTS)
 
     def test_barcode_code_is_derived_from_the_sku(self):
+        by_sku = {item.sku: item.code for item in ITEMS if item.sku}
+        self.assertEqual(by_sku["PSV-KYS-004"], "KYS004")
+        self.assertEqual(by_sku["PSV-CVI-009-001"], "CVI009001")
         for item in ITEMS:
             with self.subTest(item=item.name):
                 if item.sku:
                     self.assertEqual(item.code, item.sku.removeprefix("PSV-").replace("-", ""))
                 else:
                     self.assertTrue(item.code.startswith("ODOO-"))
+
+    def test_codes_are_unique(self):
+        codes = [item.code for item in ITEMS]
+        self.assertEqual(len(codes), len(set(codes)))
 
     def test_a_code_maps_to_exactly_one_price(self):
         """Two rows may share a SKU, but never at different prices."""

@@ -102,7 +102,7 @@ class RouteStatusTests(unittest.TestCase):
             "Covert Instruments",
             "Covert Companion",
             "Replicant",
-            "Bump",
+            "Bump Key SC1",
             "Air Wedge",
         ):
             with self.subTest(listed=listed):
