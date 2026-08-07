@@ -4,6 +4,9 @@
 in Point of Sale and assigned to a category whose name ended in ``DC33`` in the
 August 7, 2026 export. Keeping the snapshot separate makes future Odoo exports
 straightforward to diff and audit.
+
+The ``DC33`` suffix is intentional even though this is the DEF CON 34 menu: it
+is the Odoo category suffix selected for this reconciliation.
 """
 
 import re
