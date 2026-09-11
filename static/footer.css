@@ -29,6 +29,13 @@ footer {
     color: var(--muted);
 }
 
+.footer-notice {
+	grid-column-start: 1;
+	grid-column-end: -1;
+	font-size: 0.84rem;
+	color: var(--muted);
+}
+
 .footer-links {
     display: flex;
     flex-wrap: wrap;
