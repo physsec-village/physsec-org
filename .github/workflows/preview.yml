@@ -1,0 +1,83 @@
+name: Preview environment
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    if: >-
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    runs-on: ubuntu-latest
+    environment:
+      name: previews
+      url: https://pr-${{ github.event.pull_request.number }}.physsec.org
+    concurrency:
+      group: preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Deploy preview to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -eu
+            cd "${{ secrets.DEPLOY_PATH }}"
+            ./deploy/deploy-preview.sh \
+              "${{ github.event.pull_request.number }}" \
+              "${{ github.event.pull_request.head.sha }}" \
+              "${{ secrets.PREVIEW_ROOT }}" \
+              "${{ secrets.PREVIEW_ENV_FILE }}"
+
+      - name: Create or update preview DNS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            sudo /usr/local/sbin/physsec-preview-dns create \
+              "${{ github.event.pull_request.number }}"
+
+  cleanup:
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment:
+      name: previews
+    concurrency:
+      group: preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Remove preview DNS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            sudo /usr/local/sbin/physsec-preview-dns delete \
+              "${{ github.event.pull_request.number }}"
+
+      - name: Remove preview from VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -eu
+            cd "${{ secrets.DEPLOY_PATH }}"
+            ./deploy/cleanup-preview.sh \
+              "${{ github.event.pull_request.number }}" \
+              "${{ secrets.PREVIEW_ROOT }}" \
+              "${{ secrets.PREVIEW_ENV_FILE }}"
