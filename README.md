@@ -178,8 +178,13 @@ hosted Supabase production database.
 - The `Dockerfile` installs the exact dependency versions in `uv.lock` with a
   pinned uv release and pinned Python base-image digest, then starts the site
   with `fastapi run src/main.py --proxy-headers --port 8080`.
-- `psv-website.service` expects the repository to live at `/opt/psv-website`.
-- The service file is an example deployment artifact, not a portable installer; adjust paths and service management to match the target host.
+- `psv-website.service` expects the repository to live at `/opt/psv-website`
+  and runs as the unprivileged `github_deploy_dev_physsec_org` account. On the
+  host, that account must match the deployment workflow's `VPS_USER`, own the
+  checkout and `.env`, and have access to the Docker daemon.
+- The service file is an example deployment artifact, not a portable installer;
+  adjust its user, group, paths, and service management to match the target
+  host. Never run a script from a deployment-user-writable checkout as root.
 - The app serves `/healthz` for liveness and `/readyz` for store database
   readiness. The compose file uses the liveness endpoint.
 - Deploys invoke [`deploy/deploy.sh`](deploy/deploy.sh) directly as the
@@ -214,6 +219,7 @@ The repository still contains several stubbed or provisional values that should 
 | `pyproject.toml` | `description = "Add your description here"` | Real package/project description |
 | `.env` inputs consumed by `src/forms/email.py` and `src/forms/router.py` | `MAIL_USERNAME`, `MAIL_PASSWORD`, `RECEIVER_EMAIL` are expected but not documented in-repo beyond code | Real SMTP credentials and destination inbox |
 | `psv-website.service` | `WorkingDirectory=/opt/psv-website` | Actual deployment path if this unit is used |
+| `psv-website.service` | `User=github_deploy_dev_physsec_org` and `Group=github_deploy_dev_physsec_org` | Deployment account used by `VPS_USER` |
 
 ### Disabled or "coming soon" site sections
 
