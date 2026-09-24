@@ -235,6 +235,32 @@ def get_product_by_id(product_id: int | str) -> dict[str, Any] | None:
         return _hydrate_products(conn, [row])[0] if row else None
 
 
+def variant_exists(sku: str) -> bool:
+    with connection() as conn:
+        return (
+            conn.execute(
+                "SELECT 1 FROM variants WHERE sku=%s", (sku.upper(),)
+            ).fetchone()
+            is not None
+        )
+
+
+def sku_inventory() -> dict[str, dict[str, Any]]:
+    """Return price and availability for every published variant, by SKU."""
+    with connection() as conn:
+        rows = conn.execute(
+            f"SELECT v.sku,v.price_cents,{_available_sql()} AS available_stock "
+            "FROM variants v JOIN products p ON p.id=v.product_id WHERE p.published"
+        ).fetchall()
+    return {
+        row["sku"]: {
+            "price_cents": int(row["price_cents"]),
+            "available_stock": max(0, int(row["available_stock"])),
+        }
+        for row in rows
+    }
+
+
 def catalog_json() -> dict[str, Any]:
     """Return a SKU-first catalog safe to embed in storefront pages."""
     result: dict[str, Any] = {}

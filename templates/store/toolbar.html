@@ -1,0 +1,33 @@
+{# Collection navigation and search shown on every store page. #}
+<div class="store-bar" role="navigation" aria-label="Store sections">
+    <div class="store-bar-links">
+        <a
+            href="{{ url_for('store_page') }}"
+            class="store-bar-link{% if request.url.path == url_for('store_page').path %} active{% endif %}"
+            {% if request.url.path == url_for('store_page').path %}aria-current="page"{% endif %}
+        >All</a>
+        {% for c in collections %}
+            <a
+                href="{{ c.url }}"
+                class="store-bar-link{% if request.url.path == c.url %} active{% endif %}"
+                {% if request.url.path == c.url %}aria-current="page"{% endif %}
+            >{{ c.title }}</a>
+        {% endfor %}
+    </div>
+    <form class="store-bar-search search-wrap" action="{{ url_for('store_search_page') }}" method="get" role="search">
+        <label class="visually-hidden" for="storeSearch">Search the store</label>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input
+            id="storeSearch"
+            name="q"
+            type="search"
+            value="{{ query | default('') }}"
+            placeholder="Search tools, keys, SKUs…"
+            maxlength="80"
+            autocomplete="off"
+        />
+    </form>
+</div>

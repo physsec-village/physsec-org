@@ -41,11 +41,13 @@ The app currently serves these user-facing routes:
 - `/forms/calls`
 - `/forms/email` (`POST`)
 - `/store`
-- `/store/catalog`
-- `/store/product/{product_id}`
-- `/store/checkout`
+- `/store/collection/{slug}`
+- `/store/product/{slug}`
+- `/store/search`
+- `/store/checkout` (`GET` page, `POST` creates the Stripe Checkout Session)
 - `/store/confirmed`
 - `/store/webhook` (`POST`, Stripe-signed)
+- `/menu` (unlisted DEF CON store menu; the store's content source)
 
 ## Local Development
 
@@ -57,6 +59,17 @@ uv run fastapi dev src/main.py
 ```
 
 If you are not using `uv`, install from `pyproject.toml` with your preferred Python environment manager and run FastAPI directly.
+
+To work on the store locally, point it at a local PostgreSQL with the migration
+applied and give the seeded catalog some stock:
+
+```bash
+STORE_ENABLED=true STORE_BOOTSTRAP_STOCK=10 DATABASE_URL=postgresql://postgres:psv_test_password@127.0.0.1:55432/psv_dev uv run fastapi dev src/main.py
+```
+
+Checkout itself needs `STRIPE_SECRET_KEY` (a test-mode key is fine) and
+`STORE_PUBLIC_ORIGIN=http://127.0.0.1:8000`; without them the checkout button
+reports that checkout is not configured.
 
 The containerized path is:
 
@@ -138,6 +151,28 @@ unavailable until inventory is explicitly loaded. Prices and inventory are
 always resolved server-side in integer cents and browser carts contain only
 SKU/quantity pairs.
 
+### Store catalog
+
+`src/menu.py` (the DEF CON store menu) is the single source of truth for what
+the store sells: names, prices, copy, photos in `static/images/menu`, and how
+items are grouped. `src/store/catalog.py` reshapes each menu section into a
+store collection page and gives every menu item a SKU, a URL slug, and a UPC
+from `src/store/products.tsv`. Menu items that do not have an inventory SKU yet
+get a `PSV-TBD-NNN` placeholder derived from their menu code; replace those in
+`src/menu.py` once inventory assigns real SKUs.
+
+On startup the app seeds any menu item missing from PostgreSQL as one product
+with one variant at the menu price. The database remains the authority for the
+price that is displayed and charged, and for stock. A `store_price_drift`
+warning is logged for any SKU whose database price no longer matches the menu.
+A database that was seeded by the earlier placeholder catalog should be
+truncated (`store.categories`, `store.checkouts`, `store.stripe_events` with
+`CASCADE`) before the store is enabled so the placeholder prices do not win.
+
+Items whose menu copy carries the FEO-K1 vetting footnote (the fire service key
+and the sets that include it) are imported unpublished. They are shown with a
+"Contact to order" link and can never be added to a cart.
+
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Stripe Checkout.
 - `STORE_PUBLIC_ORIGIN` is the canonical HTTPS origin used for Stripe redirects.
 - `STORE_SHIP_COUNTRIES` is a comma-separated country allowlist.
@@ -157,7 +192,8 @@ expected store schema version;
 `/healthz` remains the process liveness probe.
 
 Store integration tests run against disposable PostgreSQL rather than a mock or
-SQLite compatibility layer:
+SQLite compatibility layer. Any local PostgreSQL 17 on `127.0.0.1:55432` with
+the migration applied works; Docker Compose is the quickest way to get one:
 
 ```sh
 docker compose -f docker-compose.test.yml up -d
@@ -235,7 +271,7 @@ The repository still contains several stubbed or provisional values that should 
 
 The site already has a coherent frontend structure, working contact and
 volunteer email paths, locally managed game thumbnails, and a Stripe-backed
-store commerce foundation. Store inventory and production Stripe configuration
-must be loaded before checkout is enabled. The main remaining areas are
+store built from the DEF CON menu. Store inventory and production Stripe
+configuration must be loaded before checkout is enabled. The main remaining areas are
 organizational content, real event/archive data, store administration,
 sponsorship decisions, legacy game routes, and deployment-specific operations.

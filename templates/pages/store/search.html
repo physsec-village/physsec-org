@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "store/macros.html" import item_card with context %}
+{% block title %}{% if query %}“{{ query }}” | {% endif %}Search | PSV Store | Physical Security Village{% endblock %}
+{% block description %}Search the Physical Security Village store.{% endblock %}
+{% block robots %}noindex,follow{% endblock %}
+{% block styles %}
+<link href="/static/pages/store.css?v=2" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('store_page') }}">Store</a>
+            <span>/</span>
+            <span>Search</span>
+        </div>
+        <h1 class="page-title">{% if query %}Results for <em>{{ query }}</em>{% else %}Search the <em>store</em>{% endif %}</h1>
+        {% if query %}
+            <p class="page-summary">{{ results | length }} item{{ "" if results | length == 1 else "s" }} match.</p>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="page-shell">
+        {% include "store/toolbar.html" %}
+
+        {% if results %}
+            <div class="item-grid">
+                {% for p in results %}{{ item_card(p, show_group=true) }}{% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state store-empty">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                {% if query %}
+                    <p>Nothing matches “{{ query }}”. Try a key name, a SKU, or browse a collection above.</p>
+                {% else %}
+                    <p>Type a tool, key, or SKU to search, or pick a collection above.</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block overlays %}
+    {% include "store/cart.html" %}
+{% endblock %}

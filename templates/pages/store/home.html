@@ -1,67 +1,112 @@
 {% extends "base.html" %}
-{% from "store/macros.html" import product_card, cat_icon with context %}
+{% from "store/macros.html" import item_card, item_photo, collection_card, buy_button with context %}
 {% block title %}PSV Store | Physical Security Village{% endblock %}
-{% block description %}Bypass tools, keyed-alike utility keys, RFID research hardware, and village merch from the Physical Security Village store.{% endblock %}
+{% block description %}Bypass tools, Lishi picks, keyed-alike utility and elevator keys, RFID fobs, and gear from the Physical Security Village. Every purchase funds the Village.{% endblock %}
 {% block styles %}
-<link href="/static/pages/store.css" rel="stylesheet" />
+<link href="/static/pages/store.css?v=2" rel="stylesheet" />
 {% endblock %}
 
 {% block page_header %}
-    <div class="page-header-inner">
+    <div class="page-header-inner store-home-header">
         <div class="store-hero">
             <div class="store-hero-copy">
-                <span class="store-eyebrow">Featured drop</span>
-                <h1 class="store-hero-title">{{ hero.name }}</h1>
-                <p class="store-hero-desc">{{ hero.desc }}</p>
-                <div class="store-hero-cta">
-                    <span class="price price-hero">{{ hero.price_str }}</span>
-                    <a href="{{ url_for('store_product_page', product_id=hero.id) }}" class="btn btn-primary">
-                        Shop now
-                        <svg viewBox="0 0 24 24">
+                <span class="store-eyebrow">PSV Store</span>
+                <h1 class="page-title">Tools from<br /><em>the Village bench</em></h1>
+                <p class="page-summary">
+                    The same bypass tools, keyed-alike keys, and gear we teach
+                    with at the Village, shipped to your door. Every purchase
+                    goes towards putting on the Village.
+                </p>
+                <div class="store-hero-actions">
+                    <a href="{{ collections[0].url }}" class="btn btn-primary">
+                        Shop bypass tools
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
                             <line x1="5" y1="12" x2="19" y2="12" />
                             <polyline points="12 5 19 12 12 19" />
                         </svg>
                     </a>
+                    <a href="#collections" class="btn btn-outline">Browse collections</a>
                 </div>
             </div>
-            <div class="store-hero-art" role="img" aria-label="{{ hero.name }} photo placeholder">
-                {{ cat_icon(hero.cat) }}
-            </div>
+            <a href="{{ hero.url }}" class="store-hero-card">
+                {{ item_photo(hero, class="photo-hero") }}
+                <div class="store-hero-card-body">
+                    <span class="store-eyebrow store-eyebrow-quiet">Designed in house</span>
+                    <strong>{{ hero.name }}</strong>
+                    <p>{{ hero.desc }}</p>
+                    <span class="store-hero-card-price">
+                        <span class="price price-lg">{{ hero.price_str }}</span>
+                        <span class="store-hero-card-link">View details →</span>
+                    </span>
+                </div>
+            </a>
         </div>
     </div>
 {% endblock %}
 
 {% block main %}
     <div class="page-shell">
-        <section class="store-section">
+        {% include "store/toolbar.html" %}
+
+        <section class="store-section" id="collections">
             <div class="store-section-head">
-                <h2>Shop by Category</h2>
-                <a href="{{ url_for('store_catalog_page') }}" class="store-view-all">View all →</a>
+                <h2>Shop by collection</h2>
+                <p>Seven shelves, sorted the way we lay them out on the table.</p>
             </div>
-            <div class="cat-hub">
-                {% for c in categories %}
-                    <a href="{{ url_for('store_catalog_page') }}?cat={{ c.key }}" class="cat-hub-link">
-                        {{ c.label }}
-                        <svg viewBox="0 0 24 24">
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                            <polyline points="12 5 19 12 12 19" />
-                        </svg>
-                    </a>
+            <div class="collection-grid">
+                {% for c in collections %}
+                    {{ collection_card(c, wide=loop.first) }}
                 {% endfor %}
             </div>
         </section>
 
         <section class="store-section">
             <div class="store-section-head">
-                <h2>Featured Kit</h2>
+                <h2>Village picks</h2>
+                <p>What the crew reaches for first.</p>
             </div>
-            <div class="product-grid">
+            <div class="item-grid item-grid-picks">
                 {% for p in featured %}
-                    {{ product_card(p, featured=true) }}
+                    {{ item_card(p, show_group=true) }}
                 {% endfor %}
+            </div>
+        </section>
+
+        <section class="store-section store-notes">
+            <div class="store-note">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="7.5" cy="15.5" r="5.5" />
+                    <path d="m21 2-9.6 9.6" />
+                    <path d="m15.5 7.5 3 3L22 7l-3-3" />
+                </svg>
+                <div>
+                    <strong>Keyed alike</strong>
+                    <p>Every PSV key is cut keyed-alike, so it drops straight into your training set and opens what ours opens.</p>
+                </div>
+            </div>
+            <div class="store-note">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <div>
+                    <strong>Authorized use only</strong>
+                    <p>These items are sold for education, research, and lawful security testing. By checking out you confirm you may possess and use them where you live.</p>
+                </div>
+            </div>
+            <div class="store-note">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="1" y="4" width="22" height="16" rx="2" />
+                    <line x1="1" y1="10" x2="23" y2="10" />
+                </svg>
+                <div>
+                    <strong>Secure checkout</strong>
+                    <p>Payment and shipping details are collected by Stripe. This site never sees your card number, and proceeds fund the Village.</p>
+                </div>
             </div>
         </section>
     </div>
+{% endblock %}
 
+{% block overlays %}
     {% include "store/cart.html" %}
 {% endblock %}

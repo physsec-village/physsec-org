@@ -5,8 +5,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import stripe
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -49,81 +49,89 @@ def _items(payload: CartPayload) -> list[dict[str, Any]]:
     return [{"sku": item.sku, "qty": item.qty} for item in payload.items]
 
 
-def _context(
-    catalog_products: tuple[storefront.ProductView, ...], **extra: Any
-) -> dict[str, Any]:
+def _context(front: storefront.Storefront, **extra: Any) -> dict[str, Any]:
     return {
-        "catalog_json": storefront.browser_catalog(catalog_products),
+        "catalog_json": front.browser_catalog(),
+        "collections": front.collections(),
         **extra,
     }
 
 
 @router.get("", response_class=HTMLResponse, name="store_page")
 def store_page(request: Request):
-    products = storefront.products()
-    featured = storefront.featured_products(products)
-    if not products:
-        raise HTTPException(status_code=503, detail="Store catalog is unavailable.")
-    hero = next(
-        (product for product in products if product.id == catalog.HERO_PRODUCT_ID),
-        products[0],
-    )
+    front = storefront.Storefront()
     return templates.TemplateResponse(
         request=request,
         name="pages/store/home.html",
         context=_context(
-            products,
-            hero=hero,
-            featured=featured[:4],
-            categories=storefront.category_hub(products),
+            front,
+            hero=front.view(catalog.HERO),
+            featured=front.views(catalog.FEATURED),
         ),
     )
 
 
-@router.get("/catalog", response_class=HTMLResponse, name="store_catalog_page")
-def store_catalog_page(request: Request, cat: str = "All"):
-    if cat not in catalog.CATEGORY_LABELS:
-        cat = "All"
-    products = storefront.products()
-    return templates.TemplateResponse(
-        request=request,
-        name="pages/store/catalog.html",
-        context=_context(
-            products,
-            products=products,
-            categories=storefront.category_hub(products),
-            initial_cat=cat,
-            all_blurb=catalog.ALL_PRODUCTS_BLURB,
-        ),
-    )
+@router.get("/catalog", include_in_schema=False)
+def store_catalog_redirect(request: Request):
+    """The single-grid catalog was replaced by per-collection pages."""
+    return RedirectResponse(request.url_for("store_page"), status_code=301)
 
 
 @router.get(
-    "/product/{product_id}", response_class=HTMLResponse, name="store_product_page"
+    "/collection/{slug}", response_class=HTMLResponse, name="store_collection_page"
 )
-def store_product_page(request: Request, product_id: str):
-    product = storefront.get_product(product_id)
-    if product is None:
+def store_collection_page(request: Request, slug: str):
+    collection = catalog.COLLECTION_MAP.get(slug)
+    if collection is None:
         raise HTTPException(status_code=404)
-    products = storefront.products()
+    front = storefront.Storefront()
+    return templates.TemplateResponse(
+        request=request,
+        name="pages/store/collection.html",
+        context=_context(front, collection=front.collection(collection)),
+    )
+
+
+@router.get("/product/{slug}", response_class=HTMLResponse, name="store_product_page")
+def store_product_page(request: Request, slug: str):
+    item = catalog.ITEMS_BY_SLUG.get(slug)
+    if item is None:
+        raise HTTPException(status_code=404)
+    front = storefront.Storefront()
     return templates.TemplateResponse(
         request=request,
         name="pages/store/product.html",
         context=_context(
-            products,
-            product=product,
-            related=storefront.related_products(product, products),
+            front,
+            product=front.view(item),
+            collection=front.collection(catalog.collection_for(item)),
+            group=catalog.group_for(item),
+            related=front.views(catalog.related_items(item)),
+        ),
+    )
+
+
+@router.get("/search", response_class=HTMLResponse, name="store_search_page")
+def store_search_page(request: Request, q: str = Query(default="", max_length=80)):
+    query = " ".join(q.split())
+    front = storefront.Storefront()
+    return templates.TemplateResponse(
+        request=request,
+        name="pages/store/search.html",
+        context=_context(
+            front,
+            query=query,
+            results=front.views(catalog.search(query)),
         ),
     )
 
 
 @router.get("/checkout", response_class=HTMLResponse, name="store_checkout_page")
 def store_checkout_page(request: Request):
-    products = storefront.products()
     return templates.TemplateResponse(
         request=request,
         name="pages/store/checkout.html",
-        context=_context(products),
+        context=_context(storefront.Storefront()),
     )
 
 
@@ -214,13 +222,12 @@ def store_confirmed_page(request: Request, session_id: str = ""):
     if not session_id:
         raise HTTPException(status_code=404)
     order = db.confirmation_lookup(session_id)
-    products = storefront.products()
     pending = order is None
     return templates.TemplateResponse(
         request=request,
         name="pages/store/confirmed.html",
         context=_context(
-            products,
+            storefront.Storefront(),
             order=order,
             pending=pending,
             session_id=session_id,

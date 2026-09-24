@@ -3,7 +3,7 @@
 {% block description %}Check out your Physical Security Village store order.{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block styles %}
-<link href="/static/pages/store.css" rel="stylesheet" />
+<link href="/static/pages/store.css?v=2" rel="stylesheet" />
 {% endblock %}
 
 {% block page_header %}
@@ -24,13 +24,22 @@
         <form id="checkoutForm" class="checkout-layout">
             <div class="checkout-fields">
                 <div class="checkout-card">
-                    <div class="checkout-card-title">Secure checkout</div>
+                    <div class="checkout-card-title">Review your order</div>
                     <p>
-                        Your cart is validated against current inventory before
-                        you continue to Stripe. Stripe securely collects payment
-                        and shipping details; this site never handles card data.
+                        Your cart is checked against current inventory before
+                        you continue to Stripe. Stripe collects payment and
+                        shipping details; this site never handles card data.
                     </p>
                     <p class="form-error" id="checkoutError" role="alert" hidden></p>
+                </div>
+                <div class="checkout-card checkout-legal">
+                    <div class="checkout-card-title">Authorized use only</div>
+                    <p>
+                        These items are sold for education, research, and
+                        lawful security testing. By continuing you confirm you
+                        have the right to possess and use them in your
+                        jurisdiction.
+                    </p>
                 </div>
             </div>
 
@@ -40,7 +49,7 @@
                 <div class="summary-totals" id="summaryTotals">
                     <div class="summary-row">
                         <span>Subtotal</span>
-                        <span class="mono" id="summarySubtotal">$0.00</span>
+                        <span class="mono" id="summarySubtotal">$0</span>
                     </div>
                     <div class="summary-row">
                         <span>Shipping &amp; tax</span>
@@ -50,15 +59,17 @@
                 <button type="submit" class="btn btn-primary checkout-submit" id="placeOrder">
                     Continue to secure checkout
                 </button>
-                <a href="{{ url_for('store_catalog_page') }}" class="btn btn-outline">Continue shopping</a>
+                <a href="{{ url_for('store_page') }}" class="btn btn-outline">Continue shopping</a>
                 <p class="summary-empty" id="summaryEmpty" hidden>
                     Your cart is empty.
-                    <a href="{{ url_for('store_catalog_page') }}">Browse the store</a>
+                    <a href="{{ url_for('store_page') }}">Browse the store</a>
                     to add items.
                 </p>
             </aside>
         </form>
     </div>
+{% endblock %}
 
+{% block overlays %}
     {% include "store/cart.html" %}
 {% endblock %}

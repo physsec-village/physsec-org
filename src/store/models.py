@@ -9,8 +9,11 @@ from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 # Category codes in the real inventory include RFID.  Keep the grammar strict
 # while avoiding the three-character assumption made by the original backend.
-BASE_SKU_RE = re.compile(r"^PSV-[A-Z0-9]{3,8}-\d{3}$")
-VARIANT_SKU_RE = re.compile(r"^PSV-[A-Z0-9]{3,8}-\d{3}(?:-\d{3})?$")
+# Every menu item is its own product, so a base SKU may carry the optional
+# -NNN suffix that the inventory system uses for members of a family
+# (PSV-BYP-014-002 is one Lishi pick, not a variant of a "Lishi" product).
+BASE_SKU_RE = re.compile(r"^PSV-[A-Z0-9]{3,8}-\d{3}(?:-\d{3})?$")
+VARIANT_SKU_RE = BASE_SKU_RE
 SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 
@@ -60,7 +63,9 @@ class ProductInput(BaseModel):
         if not self.name:
             raise ValueError("Product name is required.")
         if not BASE_SKU_RE.fullmatch(self.base_sku):
-            raise ValueError("Base SKU must match PSV-CATEGORY-NNN.")
+            raise ValueError(
+                "Base SKU must be PSV-CATEGORY-NNN with an optional -NNN suffix."
+            )
         if not self.variants:
             raise ValueError("At least one variant is required.")
         seen: set[str] = set()
@@ -86,7 +91,9 @@ def slugify(value: str) -> str:
 def category_code_from_sku(base_sku: str) -> str:
     normalized = base_sku.strip().upper()
     if not BASE_SKU_RE.fullmatch(normalized):
-        raise ValueError("Base SKU must match PSV-CATEGORY-NNN.")
+        raise ValueError(
+            "Base SKU must be PSV-CATEGORY-NNN with an optional -NNN suffix."
+        )
     return normalized.split("-")[1]
 
 

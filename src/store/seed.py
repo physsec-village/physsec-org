@@ -1,4 +1,4 @@
-"""Resumable import of the storefront design catalog into PostgreSQL."""
+"""Resumable import of the menu-derived catalog into PostgreSQL."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import logging
 
 from . import catalog, db
 from .config import bootstrap_stock
-from .models import ProductInput, VariantInput, cents_from_dollars
+from .models import ProductInput, VariantInput
 
 logger = logging.getLogger(__name__)
 
@@ -18,49 +18,42 @@ def bootstrap_catalog() -> int:
 
 
 def _bootstrap_catalog() -> int:
-    """Import the bundled catalog only when the database has no products.
+    """Import menu items that the database does not know about yet.
 
-    Imports resume per base SKU. Prices come from the approved design data, but
-    stock defaults to zero so a fresh production deployment cannot accidentally
-    sell unconfigured items.
+    Every menu item becomes one product with one variant keyed by its SKU.
+    Prices come from the menu, but stock defaults to zero so a fresh
+    production deployment cannot accidentally sell unconfigured items.
+    Items that require vetting are imported unpublished so they can never be
+    added to a cart.
     """
     initial_stock = bootstrap_stock()
-    grouped: dict[str, list[catalog.Product]] = {}
-    for product in catalog.PRODUCTS:
-        grouped.setdefault("-".join(product.id.split("-")[:3]), []).append(product)
-
     imported = 0
-    for base_sku, members in grouped.items():
-        if db.get_product_by_id(base_sku) is not None:
+    for item in catalog.ITEMS:
+        if db.get_product_by_id(item.sku) is not None:
             continue
-        product = members[0]
-        source_variants: list[tuple[catalog.Variant, catalog.Product]] = []
-        for member in members:
-            variants = member.variants or (
-                catalog.Variant(code="_", label="", sku=member.sku, upc=member.upc),
-            )
-            source_variants.extend((variant, member) for variant in variants)
-        variants = [
-            VariantInput(
-                sku=variant.sku,
-                name=variant.label or (member.name if len(members) > 1 else ""),
-                upc=variant.upc,
-                price_cents=cents_from_dollars(str(member.price)),
-                stock_on_hand=initial_stock,
-                position=position,
-            )
-            for position, (variant, member) in enumerate(source_variants)
-        ]
+        if db.variant_exists(item.sku):
+            # A previous catalog import already sells this SKU as part of a
+            # different product. Keep that row as the price/stock authority
+            # rather than failing startup on the unique constraint.
+            logger.warning("store_catalog_sku_already_present sku=%s", item.sku)
+            continue
         db.create_product(
             ProductInput(
-                name=product.name,
-                slug=product.id,
-                base_sku=base_sku,
-                description=product.desc,
-                category_label=product.cat_label,
-                featured=any(member in catalog.FEATURED for member in members),
-                published=True,
-                variants=variants,
+                name=item.name,
+                slug=item.slug,
+                base_sku=item.sku,
+                description=item.desc,
+                category_label=item.category_label,
+                featured=item.feature,
+                published=not item.restricted,
+                variants=[
+                    VariantInput(
+                        sku=item.sku,
+                        upc=item.upc,
+                        price_cents=item.price_cents,
+                        stock_on_hand=initial_stock,
+                    )
+                ],
             ),
         )
         imported += 1
@@ -69,4 +62,24 @@ def _bootstrap_catalog() -> int:
         imported,
         initial_stock,
     )
+    _warn_on_price_drift()
     return imported
+
+
+def _warn_on_price_drift() -> None:
+    """Flag SKUs whose database price no longer matches the menu.
+
+    The database is what checkout charges and what the storefront displays,
+    so a drift is not an error, but it usually means the menu was updated
+    without updating inventory (or the other way around).
+    """
+    inventory = db.sku_inventory()
+    for item in catalog.ITEMS:
+        row = inventory.get(item.sku)
+        if row is not None and int(row["price_cents"]) != item.price_cents:
+            logger.warning(
+                "store_price_drift sku=%s menu_cents=%d database_cents=%d",
+                item.sku,
+                item.price_cents,
+                int(row["price_cents"]),
+            )

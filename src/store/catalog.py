@@ -1,313 +1,309 @@
-"""PSV store catalog.
+"""Storefront catalog derived from the DEF CON store menu.
 
-Products live in products.tsv (name, SKU, UPC). SKUs with four segments
-(PSV-CAT-NNN-VVV) are variants and get grouped into a single product whose
-shared name and per-variant labels are derived from the member names.
+`src/menu.py` is the single source of truth for what PSV sells: names,
+prices, copy, photos, and how items are grouped. This module reshapes that
+menu into the online store's collections and gives every item a stable SKU,
+a URL slug, and a UPC (looked up from `products.tsv`) so it can be seeded
+into PostgreSQL and sold through Stripe Checkout.
 
-Prices are deliberately deterministic placeholders (hash of the SKU plus a
-per-category base, with overrides for well-known items) carried over from the
-approved store design; replace with real pricing data when it exists.
+Prices here are the menu's list prices in integer cents. Checkout always
+charges the price stored in the database, which the bootstrap seeds from this
+module; the storefront displays the database price so what is shown is what
+is charged.
 """
 
+from __future__ import annotations
+
+import csv
 import logging
 import re
 from dataclasses import dataclass, field
-from math import floor
 from pathlib import Path
+
+from ..dependencies import strip_footnotes
+from ..menu import FOOTNOTES, MENU, Item
+from .models import slugify
+
+logger = logging.getLogger(__name__)
+
+# Menu copy that only makes sense at the event table.
+_EVENT_COPY = (
+    (re.compile(r"\s+for sale at DEF CON \d+"), " in the store"),
+    (re.compile(r"\bDEF CON \d+\b"), "the Village"),
+)
+
+# Section titles carry a price hint ("Lishi Tools — $100 Each"); the store
+# shows prices per item, so the hint becomes a small tag instead.
+_TITLE_PRICE_TAG = re.compile(r"\s+[—–-]\s+(\$\d+\s+each)$", re.IGNORECASE)
+
+# A footnote marker in an item's name or contents means the item cannot be
+# shipped without vetting (FEO-K1, the national fire service key).
+_VETTING_MARKER = "[^1]"
+
+# Placeholder SKUs for menu items that do not have one yet. The prefix keeps
+# them out of the real PSV-BYP/KYS/... families until inventory assigns one.
+PLACEHOLDER_CATEGORY = "TBD"
 
 CATEGORY_LABELS = {
     "BYP": "Bypass Tools",
     "KYS": "Keys",
-    "RFID": "RFID",
     "MSC": "Gear",
-    "MRC": "Merch",
+    "RFID": "RFID",
+    PLACEHOLDER_CATEGORY: "Sets & Bundles",
 }
 
-CATEGORY_ORDER = ("BYP", "KYS", "RFID", "MSC", "MRC")
-logger = logging.getLogger(__name__)
-
-CATEGORY_BLURBS = {
-    "BYP": "Shims, jigglers, slips, and picks for hands-on bypass practice.",
-    "KYS": "Elevator, equipment, and utility keys — all cut keyed-alike.",
-    "RFID": "Read, study, and clone access credentials in a controlled lab.",
-    "MSC": "Practical gear for the physical security bench and go-bag.",
-    "MRC": "Wear the village. Soft, durable, unmistakably PSV.",
-}
-
-ALL_PRODUCTS_BLURB = "Every tool, key, and kit on the PSV bench, in one grid."
-
-CATEGORY_DESCRIPTIONS = {
-    "BYP": "A field-proven bypass tool for hands-on practice and authorized "
-    "entry work. Machined to hold up to repeated bench use.",
-    "KYS": "A commonly encountered utility key. Every PSV key is cut "
-    "keyed-alike, so it drops right into the rest of your set for training "
-    "and demonstrations.",
-    "RFID": "RFID research hardware for reading, studying, and cloning access "
-    "credentials in a controlled lab environment.",
-    "MSC": "Practical gear for the physical security bench and go-bag.",
-    "MRC": "Represent the village. Soft, durable, and unmistakably PSV.",
-}
-
-_PRICE_OVERRIDES = (
-    (re.compile(r"proxmark"), 89.99),
-    (re.compile(r"^handcuffs$"), 24.99),
-    (re.compile(r"lockpicking practice"), 21.99),
-    (re.compile(r"screwdriver set"), 29.99),
-    (re.compile(r"uv pen"), 8.99),
-    (re.compile(r"cable key ring"), 5.99),
-    (re.compile(r"zener"), 14.99),
+HERO_CODE = "BYP012"
+FEATURED_CODES = (
+    "BYP010",
+    "BYP014002",
+    "TBD014",
+    "MSC003",
+    "KYS028001",
+    "BYP007",
 )
-
-_PRICE_BASES = {"BYP": 14, "KYS": 8, "MRC": 27, "MSC": 18, "RFID": 16}
-
-_FEATURED_PATTERNS = (
-    re.compile(r"proxmark", re.IGNORECASE),
-    re.compile(r"^lishi", re.IGNORECASE),
-    re.compile(r"^medeco bump", re.IGNORECASE),
-    re.compile(r"unauthorised personnel shirt", re.IGNORECASE),
-    re.compile(r"^handcuffs$", re.IGNORECASE),
-)
-
-HERO_PRODUCT_ID = "PSV-RFID-001"
-
-FREE_SHIPPING_THRESHOLD = 75
-FLAT_SHIPPING = 7.99
+COLLECTION_COVERS = {
+    "bypass-tools": "byp010.webp",
+    "lockpicking": "byp003.webp",
+    "lishi": "byp014002.webp",
+    "keyed-alike": "kys003.webp",
+    "specialty-keys": "tbd014.webp",
+    "elevator": "kys028001.webp",
+    "gear": "rfid002002.webp",
+}
 
 
 @dataclass(frozen=True)
-class Variant:
+class StoreItem:
+    """One sellable menu line, addressed by SKU."""
+
     code: str
-    label: str
     sku: str
-    upc: str
-
-
-@dataclass(frozen=True)
-class Product:
-    id: str
+    slug: str
     name: str
-    cat: str
-    sku: str
-    upc: str
-    price: float
-    variants: tuple[Variant, ...] = field(default=())
+    price_cents: int
+    price_suffix: str = ""
+    desc: str = ""
+    note: str = ""
+    bullets: tuple[str, ...] = ()
+    details: tuple[str, ...] = ()
+    image: str = ""
+    upc: str = ""
+    feature: bool = False
+    restricted: bool = False
+    restricted_reason: str = ""
+    collection_slug: str = ""
+    group_title: str = ""
 
     @property
-    def cat_label(self) -> str:
-        return CATEGORY_LABELS.get(self.cat, self.cat)
+    def category_code(self) -> str:
+        return self.sku.split("-")[1]
 
     @property
-    def is_key(self) -> bool:
-        return self.cat == "KYS"
+    def category_label(self) -> str:
+        return CATEGORY_LABELS.get(self.category_code, self.category_code)
 
     @property
-    def price_str(self) -> str:
-        return f"${self.price:.2f}"
-
-    @property
-    def desc(self) -> str:
-        return CATEGORY_DESCRIPTIONS.get(
-            self.cat, "A Physical Security Village catalog item."
-        )
+    def placeholder_sku(self) -> bool:
+        return self.category_code == PLACEHOLDER_CATEGORY
 
     @property
     def search_text(self) -> str:
-        parts = [self.name, self.sku, self.cat_label]
-        parts.extend(v.label for v in self.variants)
-        parts.extend(v.sku for v in self.variants)
-        return " ".join(parts).lower()
+        parts = [self.name, self.sku, self.code, self.desc, self.group_title]
+        parts.extend(self.bullets)
+        return " ".join(parts).casefold()
 
 
-def _price_for(cat: str, sku: str, name: str) -> float:
-    lc = name.lower()
-    for pattern, price in _PRICE_OVERRIDES:
-        if pattern.search(lc):
-            return price
-    h = 0
-    for ch in sku:
-        h = (h * 33 + ord(ch)) & 0xFFFFFFFF
-    d = _PRICE_BASES.get(cat, 16) + h % 12
-    if "patch" in lc:
-        return 10.99
-    if re.search(r"\b(set|kit|bundle|companion)\b", lc):
-        d = floor(d * 2.1 + 0.5) + 15
-    return round(d - 0.01, 2)
+@dataclass(frozen=True)
+class StoreGroup:
+    """A run of items under one sub-heading inside a collection."""
+
+    title: str = ""
+    tag: str = ""
+    lede: str = ""
+    prose: tuple[str, ...] = ()
+    items: tuple[StoreItem, ...] = ()
+    table: dict | None = None
+    anchor: str = ""
 
 
-def _clean(s: str) -> str:
-    s = re.sub(r"\s+", " ", s)
-    return re.sub(r"^[\s\-–(]+|[\s\-–(]+$", "", s).strip()
+@dataclass(frozen=True)
+class Collection:
+    """A menu section, presented as its own store page."""
+
+    slug: str
+    title: str
+    tag: str = ""
+    blurb: str = ""
+    cover: str = ""
+    groups: tuple[StoreGroup, ...] = field(default_factory=tuple)
+
+    @property
+    def items(self) -> tuple[StoreItem, ...]:
+        seen: set[str] = set()
+        ordered: list[StoreItem] = []
+        for group in self.groups:
+            for item in group.items:
+                if item.sku not in seen:
+                    seen.add(item.sku)
+                    ordered.append(item)
+        return tuple(ordered)
+
+    @property
+    def count(self) -> int:
+        return len(self.items)
+
+    @property
+    def titled_groups(self) -> tuple[StoreGroup, ...]:
+        return tuple(group for group in self.groups if group.title and group.items)
 
 
-def _char_lcp(names: list[str]) -> str:
-    prefix = names[0]
-    for name in names:
-        while not name.startswith(prefix):
-            prefix = prefix[:-1]
-        if not prefix:
-            break
-    return prefix
+def _scrub(text: str) -> str:
+    for pattern, replacement in _EVENT_COPY:
+        text = pattern.sub(replacement, text)
+    return text
 
 
-def _derive_group(names: list[str]) -> tuple[str, list[str]]:
-    """Split variant names into a shared product name and per-variant labels."""
-    tokens = [n.split() for n in names]
-    min_len = min(len(t) for t in tokens)
-    prefix = 0
-    while prefix < min_len and all(t[prefix] == tokens[0][prefix] for t in tokens):
-        prefix += 1
-    suffix = 0
-    while suffix < min_len - prefix and all(
-        t[len(t) - 1 - suffix] == tokens[0][len(tokens[0]) - 1 - suffix] for t in tokens
-    ):
-        suffix += 1
-    shared = tokens[0][:prefix] + (tokens[0][-suffix:] if suffix else [])
-    name = _clean(" ".join(shared))
-    labels = [
-        _clean(" ".join(t[prefix : len(t) - suffix if suffix else len(t)]))
-        for t in tokens
-    ]
-    if len(name.replace(" ", "")) < 2:
-        lcp = _clean(_char_lcp(names))
-        if len(lcp.replace(" ", "")) >= 3:
-            name = lcp + ("x" if re.search(r"\d$", lcp) else " Series")
-        else:
-            name = names[0] + " (assorted)"
-        labels = list(names)
-    labels = [label or names[i] for i, label in enumerate(labels)]
-    return name, labels
+def _clean(text: str) -> str:
+    return _scrub(strip_footnotes(text)).strip()
 
 
-def _load_rows() -> list[tuple[str, str, str]]:
-    raw = (Path(__file__).parent / "products.tsv").read_text(encoding="utf-8")
-    skip = re.compile(r"reserved|do not use", re.IGNORECASE)
-    rows = []
-    for line_number, line in enumerate(raw.splitlines(), start=1):
-        if not line.strip():
-            continue
-        parts = [part.strip() for part in line.split("\t")]
-        if len(parts) != 3:
-            logger.warning("Skipping malformed catalog row line=%d", line_number)
-            continue
-        name, sku, upc = parts
-        if name and sku and not skip.search(name):
-            rows.append((name, sku, upc))
-    return rows
+def _load_upcs() -> dict[str, str]:
+    path = Path(__file__).parent / "products.tsv"
+    upcs: dict[str, str] = {}
+    with path.open(encoding="utf-8", newline="") as handle:
+        for row in csv.reader(handle, delimiter="\t"):
+            if len(row) >= 3 and row[1].strip():
+                upcs[row[1].strip().upper()] = row[2].strip()
+    return upcs
 
 
-def _build_products() -> tuple[Product, ...]:
-    grouped: dict[str, list[tuple[str, str, str]]] = {}
-    singles: list[tuple[str, str, str]] = []
-    for row in _load_rows():
-        sku_parts = row[1].split("-")
-        if len(sku_parts) >= 4:
-            grouped.setdefault("-".join(sku_parts[:3]), []).append(row)
-        else:
-            singles.append(row)
+def sku_for(item: Item) -> str:
+    """Return the inventory SKU, or a placeholder derived from the menu code."""
+    if item.sku:
+        return item.sku.strip().upper()
+    code = item.code.strip().upper()
+    return f"PSV-{PLACEHOLDER_CATEGORY}-{code.removeprefix(PLACEHOLDER_CATEGORY)}"
 
-    products = []
-    for name, sku, upc in singles:
-        cat = sku.split("-")[1]
-        products.append(
-            Product(
-                id=sku,
-                name=name,
-                cat=cat,
-                sku=sku,
-                upc=upc,
-                price=_price_for(cat, sku, name),
-            )
-        )
-    for base, members in grouped.items():
-        cat = base.split("-")[1]
-        if len(members) == 1:
-            name, sku, upc = members[0]
-            products.append(
-                Product(
-                    id=sku,
-                    name=name,
-                    cat=cat,
+
+def _needs_vetting(item: Item) -> bool:
+    return _VETTING_MARKER in item.name or any(
+        _VETTING_MARKER in bullet for bullet in item.bullets
+    )
+
+
+def _build() -> tuple[tuple[Collection, ...], dict[str, StoreItem]]:
+    upcs = _load_upcs()
+    by_sku: dict[str, StoreItem] = {}
+    slugs: dict[str, str] = {}
+    collections: list[Collection] = []
+
+    for section in MENU:
+        match = _TITLE_PRICE_TAG.search(section.title)
+        title = _TITLE_PRICE_TAG.sub("", section.title).strip()
+        tag = match.group(1).lower() if match else ""
+        groups: list[StoreGroup] = []
+        for index, group in enumerate(section.groups):
+            items: list[StoreItem] = []
+            for raw in group.items:
+                sku = sku_for(raw)
+                existing = by_sku.get(sku)
+                if existing is not None:
+                    if existing.price_cents != raw.price * 100:
+                        raise ValueError(f"Menu lists {sku} at two prices.")
+                    items.append(existing)
+                    continue
+                name = _clean(raw.name)
+                slug = slugify(name)
+                if slugs.get(slug, sku) != sku:
+                    slug = f"{slug}-{raw.code.lower()}"
+                slugs[slug] = sku
+                restricted = _needs_vetting(raw)
+                item = StoreItem(
+                    code=raw.code,
                     sku=sku,
-                    upc=upc,
-                    price=_price_for(cat, sku, name),
+                    slug=slug,
+                    name=name,
+                    price_cents=raw.price * 100,
+                    price_suffix=raw.price_suffix,
+                    desc=_clean(raw.desc),
+                    note=_clean(raw.note),
+                    bullets=tuple(_clean(bullet) for bullet in raw.bullets),
+                    details=tuple(_clean(detail) for detail in raw.details),
+                    image=raw.image,
+                    upc=upcs.get(sku, ""),
+                    feature=raw.feature,
+                    restricted=restricted,
+                    restricted_reason=FOOTNOTES[0] if restricted else "",
+                    collection_slug=section.slug,
+                    group_title=group.title,
+                )
+                by_sku[sku] = item
+                items.append(item)
+            groups.append(
+                StoreGroup(
+                    title=group.title,
+                    tag=group.tag,
+                    lede=_clean(group.lede),
+                    prose=tuple(_clean(text) for text in group.prose),
+                    items=tuple(items),
+                    table=group.table,
+                    anchor=slugify(group.title) if group.title else f"group-{index}",
                 )
             )
-            continue
-        name, labels = _derive_group([m[0] for m in members])
-        variants = tuple(
-            Variant(code=sku.split("-")[-1], label=label, sku=sku, upc=upc)
-            for (_, sku, upc), label in zip(members, labels)
+        cover = COLLECTION_COVERS.get(section.slug) or next(
+            (item.image for group in groups for item in group.items if item.image),
+            "",
         )
-        first = members[0]
-        products.append(
-            Product(
-                id=base,
-                name=name,
-                cat=cat,
-                sku=first[1],
-                upc=first[2],
-                price=_price_for(cat, first[1], name),
-                variants=variants,
+        collections.append(
+            Collection(
+                slug=section.slug,
+                title=title,
+                tag=tag,
+                blurb=_clean(section.blurb),
+                cover=cover,
+                groups=tuple(groups),
             )
         )
+    return tuple(collections), by_sku
 
-    products.sort(
-        key=lambda product: (
-            (
-                CATEGORY_ORDER.index(product.cat)
-                if product.cat in CATEGORY_ORDER
-                else len(CATEGORY_ORDER)
-            ),
-            product.name.casefold(),
-        )
+
+COLLECTIONS, ITEMS_BY_SKU = _build()
+COLLECTION_MAP = {collection.slug: collection for collection in COLLECTIONS}
+ITEMS: tuple[StoreItem, ...] = tuple(ITEMS_BY_SKU.values())
+ITEMS_BY_SLUG = {item.slug: item for item in ITEMS}
+ITEMS_BY_CODE = {item.code: item for item in ITEMS}
+HERO = ITEMS_BY_CODE[HERO_CODE]
+FEATURED = tuple(ITEMS_BY_CODE[code] for code in FEATURED_CODES)
+
+
+def collection_for(item: StoreItem) -> Collection:
+    return COLLECTION_MAP[item.collection_slug]
+
+
+def group_for(item: StoreItem) -> StoreGroup:
+    collection = collection_for(item)
+    return next(
+        group
+        for group in collection.groups
+        if any(i.sku == item.sku for i in group.items)
     )
-    return tuple(products)
 
 
-PRODUCTS = _build_products()
-PRODUCT_MAP = {p.id: p for p in PRODUCTS}
+def related_items(item: StoreItem, limit: int = 4) -> tuple[StoreItem, ...]:
+    """Prefer siblings from the same group, then the rest of the collection."""
+    group = group_for(item)
+    collection = collection_for(item)
+    ordered = [i for i in group.items if i.sku != item.sku]
+    ordered.extend(
+        i for i in collection.items if i.sku != item.sku and i not in ordered
+    )
+    return tuple(ordered[:limit])
 
 
-def _pick_featured() -> tuple[Product, ...]:
-    picks: list[Product] = []
-    for pattern in _FEATURED_PATTERNS:
-        hit = next(
-            (p for p in PRODUCTS if pattern.search(p.name) and p not in picks), None
-        )
-        if hit:
-            picks.append(hit)
-    return tuple(picks[:4])
-
-
-FEATURED = _pick_featured()
-HERO = PRODUCT_MAP.get(HERO_PRODUCT_ID) or (
-    FEATURED[0] if FEATURED else PRODUCTS[0] if PRODUCTS else None
-)
-
-
-def category_hub() -> list[dict]:
-    return [
-        {
-            "key": cat,
-            "label": CATEGORY_LABELS[cat],
-            "blurb": CATEGORY_BLURBS[cat],
-            "count": sum(1 for p in PRODUCTS if p.cat == cat),
-        }
-        for cat in CATEGORY_ORDER
-    ]
-
-
-def related_products(product: Product, limit: int = 4) -> list[Product]:
-    return [p for p in PRODUCTS if p.cat == product.cat and p.id != product.id][:limit]
-
-
-def catalog_json() -> dict:
-    """Minimal product map embedded in store pages for the client-side cart."""
-    return {
-        p.id: {
-            "name": p.name,
-            "price": p.price,
-            "variants": [{"code": v.code, "label": v.label} for v in p.variants],
-        }
-        for p in PRODUCTS
-    }
+def search(query: str) -> tuple[StoreItem, ...]:
+    terms = [term for term in query.casefold().split() if term]
+    if not terms:
+        return ()
+    return tuple(
+        item for item in ITEMS if all(term in item.search_text for term in terms)
+    )

@@ -3,64 +3,34 @@
 
     const dataEl = document.getElementById("psv-catalog");
     if (!dataEl) return;
+    // SKU -> {name, price_cents, available_stock, image, url}. Only items
+    // that can be sold online are present, so anything else in a stored
+    // cart is dropped on load.
     const CATALOG = JSON.parse(dataEl.textContent);
     const CART_KEY = "psv-cart";
     const CHECKOUT_KEY = "psv-checkout-id";
-    const SKU_MAP = {};
+    const MAX_QTY = 99;
     const normalizeSku = (sku) => String(sku || "").trim().toUpperCase();
-
-    for (const [productId, product] of Object.entries(CATALOG)) {
-        for (const variant of product.variants) {
-            const sku = normalizeSku(variant.sku);
-            SKU_MAP[sku] = {
-                productId,
-                name: product.name,
-                variantLabel: variant.label,
-                priceCents: variant.price_cents,
-                stock: variant.available_stock,
-            };
-        }
-    }
 
     function normalizeQty(value) {
         const qty = Math.floor(Number(value));
         return Number.isFinite(qty) && qty > 0 ? qty : 0;
     }
 
+    function capQty(sku, qty) {
+        return Math.min(qty, CATALOG[sku].available_stock, MAX_QTY);
+    }
+
     function readCart() {
         try {
             const stored = JSON.parse(window.localStorage.getItem(CART_KEY));
             const cleaned = {};
-            if (Array.isArray(stored)) {
-                for (const item of stored) {
-                    const sku = normalizeSku(item && item.sku);
-                    const qty = normalizeQty(item && item.qty);
-                    if (SKU_MAP[sku] && qty) {
-                        cleaned[sku] = Math.min(
-                            (cleaned[sku] || 0) + qty,
-                            SKU_MAP[sku].stock,
-                        );
-                    }
-                }
-                return cleaned;
-            }
-
-            // One-time migration from the design-only productId||variantCode cart.
-            if (stored && typeof stored === "object") {
-                for (const [key, rawQty] of Object.entries(stored)) {
-                    const [productId, code] = key.split("||");
-                    const product = CATALOG[productId];
-                    const variant = product && product.variants.find(
-                        (candidate) => candidate.code === code,
-                    );
-                    const qty = normalizeQty(rawQty);
-                    if (variant && qty) {
-                        const sku = normalizeSku(variant.sku);
-                        cleaned[sku] = Math.min(
-                            (cleaned[sku] || 0) + qty,
-                            variant.available_stock,
-                        );
-                    }
+            if (!Array.isArray(stored)) return cleaned;
+            for (const item of stored) {
+                const sku = normalizeSku(item && item.sku);
+                const qty = normalizeQty(item && item.qty);
+                if (CATALOG[sku] && qty) {
+                    cleaned[sku] = capQty(sku, (cleaned[sku] || 0) + qty);
                 }
             }
             return cleaned;
@@ -73,7 +43,7 @@
 
     function cartPayload() {
         return Object.entries(cart)
-            .filter(([sku, qty]) => SKU_MAP[sku] && qty > 0)
+            .filter(([sku, qty]) => CATALOG[sku] && qty > 0)
             .map(([sku, qty]) => ({ sku, qty }));
     }
 
@@ -82,18 +52,26 @@
     }
 
     saveCart();
-    const money = (cents) => "$" + (cents / 100).toFixed(2);
+
+    function money(cents) {
+        const dollars = Math.floor(cents / 100);
+        const remainder = cents % 100;
+        return remainder === 0
+            ? "$" + dollars
+            : "$" + dollars + "." + String(remainder).padStart(2, "0");
+    }
 
     function cartEntries() {
         return cartPayload().map(({ sku, qty }) => {
-            const item = SKU_MAP[sku];
+            const item = CATALOG[sku];
             return {
                 sku,
                 qty,
                 name: item.name,
-                variantLabel: item.variantLabel,
-                lineTotalCents: item.priceCents * qty,
-                stock: item.stock,
+                image: item.image,
+                url: item.url,
+                lineTotalCents: item.price_cents * qty,
+                stock: item.available_stock,
             };
         });
     }
@@ -102,22 +80,38 @@
         return cartEntries().reduce((sum, item) => sum + item.lineTotalCents, 0);
     }
 
+    let toastTimer = 0;
+    function toast(message) {
+        const node = document.getElementById("storeToast");
+        if (!node) return;
+        node.textContent = message;
+        node.hidden = false;
+        window.clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(() => {
+            node.hidden = true;
+        }, 2200);
+    }
+
     function addToCart(sku, qty) {
         sku = normalizeSku(sku);
-        const item = SKU_MAP[sku];
-        if (!item || item.stock <= 0) return;
-        cart[sku] = Math.min((cart[sku] || 0) + qty, item.stock);
+        const item = CATALOG[sku];
+        if (!item || item.available_stock <= 0) return;
+        const before = cart[sku] || 0;
+        cart[sku] = capQty(sku, before + qty);
         window.sessionStorage.removeItem(CHECKOUT_KEY);
         saveCart();
         renderAll();
-        openCart();
+        toast(
+            cart[sku] === before
+                ? "No more " + item.name + " in stock"
+                : "Added " + item.name + " to your cart",
+        );
     }
 
     function bumpQty(sku, delta) {
         sku = normalizeSku(sku);
-        const item = SKU_MAP[sku];
-        if (!item) return;
-        cart[sku] = Math.min((cart[sku] || 0) + delta, item.stock);
+        if (!CATALOG[sku]) return;
+        cart[sku] = capQty(sku, (cart[sku] || 0) + delta);
         if (!Number.isFinite(cart[sku]) || cart[sku] <= 0) delete cart[sku];
         window.sessionStorage.removeItem(CHECKOUT_KEY);
         saveCart();
@@ -133,13 +127,18 @@
         overlay.hidden = false;
         drawer.hidden = false;
         if (cartButton) cartButton.setAttribute("aria-expanded", "true");
+        const close = document.getElementById("cartClose");
+        if (close) close.focus();
     }
 
     function closeCart() {
-        if (!drawer) return;
+        if (!drawer || drawer.hidden) return;
         overlay.hidden = true;
         drawer.hidden = true;
-        if (cartButton) cartButton.setAttribute("aria-expanded", "false");
+        if (cartButton) {
+            cartButton.setAttribute("aria-expanded", "false");
+            cartButton.focus();
+        }
     }
 
     function el(tag, className, text) {
@@ -149,39 +148,50 @@
         return node;
     }
 
-    function thumbIcon() {
+    function thumb(item, className) {
+        const box = el("div", className);
+        if (item.image) {
+            const img = el("img");
+            img.src = item.image;
+            img.alt = "";
+            box.appendChild(img);
+            return box;
+        }
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.setAttribute("viewBox", "0 0 24 24");
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("cx", "7.5");
+        circle.setAttribute("cy", "15.5");
+        circle.setAttribute("r", "5.5");
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute(
-            "d",
-            "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z",
-        );
-        svg.appendChild(path);
-        return svg;
+        path.setAttribute("d", "m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3");
+        svg.append(circle, path);
+        box.appendChild(svg);
+        return box;
     }
 
     function renderCartItem(item, summary = false) {
         const row = el("div", summary ? "summary-item" : "cart-item");
-        const thumb = el("div", summary ? "summary-item-thumb" : "cart-item-thumb");
-        thumb.appendChild(thumbIcon());
+        const photo = thumb(item, summary ? "summary-item-thumb" : "cart-item-thumb");
         const info = el("div", summary ? "summary-item-info" : "cart-item-info");
-        info.appendChild(el("div", summary ? "summary-item-name" : "cart-item-name", item.name));
-        if (item.variantLabel) {
-            info.appendChild(el("div", summary ? "summary-item-variant" : "cart-item-variant", item.variantLabel));
-        }
         if (summary) {
+            info.appendChild(el("div", "summary-item-name", item.name));
             info.appendChild(el("div", "summary-item-qty", "Qty " + item.qty));
-            row.append(thumb, info, el("span", "summary-item-total", money(item.lineTotalCents)));
+            row.append(photo, info, el("span", "summary-item-total", money(item.lineTotalCents)));
             return row;
         }
+        const name = el("a", "cart-item-name", item.name);
+        name.href = item.url;
+        info.appendChild(name);
         const qty = el("div", "cart-item-qty");
         const dec = el("button", "", "–");
         dec.type = "button";
+        dec.setAttribute("aria-label", "Decrease quantity of " + item.name);
         dec.addEventListener("click", () => bumpQty(item.sku, -1));
         const inc = el("button", "", "+");
         inc.type = "button";
-        inc.disabled = item.qty >= item.stock;
+        inc.setAttribute("aria-label", "Increase quantity of " + item.name);
+        inc.disabled = item.qty >= Math.min(item.stock, MAX_QTY);
         inc.addEventListener("click", () => bumpQty(item.sku, 1));
         qty.append(dec, el("span", "", String(item.qty)), inc);
         info.appendChild(qty);
@@ -189,9 +199,10 @@
         side.appendChild(el("span", "cart-item-total", money(item.lineTotalCents)));
         const remove = el("button", "cart-item-remove", "Remove");
         remove.type = "button";
+        remove.setAttribute("aria-label", "Remove " + item.name + " from cart");
         remove.addEventListener("click", () => bumpQty(item.sku, -Infinity));
         side.appendChild(remove);
-        row.append(thumb, info, side);
+        row.append(photo, info, side);
         return row;
     }
 
@@ -236,41 +247,29 @@
         renderAll();
     });
     document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && drawer && !drawer.hidden) closeCart();
+        if (event.key === "Escape") closeCart();
     });
+
+    const qtyValue = document.getElementById("qtyValue");
+    const stepper = qtyValue ? qtyValue.closest(".qty-stepper") : null;
+    const qtyMax = stepper ? normalizeQty(stepper.dataset.max) || 1 : 1;
 
     document.addEventListener("click", (event) => {
         const button = event.target.closest("[data-add]");
         if (!button || button.disabled) return;
-        const qtyNode = document.getElementById("qtyValue");
-        const qty = button.hasAttribute("data-detail") && qtyNode
-            ? normalizeQty(qtyNode.textContent) || 1
+        const qty = button.hasAttribute("data-detail") && qtyValue
+            ? normalizeQty(qtyValue.textContent) || 1
             : 1;
         addToCart(button.dataset.sku, qty);
+        if (button.hasAttribute("data-detail")) openCart();
     });
 
-    const qtyValue = document.getElementById("qtyValue");
     if (qtyValue) {
         document.getElementById("qtyDec").addEventListener("click", () => {
             qtyValue.textContent = String(Math.max(1, normalizeQty(qtyValue.textContent) - 1));
         });
         document.getElementById("qtyInc").addEventListener("click", () => {
-            const sku = document.querySelector("[data-add][data-detail]").dataset.sku;
-            qtyValue.textContent = String(Math.min(normalizeQty(qtyValue.textContent) + 1, SKU_MAP[sku].stock));
-        });
-    }
-
-    const variantSelect = document.getElementById("variantSelect");
-    if (variantSelect) {
-        variantSelect.addEventListener("change", () => {
-            const option = variantSelect.selectedOptions[0];
-            if (!option) return;
-            document.getElementById("specSku").textContent = option.dataset.sku;
-            document.getElementById("specUpc").textContent = option.dataset.upc;
-            const add = document.querySelector("[data-add][data-detail]");
-            add.dataset.sku = option.value;
-            add.disabled = Number(option.dataset.stock) <= 0;
-            qtyValue.textContent = "1";
+            qtyValue.textContent = String(Math.min(qtyMax, normalizeQty(qtyValue.textContent) + 1));
         });
     }
 
@@ -330,47 +329,6 @@
         cart = {};
         window.sessionStorage.removeItem(CHECKOUT_KEY);
         saveCart();
-    }
-
-    const grid = document.getElementById("productGrid");
-    if (grid) {
-        const cells = Array.from(grid.querySelectorAll(".product-cell"));
-        const chips = Array.from(document.querySelectorAll("#catalogFilters .filter-btn"));
-        const search = document.getElementById("storeSearch");
-        let activeCat = (chips.find((chip) => chip.classList.contains("active")) || chips[0]).dataset.cat;
-        function applyFilters() {
-            const query = search.value.trim().toLowerCase();
-            let visible = 0;
-            const counts = { All: 0 };
-            for (const chip of chips) counts[chip.dataset.cat] = 0;
-            for (const cell of cells) {
-                const matches = !query || cell.dataset.search.includes(query);
-                if (matches) {
-                    counts.All += 1;
-                    counts[cell.dataset.cat] += 1;
-                }
-                const show = matches && (activeCat === "All" || cell.dataset.cat === activeCat);
-                cell.hidden = !show;
-                if (show) visible += 1;
-            }
-            for (const chip of chips) {
-                chip.classList.toggle("active", chip.dataset.cat === activeCat);
-                chip.querySelector(".filter-count").textContent = String(counts[chip.dataset.cat]);
-            }
-            document.getElementById("resultCount").textContent = visible + " products";
-            document.getElementById("keysNote").hidden = activeCat !== "KYS";
-            document.getElementById("storeEmpty").hidden = visible > 0;
-            document.getElementById("emptyQuery").textContent = query;
-            const active = chips.find((chip) => chip.dataset.cat === activeCat);
-            document.getElementById("catalogCrumb").textContent = active.dataset.label;
-            document.getElementById("catalogTitle").textContent = active.dataset.label;
-            document.getElementById("catalogBlurb").textContent = active.dataset.blurb;
-        }
-        for (const chip of chips) chip.addEventListener("click", () => {
-            activeCat = chip.dataset.cat;
-            applyFilters();
-        });
-        search.addEventListener("input", applyFilters);
     }
 
     renderAll();

@@ -3,7 +3,7 @@
 {% block description %}Your Physical Security Village store order status.{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block styles %}
-<link href="/static/pages/store.css" rel="stylesheet" />
+<link href="/static/pages/store.css?v=2" rel="stylesheet" />
 {% endblock %}
 
 {% block main %}
@@ -29,9 +29,11 @@
                     moment. Your cart has not been cleared.
                 </p>
             {% endif %}
-            <a href="{{ url_for('store_catalog_page') }}" class="btn btn-primary">Continue shopping</a>
+            <a href="{{ url_for('store_page') }}" class="btn btn-primary">Continue shopping</a>
         </div>
     </div>
+{% endblock %}
 
+{% block overlays %}
     {% include "store/cart.html" %}
 {% endblock %}
