@@ -15,7 +15,6 @@ is charged.
 from __future__ import annotations
 
 import csv
-import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,8 +22,6 @@ from pathlib import Path
 from ..dependencies import strip_footnotes
 from ..menu import FOOTNOTES, MENU, Item
 from .models import slugify
-
-logger = logging.getLogger(__name__)
 
 # Menu copy that only makes sense at the event table.
 _EVENT_COPY = (

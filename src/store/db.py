@@ -261,29 +261,6 @@ def sku_inventory() -> dict[str, dict[str, Any]]:
     }
 
 
-def catalog_json() -> dict[str, Any]:
-    """Return a SKU-first catalog safe to embed in storefront pages."""
-    result: dict[str, Any] = {}
-    for product in get_published_products():
-        result[product["base_sku"]] = {
-            "name": product["name"],
-            "price_cents": product["price_cents"],
-            "variants": [
-                {
-                    "sku": v["sku"],
-                    "code": v["sku"].split("-")[-1]
-                    if v["sku"] != product["base_sku"]
-                    else "_",
-                    "label": v["name"],
-                    "price_cents": v["price_cents"],
-                    "available_stock": max(0, v["available_stock"]),
-                }
-                for v in product["variants"]
-            ],
-        }
-    return result
-
-
 def normalize_cart(
     items: Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
