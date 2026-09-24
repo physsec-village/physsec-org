@@ -162,12 +162,13 @@ get a `PSV-TBD-NNN` placeholder derived from their menu code; replace those in
 `src/menu.py` once inventory assigns real SKUs.
 
 On startup the app seeds any menu item missing from PostgreSQL as one product
-with one variant at the menu price. The database remains the authority for the
-price that is displayed and charged, and for stock. A `store_price_drift`
-warning is logged for any SKU whose database price no longer matches the menu.
-A database that was seeded by the earlier placeholder catalog should be
-truncated (`store.categories`, `store.checkouts`, `store.stripe_events` with
-`CASCADE`) before the store is enabled so the placeholder prices do not win.
+with one variant at the menu price, and reconciles SKUs that already exist:
+the menu is the price authority, so a differing database price is overwritten
+(logged as `store_price_synced`), while stock is only ever managed in the
+database. Restricted items that a previous import published are unpublished
+again. A database seeded by the earlier placeholder catalog therefore comes
+right on the next start; only its leftover family products (base SKUs whose
+variants carry `-NNN` suffixes) are left untouched and logged.
 
 Items whose menu copy carries the FEO-K1 vetting footnote (the fire service key
 and the sets that include it) are imported unpublished. They are shown with a

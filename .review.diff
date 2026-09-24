@@ -1,0 +1,3001 @@
+diff --git a/README.md b/README.md
+index 6663c37..86075a2 100644
+--- a/README.md
++++ b/README.md
+@@ -41,11 +41,13 @@ The app currently serves these user-facing routes:
+ - `/forms/calls`
+ - `/forms/email` (`POST`)
+ - `/store`
+-- `/store/catalog`
+-- `/store/product/{product_id}`
+-- `/store/checkout`
++- `/store/collection/{slug}`
++- `/store/product/{slug}`
++- `/store/search`
++- `/store/checkout` (`GET` page, `POST` creates the Stripe Checkout Session)
+ - `/store/confirmed`
+ - `/store/webhook` (`POST`, Stripe-signed)
++- `/menu` (unlisted DEF CON store menu; the store's content source)
+ 
+ ## Local Development
+ 
+@@ -58,6 +60,17 @@ uv run fastapi dev src/main.py
+ 
+ If you are not using `uv`, install from `pyproject.toml` with your preferred Python environment manager and run FastAPI directly.
+ 
++To work on the store locally, point it at a local PostgreSQL with the migration
++applied and give the seeded catalog some stock:
++
++```bash
++STORE_ENABLED=true STORE_BOOTSTRAP_STOCK=10 DATABASE_URL=postgresql://postgres:psv_test_password@127.0.0.1:55432/psv_dev uv run fastapi dev src/main.py
++```
++
++Checkout itself needs `STRIPE_SECRET_KEY` (a test-mode key is fine) and
++`STORE_PUBLIC_ORIGIN=http://127.0.0.1:8000`; without them the checkout button
++reports that checkout is not configured.
++
+ The containerized path is:
+ 
+ ```bash
+@@ -138,6 +151,28 @@ unavailable until inventory is explicitly loaded. Prices and inventory are
+ always resolved server-side in integer cents and browser carts contain only
+ SKU/quantity pairs.
+ 
++### Store catalog
++
++`src/menu.py` (the DEF CON store menu) is the single source of truth for what
++the store sells: names, prices, copy, photos in `static/images/menu`, and how
++items are grouped. `src/store/catalog.py` reshapes each menu section into a
++store collection page and gives every menu item a SKU, a URL slug, and a UPC
++from `src/store/products.tsv`. Menu items that do not have an inventory SKU yet
++get a `PSV-TBD-NNN` placeholder derived from their menu code; replace those in
++`src/menu.py` once inventory assigns real SKUs.
++
++On startup the app seeds any menu item missing from PostgreSQL as one product
++with one variant at the menu price. The database remains the authority for the
++price that is displayed and charged, and for stock. A `store_price_drift`
++warning is logged for any SKU whose database price no longer matches the menu.
++A database that was seeded by the earlier placeholder catalog should be
++truncated (`store.categories`, `store.checkouts`, `store.stripe_events` with
++`CASCADE`) before the store is enabled so the placeholder prices do not win.
++
++Items whose menu copy carries the FEO-K1 vetting footnote (the fire service key
++and the sets that include it) are imported unpublished. They are shown with a
++"Contact to order" link and can never be added to a cart.
++
+ - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Stripe Checkout.
+ - `STORE_PUBLIC_ORIGIN` is the canonical HTTPS origin used for Stripe redirects.
+ - `STORE_SHIP_COUNTRIES` is a comma-separated country allowlist.
+@@ -157,7 +192,8 @@ expected store schema version;
+ `/healthz` remains the process liveness probe.
+ 
+ Store integration tests run against disposable PostgreSQL rather than a mock or
+-SQLite compatibility layer:
++SQLite compatibility layer. Any local PostgreSQL 17 on `127.0.0.1:55432` with
++the migration applied works; Docker Compose is the quickest way to get one:
+ 
+ ```sh
+ docker compose -f docker-compose.test.yml up -d
+@@ -235,7 +271,7 @@ The repository still contains several stubbed or provisional values that should
+ 
+ The site already has a coherent frontend structure, working contact and
+ volunteer email paths, locally managed game thumbnails, and a Stripe-backed
+-store commerce foundation. Store inventory and production Stripe configuration
+-must be loaded before checkout is enabled. The main remaining areas are
++store built from the DEF CON menu. Store inventory and production Stripe
++configuration must be loaded before checkout is enabled. The main remaining areas are
+ organizational content, real event/archive data, store administration,
+ sponsorship decisions, legacy game routes, and deployment-specific operations.
+diff --git a/src/router.py b/src/router.py
+index 4a6c3fd..eb31d7c 100644
+--- a/src/router.py
++++ b/src/router.py
+@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+ from .dependencies import templates
+ from .forms.turnstile import get_turnstile_settings
+ from .menu import FOOTNOTES, MENU
++from .store import catalog as store_catalog
+ from .store import db
+ 
+ router = APIRouter()
+@@ -18,7 +19,9 @@ SITEMAP_PATHS = (
+     "/forms/calls",
+     "/forms/volunteer",
+ )
+-STORE_SITEMAP_PATHS = ("/store", "/store/catalog")
++STORE_SITEMAP_PATHS = ("/store",) + tuple(
++    f"/store/collection/{collection.slug}" for collection in store_catalog.COLLECTIONS
++)
+ 
+ 
+ @router.get("/", response_class=HTMLResponse)
+diff --git a/src/store/catalog.py b/src/store/catalog.py
+index 8701638..f07c57d 100644
+--- a/src/store/catalog.py
++++ b/src/store/catalog.py
+@@ -1,313 +1,306 @@
+-"""PSV store catalog.
+-
+-Products live in products.tsv (name, SKU, UPC). SKUs with four segments
+-(PSV-CAT-NNN-VVV) are variants and get grouped into a single product whose
+-shared name and per-variant labels are derived from the member names.
+-
+-Prices are deliberately deterministic placeholders (hash of the SKU plus a
+-per-category base, with overrides for well-known items) carried over from the
+-approved store design; replace with real pricing data when it exists.
++"""Storefront catalog derived from the DEF CON store menu.
++
++`src/menu.py` is the single source of truth for what PSV sells: names,
++prices, copy, photos, and how items are grouped. This module reshapes that
++menu into the online store's collections and gives every item a stable SKU,
++a URL slug, and a UPC (looked up from `products.tsv`) so it can be seeded
++into PostgreSQL and sold through Stripe Checkout.
++
++Prices here are the menu's list prices in integer cents. Checkout always
++charges the price stored in the database, which the bootstrap seeds from this
++module; the storefront displays the database price so what is shown is what
++is charged.
+ """
+ 
+-import logging
++from __future__ import annotations
++
++import csv
+ import re
+ from dataclasses import dataclass, field
+-from math import floor
+ from pathlib import Path
+ 
++from ..dependencies import strip_footnotes
++from ..menu import FOOTNOTES, MENU, Item
++from .models import slugify
++
++# Menu copy that only makes sense at the event table.
++_EVENT_COPY = (
++    (re.compile(r"\s+for sale at DEF CON \d+"), " in the store"),
++    (re.compile(r"\bDEF CON \d+\b"), "the Village"),
++)
++
++# Section titles carry a price hint ("Lishi Tools — $100 Each"); the store
++# shows prices per item, so the hint becomes a small tag instead.
++_TITLE_PRICE_TAG = re.compile(r"\s+[—–-]\s+(\$\d+\s+each)$", re.IGNORECASE)
++
++# A footnote marker in an item's name or contents means the item cannot be
++# shipped without vetting (FEO-K1, the national fire service key).
++_VETTING_MARKER = "[^1]"
++
++# Placeholder SKUs for menu items that do not have one yet. The prefix keeps
++# them out of the real PSV-BYP/KYS/... families until inventory assigns one.
++PLACEHOLDER_CATEGORY = "TBD"
++
+ CATEGORY_LABELS = {
+     "BYP": "Bypass Tools",
+     "KYS": "Keys",
+-    "RFID": "RFID",
+     "MSC": "Gear",
+-    "MRC": "Merch",
++    "RFID": "RFID",
++    PLACEHOLDER_CATEGORY: "Sets & Bundles",
+ }
+ 
+-CATEGORY_ORDER = ("BYP", "KYS", "RFID", "MSC", "MRC")
+-logger = logging.getLogger(__name__)
+-
+-CATEGORY_BLURBS = {
+-    "BYP": "Shims, jigglers, slips, and picks for hands-on bypass practice.",
+-    "KYS": "Elevator, equipment, and utility keys — all cut keyed-alike.",
+-    "RFID": "Read, study, and clone access credentials in a controlled lab.",
+-    "MSC": "Practical gear for the physical security bench and go-bag.",
+-    "MRC": "Wear the village. Soft, durable, unmistakably PSV.",
++HERO_CODE = "BYP012"
++FEATURED_CODES = (
++    "BYP010",
++    "BYP014002",
++    "TBD014",
++    "MSC003",
++    "KYS028001",
++    "BYP007",
++)
++COLLECTION_COVERS = {
++    "bypass-tools": "byp010.webp",
++    "lockpicking": "byp003.webp",
++    "lishi": "byp014002.webp",
++    "keyed-alike": "kys003.webp",
++    "specialty-keys": "tbd014.webp",
++    "elevator": "kys028001.webp",
++    "gear": "rfid002002.webp",
+ }
+ 
+-ALL_PRODUCTS_BLURB = "Every tool, key, and kit on the PSV bench, in one grid."
+-
+-CATEGORY_DESCRIPTIONS = {
+-    "BYP": "A field-proven bypass tool for hands-on practice and authorized "
+-    "entry work. Machined to hold up to repeated bench use.",
+-    "KYS": "A commonly encountered utility key. Every PSV key is cut "
+-    "keyed-alike, so it drops right into the rest of your set for training "
+-    "and demonstrations.",
+-    "RFID": "RFID research hardware for reading, studying, and cloning access "
+-    "credentials in a controlled lab environment.",
+-    "MSC": "Practical gear for the physical security bench and go-bag.",
+-    "MRC": "Represent the village. Soft, durable, and unmistakably PSV.",
+-}
+ 
+-_PRICE_OVERRIDES = (
+-    (re.compile(r"proxmark"), 89.99),
+-    (re.compile(r"^handcuffs$"), 24.99),
+-    (re.compile(r"lockpicking practice"), 21.99),
+-    (re.compile(r"screwdriver set"), 29.99),
+-    (re.compile(r"uv pen"), 8.99),
+-    (re.compile(r"cable key ring"), 5.99),
+-    (re.compile(r"zener"), 14.99),
+-)
++@dataclass(frozen=True)
++class StoreItem:
++    """One sellable menu line, addressed by SKU."""
+ 
+-_PRICE_BASES = {"BYP": 14, "KYS": 8, "MRC": 27, "MSC": 18, "RFID": 16}
++    code: str
++    sku: str
++    slug: str
++    name: str
++    price_cents: int
++    price_suffix: str = ""
++    desc: str = ""
++    note: str = ""
++    bullets: tuple[str, ...] = ()
++    details: tuple[str, ...] = ()
++    image: str = ""
++    upc: str = ""
++    feature: bool = False
++    restricted: bool = False
++    restricted_reason: str = ""
++    collection_slug: str = ""
++    group_title: str = ""
+ 
+-_FEATURED_PATTERNS = (
+-    re.compile(r"proxmark", re.IGNORECASE),
+-    re.compile(r"^lishi", re.IGNORECASE),
+-    re.compile(r"^medeco bump", re.IGNORECASE),
+-    re.compile(r"unauthorised personnel shirt", re.IGNORECASE),
+-    re.compile(r"^handcuffs$", re.IGNORECASE),
+-)
++    @property
++    def category_code(self) -> str:
++        return self.sku.split("-")[1]
+ 
+-HERO_PRODUCT_ID = "PSV-RFID-001"
++    @property
++    def category_label(self) -> str:
++        return CATEGORY_LABELS.get(self.category_code, self.category_code)
+ 
+-FREE_SHIPPING_THRESHOLD = 75
+-FLAT_SHIPPING = 7.99
++    @property
++    def placeholder_sku(self) -> bool:
++        return self.category_code == PLACEHOLDER_CATEGORY
++
++    @property
++    def search_text(self) -> str:
++        parts = [self.name, self.sku, self.code, self.desc, self.group_title]
++        parts.extend(self.bullets)
++        return " ".join(parts).casefold()
+ 
+ 
+ @dataclass(frozen=True)
+-class Variant:
+-    code: str
+-    label: str
+-    sku: str
+-    upc: str
++class StoreGroup:
++    """A run of items under one sub-heading inside a collection."""
++
++    title: str = ""
++    tag: str = ""
++    lede: str = ""
++    prose: tuple[str, ...] = ()
++    items: tuple[StoreItem, ...] = ()
++    table: dict | None = None
++    anchor: str = ""
+ 
+ 
+ @dataclass(frozen=True)
+-class Product:
+-    id: str
+-    name: str
+-    cat: str
+-    sku: str
+-    upc: str
+-    price: float
+-    variants: tuple[Variant, ...] = field(default=())
++class Collection:
++    """A menu section, presented as its own store page."""
+ 
+-    @property
+-    def cat_label(self) -> str:
+-        return CATEGORY_LABELS.get(self.cat, self.cat)
++    slug: str
++    title: str
++    tag: str = ""
++    blurb: str = ""
++    cover: str = ""
++    groups: tuple[StoreGroup, ...] = field(default_factory=tuple)
+ 
+     @property
+-    def is_key(self) -> bool:
+-        return self.cat == "KYS"
++    def items(self) -> tuple[StoreItem, ...]:
++        seen: set[str] = set()
++        ordered: list[StoreItem] = []
++        for group in self.groups:
++            for item in group.items:
++                if item.sku not in seen:
++                    seen.add(item.sku)
++                    ordered.append(item)
++        return tuple(ordered)
+ 
+     @property
+-    def price_str(self) -> str:
+-        return f"${self.price:.2f}"
++    def count(self) -> int:
++        return len(self.items)
+ 
+     @property
+-    def desc(self) -> str:
+-        return CATEGORY_DESCRIPTIONS.get(
+-            self.cat, "A Physical Security Village catalog item."
+-        )
++    def titled_groups(self) -> tuple[StoreGroup, ...]:
++        return tuple(group for group in self.groups if group.title and group.items)
+ 
+-    @property
+-    def search_text(self) -> str:
+-        parts = [self.name, self.sku, self.cat_label]
+-        parts.extend(v.label for v in self.variants)
+-        parts.extend(v.sku for v in self.variants)
+-        return " ".join(parts).lower()
+-
+-
+-def _price_for(cat: str, sku: str, name: str) -> float:
+-    lc = name.lower()
+-    for pattern, price in _PRICE_OVERRIDES:
+-        if pattern.search(lc):
+-            return price
+-    h = 0
+-    for ch in sku:
+-        h = (h * 33 + ord(ch)) & 0xFFFFFFFF
+-    d = _PRICE_BASES.get(cat, 16) + h % 12
+-    if "patch" in lc:
+-        return 10.99
+-    if re.search(r"\b(set|kit|bundle|companion)\b", lc):
+-        d = floor(d * 2.1 + 0.5) + 15
+-    return round(d - 0.01, 2)
+-
+-
+-def _clean(s: str) -> str:
+-    s = re.sub(r"\s+", " ", s)
+-    return re.sub(r"^[\s\-–(]+|[\s\-–(]+$", "", s).strip()
+-
+-
+-def _char_lcp(names: list[str]) -> str:
+-    prefix = names[0]
+-    for name in names:
+-        while not name.startswith(prefix):
+-            prefix = prefix[:-1]
+-        if not prefix:
+-            break
+-    return prefix
+-
+-
+-def _derive_group(names: list[str]) -> tuple[str, list[str]]:
+-    """Split variant names into a shared product name and per-variant labels."""
+-    tokens = [n.split() for n in names]
+-    min_len = min(len(t) for t in tokens)
+-    prefix = 0
+-    while prefix < min_len and all(t[prefix] == tokens[0][prefix] for t in tokens):
+-        prefix += 1
+-    suffix = 0
+-    while suffix < min_len - prefix and all(
+-        t[len(t) - 1 - suffix] == tokens[0][len(tokens[0]) - 1 - suffix] for t in tokens
+-    ):
+-        suffix += 1
+-    shared = tokens[0][:prefix] + (tokens[0][-suffix:] if suffix else [])
+-    name = _clean(" ".join(shared))
+-    labels = [
+-        _clean(" ".join(t[prefix : len(t) - suffix if suffix else len(t)]))
+-        for t in tokens
+-    ]
+-    if len(name.replace(" ", "")) < 2:
+-        lcp = _clean(_char_lcp(names))
+-        if len(lcp.replace(" ", "")) >= 3:
+-            name = lcp + ("x" if re.search(r"\d$", lcp) else " Series")
+-        else:
+-            name = names[0] + " (assorted)"
+-        labels = list(names)
+-    labels = [label or names[i] for i, label in enumerate(labels)]
+-    return name, labels
+-
+-
+-def _load_rows() -> list[tuple[str, str, str]]:
+-    raw = (Path(__file__).parent / "products.tsv").read_text(encoding="utf-8")
+-    skip = re.compile(r"reserved|do not use", re.IGNORECASE)
+-    rows = []
+-    for line_number, line in enumerate(raw.splitlines(), start=1):
+-        if not line.strip():
+-            continue
+-        parts = [part.strip() for part in line.split("\t")]
+-        if len(parts) != 3:
+-            logger.warning("Skipping malformed catalog row line=%d", line_number)
+-            continue
+-        name, sku, upc = parts
+-        if name and sku and not skip.search(name):
+-            rows.append((name, sku, upc))
+-    return rows
+-
+-
+-def _build_products() -> tuple[Product, ...]:
+-    grouped: dict[str, list[tuple[str, str, str]]] = {}
+-    singles: list[tuple[str, str, str]] = []
+-    for row in _load_rows():
+-        sku_parts = row[1].split("-")
+-        if len(sku_parts) >= 4:
+-            grouped.setdefault("-".join(sku_parts[:3]), []).append(row)
+-        else:
+-            singles.append(row)
+-
+-    products = []
+-    for name, sku, upc in singles:
+-        cat = sku.split("-")[1]
+-        products.append(
+-            Product(
+-                id=sku,
+-                name=name,
+-                cat=cat,
+-                sku=sku,
+-                upc=upc,
+-                price=_price_for(cat, sku, name),
+-            )
+-        )
+-    for base, members in grouped.items():
+-        cat = base.split("-")[1]
+-        if len(members) == 1:
+-            name, sku, upc = members[0]
+-            products.append(
+-                Product(
+-                    id=sku,
+-                    name=name,
+-                    cat=cat,
++
++def _scrub(text: str) -> str:
++    for pattern, replacement in _EVENT_COPY:
++        text = pattern.sub(replacement, text)
++    return text
++
++
++def _clean(text: str) -> str:
++    return _scrub(strip_footnotes(text)).strip()
++
++
++def _load_upcs() -> dict[str, str]:
++    path = Path(__file__).parent / "products.tsv"
++    upcs: dict[str, str] = {}
++    with path.open(encoding="utf-8", newline="") as handle:
++        for row in csv.reader(handle, delimiter="\t"):
++            if len(row) >= 3 and row[1].strip():
++                upcs[row[1].strip().upper()] = row[2].strip()
++    return upcs
++
++
++def sku_for(item: Item) -> str:
++    """Return the inventory SKU, or a placeholder derived from the menu code."""
++    if item.sku:
++        return item.sku.strip().upper()
++    code = item.code.strip().upper()
++    return f"PSV-{PLACEHOLDER_CATEGORY}-{code.removeprefix(PLACEHOLDER_CATEGORY)}"
++
++
++def _needs_vetting(item: Item) -> bool:
++    return _VETTING_MARKER in item.name or any(
++        _VETTING_MARKER in bullet for bullet in item.bullets
++    )
++
++
++def _build() -> tuple[tuple[Collection, ...], dict[str, StoreItem]]:
++    upcs = _load_upcs()
++    by_sku: dict[str, StoreItem] = {}
++    slugs: dict[str, str] = {}
++    collections: list[Collection] = []
++
++    for section in MENU:
++        match = _TITLE_PRICE_TAG.search(section.title)
++        title = _TITLE_PRICE_TAG.sub("", section.title).strip()
++        tag = match.group(1).lower() if match else ""
++        groups: list[StoreGroup] = []
++        for index, group in enumerate(section.groups):
++            items: list[StoreItem] = []
++            for raw in group.items:
++                sku = sku_for(raw)
++                existing = by_sku.get(sku)
++                if existing is not None:
++                    if existing.price_cents != raw.price * 100:
++                        raise ValueError(f"Menu lists {sku} at two prices.")
++                    items.append(existing)
++                    continue
++                name = _clean(raw.name)
++                slug = slugify(name)
++                if slugs.get(slug, sku) != sku:
++                    slug = f"{slug}-{raw.code.lower()}"
++                slugs[slug] = sku
++                restricted = _needs_vetting(raw)
++                item = StoreItem(
++                    code=raw.code,
+                     sku=sku,
+-                    upc=upc,
+-                    price=_price_for(cat, sku, name),
++                    slug=slug,
++                    name=name,
++                    price_cents=raw.price * 100,
++                    price_suffix=raw.price_suffix,
++                    desc=_clean(raw.desc),
++                    note=_clean(raw.note),
++                    bullets=tuple(_clean(bullet) for bullet in raw.bullets),
++                    details=tuple(_clean(detail) for detail in raw.details),
++                    image=raw.image,
++                    upc=upcs.get(sku, ""),
++                    feature=raw.feature,
++                    restricted=restricted,
++                    restricted_reason=FOOTNOTES[0] if restricted else "",
++                    collection_slug=section.slug,
++                    group_title=group.title,
++                )
++                by_sku[sku] = item
++                items.append(item)
++            groups.append(
++                StoreGroup(
++                    title=group.title,
++                    tag=group.tag,
++                    lede=_clean(group.lede),
++                    prose=tuple(_clean(text) for text in group.prose),
++                    items=tuple(items),
++                    table=group.table,
++                    anchor=slugify(group.title) if group.title else f"group-{index}",
+                 )
+             )
+-            continue
+-        name, labels = _derive_group([m[0] for m in members])
+-        variants = tuple(
+-            Variant(code=sku.split("-")[-1], label=label, sku=sku, upc=upc)
+-            for (_, sku, upc), label in zip(members, labels)
++        cover = COLLECTION_COVERS.get(section.slug) or next(
++            (item.image for group in groups for item in group.items if item.image),
++            "",
+         )
+-        first = members[0]
+-        products.append(
+-            Product(
+-                id=base,
+-                name=name,
+-                cat=cat,
+-                sku=first[1],
+-                upc=first[2],
+-                price=_price_for(cat, first[1], name),
+-                variants=variants,
++        collections.append(
++            Collection(
++                slug=section.slug,
++                title=title,
++                tag=tag,
++                blurb=_clean(section.blurb),
++                cover=cover,
++                groups=tuple(groups),
+             )
+         )
++    return tuple(collections), by_sku
+ 
+-    products.sort(
+-        key=lambda product: (
+-            (
+-                CATEGORY_ORDER.index(product.cat)
+-                if product.cat in CATEGORY_ORDER
+-                else len(CATEGORY_ORDER)
+-            ),
+-            product.name.casefold(),
+-        )
+-    )
+-    return tuple(products)
+ 
++COLLECTIONS, ITEMS_BY_SKU = _build()
++COLLECTION_MAP = {collection.slug: collection for collection in COLLECTIONS}
++ITEMS: tuple[StoreItem, ...] = tuple(ITEMS_BY_SKU.values())
++ITEMS_BY_SLUG = {item.slug: item for item in ITEMS}
++ITEMS_BY_CODE = {item.code: item for item in ITEMS}
++HERO = ITEMS_BY_CODE[HERO_CODE]
++FEATURED = tuple(ITEMS_BY_CODE[code] for code in FEATURED_CODES)
+ 
+-PRODUCTS = _build_products()
+-PRODUCT_MAP = {p.id: p for p in PRODUCTS}
+ 
++def collection_for(item: StoreItem) -> Collection:
++    return COLLECTION_MAP[item.collection_slug]
+ 
+-def _pick_featured() -> tuple[Product, ...]:
+-    picks: list[Product] = []
+-    for pattern in _FEATURED_PATTERNS:
+-        hit = next(
+-            (p for p in PRODUCTS if pattern.search(p.name) and p not in picks), None
+-        )
+-        if hit:
+-            picks.append(hit)
+-    return tuple(picks[:4])
+ 
++def group_for(item: StoreItem) -> StoreGroup:
++    collection = collection_for(item)
++    return next(
++        group
++        for group in collection.groups
++        if any(i.sku == item.sku for i in group.items)
++    )
+ 
+-FEATURED = _pick_featured()
+-HERO = PRODUCT_MAP.get(HERO_PRODUCT_ID) or (
+-    FEATURED[0] if FEATURED else PRODUCTS[0] if PRODUCTS else None
+-)
++
++def related_items(item: StoreItem, limit: int = 4) -> tuple[StoreItem, ...]:
++    """Prefer siblings from the same group, then the rest of the collection."""
++    group = group_for(item)
++    collection = collection_for(item)
++    ordered = [i for i in group.items if i.sku != item.sku]
++    ordered.extend(
++        i for i in collection.items if i.sku != item.sku and i not in ordered
++    )
++    return tuple(ordered[:limit])
+ 
+ 
+-def category_hub() -> list[dict]:
+-    return [
+-        {
+-            "key": cat,
+-            "label": CATEGORY_LABELS[cat],
+-            "blurb": CATEGORY_BLURBS[cat],
+-            "count": sum(1 for p in PRODUCTS if p.cat == cat),
+-        }
+-        for cat in CATEGORY_ORDER
+-    ]
+-
+-
+-def related_products(product: Product, limit: int = 4) -> list[Product]:
+-    return [p for p in PRODUCTS if p.cat == product.cat and p.id != product.id][:limit]
+-
+-
+-def catalog_json() -> dict:
+-    """Minimal product map embedded in store pages for the client-side cart."""
+-    return {
+-        p.id: {
+-            "name": p.name,
+-            "price": p.price,
+-            "variants": [{"code": v.code, "label": v.label} for v in p.variants],
+-        }
+-        for p in PRODUCTS
+-    }
++def search(query: str) -> tuple[StoreItem, ...]:
++    terms = [term for term in query.casefold().split() if term]
++    if not terms:
++        return ()
++    return tuple(
++        item for item in ITEMS if all(term in item.search_text for term in terms)
++    )
+diff --git a/src/store/db.py b/src/store/db.py
+index e218327..999ea9b 100644
+--- a/src/store/db.py
++++ b/src/store/db.py
+@@ -235,27 +235,30 @@ def get_product_by_id(product_id: int | str) -> dict[str, Any] | None:
+         return _hydrate_products(conn, [row])[0] if row else None
+ 
+ 
+-def catalog_json() -> dict[str, Any]:
+-    """Return a SKU-first catalog safe to embed in storefront pages."""
+-    result: dict[str, Any] = {}
+-    for product in get_published_products():
+-        result[product["base_sku"]] = {
+-            "name": product["name"],
+-            "price_cents": product["price_cents"],
+-            "variants": [
+-                {
+-                    "sku": v["sku"],
+-                    "code": v["sku"].split("-")[-1]
+-                    if v["sku"] != product["base_sku"]
+-                    else "_",
+-                    "label": v["name"],
+-                    "price_cents": v["price_cents"],
+-                    "available_stock": max(0, v["available_stock"]),
+-                }
+-                for v in product["variants"]
+-            ],
++def variant_exists(sku: str) -> bool:
++    with connection() as conn:
++        return (
++            conn.execute(
++                "SELECT 1 FROM variants WHERE sku=%s", (sku.upper(),)
++            ).fetchone()
++            is not None
++        )
++
++
++def sku_inventory() -> dict[str, dict[str, Any]]:
++    """Return price and availability for every published variant, by SKU."""
++    with connection() as conn:
++        rows = conn.execute(
++            f"SELECT v.sku,v.price_cents,{_available_sql()} AS available_stock "
++            "FROM variants v JOIN products p ON p.id=v.product_id WHERE p.published"
++        ).fetchall()
++    return {
++        row["sku"]: {
++            "price_cents": int(row["price_cents"]),
++            "available_stock": max(0, int(row["available_stock"])),
+         }
+-    return result
++        for row in rows
++    }
+ 
+ 
+ def normalize_cart(
+diff --git a/src/store/models.py b/src/store/models.py
+index e507e9f..b5f7604 100644
+--- a/src/store/models.py
++++ b/src/store/models.py
+@@ -9,8 +9,11 @@ from pydantic import AliasChoices, BaseModel, Field, model_validator
+ 
+ # Category codes in the real inventory include RFID.  Keep the grammar strict
+ # while avoiding the three-character assumption made by the original backend.
+-BASE_SKU_RE = re.compile(r"^PSV-[A-Z0-9]{3,8}-\d{3}$")
+-VARIANT_SKU_RE = re.compile(r"^PSV-[A-Z0-9]{3,8}-\d{3}(?:-\d{3})?$")
++# Every menu item is its own product, so a base SKU may carry the optional
++# -NNN suffix that the inventory system uses for members of a family
++# (PSV-BYP-014-002 is one Lishi pick, not a variant of a "Lishi" product).
++BASE_SKU_RE = re.compile(r"^PSV-[A-Z0-9]{3,8}-\d{3}(?:-\d{3})?$")
++VARIANT_SKU_RE = BASE_SKU_RE
+ SLUG_RE = re.compile(r"[^a-z0-9]+")
+ 
+ 
+@@ -60,7 +63,9 @@ class ProductInput(BaseModel):
+         if not self.name:
+             raise ValueError("Product name is required.")
+         if not BASE_SKU_RE.fullmatch(self.base_sku):
+-            raise ValueError("Base SKU must match PSV-CATEGORY-NNN.")
++            raise ValueError(
++                "Base SKU must be PSV-CATEGORY-NNN with an optional -NNN suffix."
++            )
+         if not self.variants:
+             raise ValueError("At least one variant is required.")
+         seen: set[str] = set()
+@@ -86,7 +91,9 @@ def slugify(value: str) -> str:
+ def category_code_from_sku(base_sku: str) -> str:
+     normalized = base_sku.strip().upper()
+     if not BASE_SKU_RE.fullmatch(normalized):
+-        raise ValueError("Base SKU must match PSV-CATEGORY-NNN.")
++        raise ValueError(
++            "Base SKU must be PSV-CATEGORY-NNN with an optional -NNN suffix."
++        )
+     return normalized.split("-")[1]
+ 
+ 
+diff --git a/src/store/router.py b/src/store/router.py
+index 6efe091..e4e41bd 100644
+--- a/src/store/router.py
++++ b/src/store/router.py
+@@ -5,8 +5,8 @@ from datetime import UTC, datetime, timedelta
+ from typing import Any
+ 
+ import stripe
+-from fastapi import APIRouter, Depends, HTTPException, Request
+-from fastapi.responses import HTMLResponse, JSONResponse
++from fastapi import APIRouter, Depends, HTTPException, Query, Request
++from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+ from pydantic import BaseModel, Field
+ from starlette.concurrency import run_in_threadpool
+ 
+@@ -49,81 +49,89 @@ def _items(payload: CartPayload) -> list[dict[str, Any]]:
+     return [{"sku": item.sku, "qty": item.qty} for item in payload.items]
+ 
+ 
+-def _context(
+-    catalog_products: tuple[storefront.ProductView, ...], **extra: Any
+-) -> dict[str, Any]:
++def _context(front: storefront.Storefront, **extra: Any) -> dict[str, Any]:
+     return {
+-        "catalog_json": storefront.browser_catalog(catalog_products),
++        "catalog_json": front.browser_catalog(),
++        "collections": front.collections(),
+         **extra,
+     }
+ 
+ 
+ @router.get("", response_class=HTMLResponse, name="store_page")
+ def store_page(request: Request):
+-    products = storefront.products()
+-    featured = storefront.featured_products(products)
+-    if not products:
+-        raise HTTPException(status_code=503, detail="Store catalog is unavailable.")
+-    hero = next(
+-        (product for product in products if product.id == catalog.HERO_PRODUCT_ID),
+-        products[0],
+-    )
++    front = storefront.Storefront()
+     return templates.TemplateResponse(
+         request=request,
+         name="pages/store/home.html",
+         context=_context(
+-            products,
+-            hero=hero,
+-            featured=featured[:4],
+-            categories=storefront.category_hub(products),
++            front,
++            hero=front.view(catalog.HERO),
++            featured=front.views(catalog.FEATURED),
+         ),
+     )
+ 
+ 
+-@router.get("/catalog", response_class=HTMLResponse, name="store_catalog_page")
+-def store_catalog_page(request: Request, cat: str = "All"):
+-    if cat not in catalog.CATEGORY_LABELS:
+-        cat = "All"
+-    products = storefront.products()
++@router.get("/catalog", include_in_schema=False)
++def store_catalog_redirect(request: Request):
++    """The single-grid catalog was replaced by per-collection pages."""
++    return RedirectResponse(request.url_for("store_page"), status_code=301)
++
++
++@router.get(
++    "/collection/{slug}", response_class=HTMLResponse, name="store_collection_page"
++)
++def store_collection_page(request: Request, slug: str):
++    collection = catalog.COLLECTION_MAP.get(slug)
++    if collection is None:
++        raise HTTPException(status_code=404)
++    front = storefront.Storefront()
+     return templates.TemplateResponse(
+         request=request,
+-        name="pages/store/catalog.html",
+-        context=_context(
+-            products,
+-            products=products,
+-            categories=storefront.category_hub(products),
+-            initial_cat=cat,
+-            all_blurb=catalog.ALL_PRODUCTS_BLURB,
+-        ),
++        name="pages/store/collection.html",
++        context=_context(front, collection=front.collection(collection)),
+     )
+ 
+ 
+-@router.get(
+-    "/product/{product_id}", response_class=HTMLResponse, name="store_product_page"
+-)
+-def store_product_page(request: Request, product_id: str):
+-    product = storefront.get_product(product_id)
+-    if product is None:
++@router.get("/product/{slug}", response_class=HTMLResponse, name="store_product_page")
++def store_product_page(request: Request, slug: str):
++    item = catalog.ITEMS_BY_SLUG.get(slug)
++    if item is None:
+         raise HTTPException(status_code=404)
+-    products = storefront.products()
++    front = storefront.Storefront()
+     return templates.TemplateResponse(
+         request=request,
+         name="pages/store/product.html",
+         context=_context(
+-            products,
+-            product=product,
+-            related=storefront.related_products(product, products),
++            front,
++            product=front.view(item),
++            collection=front.collection(catalog.collection_for(item)),
++            group=catalog.group_for(item),
++            related=front.views(catalog.related_items(item)),
++        ),
++    )
++
++
++@router.get("/search", response_class=HTMLResponse, name="store_search_page")
++def store_search_page(request: Request, q: str = Query(default="", max_length=80)):
++    query = " ".join(q.split())
++    front = storefront.Storefront()
++    return templates.TemplateResponse(
++        request=request,
++        name="pages/store/search.html",
++        context=_context(
++            front,
++            query=query,
++            results=front.views(catalog.search(query)),
+         ),
+     )
+ 
+ 
+ @router.get("/checkout", response_class=HTMLResponse, name="store_checkout_page")
+ def store_checkout_page(request: Request):
+-    products = storefront.products()
+     return templates.TemplateResponse(
+         request=request,
+         name="pages/store/checkout.html",
+-        context=_context(products),
++        context=_context(storefront.Storefront()),
+     )
+ 
+ 
+@@ -214,13 +222,12 @@ def store_confirmed_page(request: Request, session_id: str = ""):
+     if not session_id:
+         raise HTTPException(status_code=404)
+     order = db.confirmation_lookup(session_id)
+-    products = storefront.products()
+     pending = order is None
+     return templates.TemplateResponse(
+         request=request,
+         name="pages/store/confirmed.html",
+         context=_context(
+-            products,
++            storefront.Storefront(),
+             order=order,
+             pending=pending,
+             session_id=session_id,
+diff --git a/src/store/seed.py b/src/store/seed.py
+index 71a9ce1..d56b9d6 100644
+--- a/src/store/seed.py
++++ b/src/store/seed.py
+@@ -1,4 +1,4 @@
+-"""Resumable import of the storefront design catalog into PostgreSQL."""
++"""Resumable import of the menu-derived catalog into PostgreSQL."""
+ 
+ from __future__ import annotations
+ 
+@@ -6,7 +6,7 @@ import logging
+ 
+ from . import catalog, db
+ from .config import bootstrap_stock
+-from .models import ProductInput, VariantInput, cents_from_dollars
++from .models import ProductInput, VariantInput
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -18,49 +18,42 @@ def bootstrap_catalog() -> int:
+ 
+ 
+ def _bootstrap_catalog() -> int:
+-    """Import the bundled catalog only when the database has no products.
++    """Import menu items that the database does not know about yet.
+ 
+-    Imports resume per base SKU. Prices come from the approved design data, but
+-    stock defaults to zero so a fresh production deployment cannot accidentally
+-    sell unconfigured items.
++    Every menu item becomes one product with one variant keyed by its SKU.
++    Prices come from the menu, but stock defaults to zero so a fresh
++    production deployment cannot accidentally sell unconfigured items.
++    Items that require vetting are imported unpublished so they can never be
++    added to a cart.
+     """
+     initial_stock = bootstrap_stock()
+-    grouped: dict[str, list[catalog.Product]] = {}
+-    for product in catalog.PRODUCTS:
+-        grouped.setdefault("-".join(product.id.split("-")[:3]), []).append(product)
+-
+     imported = 0
+-    for base_sku, members in grouped.items():
+-        if db.get_product_by_id(base_sku) is not None:
++    for item in catalog.ITEMS:
++        if db.get_product_by_id(item.sku) is not None:
++            continue
++        if db.variant_exists(item.sku):
++            # A previous catalog import already sells this SKU as part of a
++            # different product. Keep that row as the price/stock authority
++            # rather than failing startup on the unique constraint.
++            logger.warning("store_catalog_sku_already_present sku=%s", item.sku)
+             continue
+-        product = members[0]
+-        source_variants: list[tuple[catalog.Variant, catalog.Product]] = []
+-        for member in members:
+-            variants = member.variants or (
+-                catalog.Variant(code="_", label="", sku=member.sku, upc=member.upc),
+-            )
+-            source_variants.extend((variant, member) for variant in variants)
+-        variants = [
+-            VariantInput(
+-                sku=variant.sku,
+-                name=variant.label or (member.name if len(members) > 1 else ""),
+-                upc=variant.upc,
+-                price_cents=cents_from_dollars(str(member.price)),
+-                stock_on_hand=initial_stock,
+-                position=position,
+-            )
+-            for position, (variant, member) in enumerate(source_variants)
+-        ]
+         db.create_product(
+             ProductInput(
+-                name=product.name,
+-                slug=product.id,
+-                base_sku=base_sku,
+-                description=product.desc,
+-                category_label=product.cat_label,
+-                featured=any(member in catalog.FEATURED for member in members),
+-                published=True,
+-                variants=variants,
++                name=item.name,
++                slug=item.slug,
++                base_sku=item.sku,
++                description=item.desc,
++                category_label=item.category_label,
++                featured=item.feature,
++                published=not item.restricted,
++                variants=[
++                    VariantInput(
++                        sku=item.sku,
++                        upc=item.upc,
++                        price_cents=item.price_cents,
++                        stock_on_hand=initial_stock,
++                    )
++                ],
+             ),
+         )
+         imported += 1
+@@ -69,4 +62,24 @@ def _bootstrap_catalog() -> int:
+         imported,
+         initial_stock,
+     )
++    _warn_on_price_drift()
+     return imported
++
++
++def _warn_on_price_drift() -> None:
++    """Flag SKUs whose database price no longer matches the menu.
++
++    The database is what checkout charges and what the storefront displays,
++    so a drift is not an error, but it usually means the menu was updated
++    without updating inventory (or the other way around).
++    """
++    inventory = db.sku_inventory()
++    for item in catalog.ITEMS:
++        row = inventory.get(item.sku)
++        if row is not None and int(row["price_cents"]) != item.price_cents:
++            logger.warning(
++                "store_price_drift sku=%s menu_cents=%d database_cents=%d",
++                item.sku,
++                item.price_cents,
++                int(row["price_cents"]),
++            )
+diff --git a/src/store/storefront.py b/src/store/storefront.py
+index 7998934..904bbad 100644
+--- a/src/store/storefront.py
++++ b/src/store/storefront.py
+@@ -1,4 +1,10 @@
+-"""Presentation adapters for the redesigned storefront."""
++"""Presentation adapters joining the menu catalog with live inventory.
++
++Copy, photos, and grouping come from `catalog` (the menu). Price and
++availability come from PostgreSQL so the storefront never shows a price that
++checkout would not charge. Items missing from the database are shown but
++cannot be added to a cart.
++"""
+ 
+ from __future__ import annotations
+ 
+@@ -6,154 +12,132 @@ from dataclasses import dataclass
+ from typing import Any
+ 
+ from . import catalog, db
++from .catalog import Collection, StoreGroup, StoreItem
+ 
++Inventory = dict[str, dict[str, Any]]
+ 
+-@dataclass(frozen=True)
+-class VariantView:
+-    code: str
+-    label: str
+-    sku: str
+-    upc: str
+-    price_cents: int
+-    available_stock: int
++
++def money(cents: int) -> str:
++    dollars, remainder = divmod(int(cents), 100)
++    return f"${dollars}" if remainder == 0 else f"${dollars}.{remainder:02d}"
+ 
+ 
+ @dataclass(frozen=True)
+-class ProductView:
+-    id: str
+-    name: str
+-    cat: str
+-    cat_label: str
+-    sku: str
+-    upc: str
+-    desc: str
+-    featured: bool
++class ItemView:
++    item: StoreItem
+     price_cents: int
+-    price_str: str
+-    price_varies: bool
+-    variants: tuple[VariantView, ...]
+     available_stock: int
++    listed: bool
++
++    def __getattr__(self, name: str) -> Any:
++        return getattr(self.item, name)
++
++    @property
++    def price_str(self) -> str:
++        return money(self.price_cents)
+ 
+     @property
+-    def is_key(self) -> bool:
+-        return self.cat == "KYS"
++    def purchasable(self) -> bool:
++        return self.listed and not self.restricted and self.available_stock > 0
+ 
+     @property
+     def sold_out(self) -> bool:
+-        return self.available_stock <= 0
++        return self.listed and not self.restricted and self.available_stock <= 0
+ 
+     @property
+-    def default_variant(self) -> VariantView:
+-        """Prefer an available variant for one-click product-card adds."""
+-        return next(
+-            (variant for variant in self.variants if variant.available_stock > 0),
+-            self.variants[0],
+-        )
++    def image_url(self) -> str:
++        return f"/static/images/menu/{self.image}" if self.image else ""
++
++    @property
++    def url(self) -> str:
++        return f"/store/product/{self.slug}"
+ 
+     @property
+-    def search_text(self) -> str:
+-        values = [self.name, self.sku, self.cat_label]
+-        values.extend(variant.label for variant in self.variants)
+-        values.extend(variant.sku for variant in self.variants)
+-        return " ".join(values).lower()
++    def collection(self) -> Collection:
++        return catalog.collection_for(self.item)
++
+ 
++@dataclass(frozen=True)
++class GroupView:
++    group: StoreGroup
++    items: tuple[ItemView, ...]
++
++    def __getattr__(self, name: str) -> Any:
++        return getattr(self.group, name)
+ 
+-def _money(cents: int) -> str:
+-    return f"${cents / 100:.2f}"
+ 
++@dataclass(frozen=True)
++class CollectionView:
++    collection: Collection
++    groups: tuple[GroupView, ...]
++
++    def __getattr__(self, name: str) -> Any:
++        return getattr(self.collection, name)
+ 
+-def _view(product: dict[str, Any]) -> ProductView:
+-    raw_variants = product["variants"]
+-    variants = tuple(
+-        VariantView(
+-            code=(
+-                variant["sku"].removeprefix(f"{product['base_sku']}-")
+-                if variant["sku"] != product["base_sku"]
+-                else "_"
++    @property
++    def cover_url(self) -> str:
++        return f"/static/images/menu/{self.cover}" if self.cover else ""
++
++    @property
++    def url(self) -> str:
++        return f"/store/collection/{self.slug}"
++
++    @property
++    def items(self) -> tuple[ItemView, ...]:
++        seen: set[str] = set()
++        ordered: list[ItemView] = []
++        for group in self.groups:
++            for item in group.items:
++                if item.sku not in seen:
++                    seen.add(item.sku)
++                    ordered.append(item)
++        return tuple(ordered)
++
++    @property
++    def titled_groups(self) -> tuple[GroupView, ...]:
++        return tuple(group for group in self.groups if group.title and group.items)
++
++
++class Storefront:
++    """One request's view of the catalog against a single inventory snapshot."""
++
++    def __init__(self, inventory: Inventory | None = None):
++        self.inventory = db.sku_inventory() if inventory is None else inventory
++
++    def view(self, item: StoreItem) -> ItemView:
++        row = self.inventory.get(item.sku)
++        if row is None:
++            return ItemView(item, item.price_cents, 0, listed=False)
++        return ItemView(
++            item, int(row["price_cents"]), int(row["available_stock"]), listed=True
++        )
++
++    def views(self, items: tuple[StoreItem, ...]) -> tuple[ItemView, ...]:
++        return tuple(self.view(item) for item in items)
++
++    def collection(self, collection: Collection) -> CollectionView:
++        return CollectionView(
++            collection,
++            tuple(
++                GroupView(group, self.views(group.items)) for group in collection.groups
+             ),
+-            label=variant["name"],
+-            sku=variant["sku"],
+-            upc=variant["upc"],
+-            price_cents=int(variant["price_cents"]),
+-            available_stock=max(0, int(variant["available_stock"])),
+         )
+-        for variant in raw_variants
+-    )
+-    first = variants[0]
+-    price_cents = int(product["min_price_cents"])
+-    price_str = (
+-        f"From {_money(price_cents)}"
+-        if product["price_varies"]
+-        else _money(price_cents)
+-    )
+-    return ProductView(
+-        id=product["slug"].upper(),
+-        name=product["name"],
+-        cat=product["category_code"],
+-        cat_label=product["category_label"],
+-        sku=first.sku,
+-        upc=first.upc,
+-        desc=product["description"],
+-        featured=bool(product["featured"]),
+-        price_cents=price_cents,
+-        price_str=price_str,
+-        price_varies=bool(product["price_varies"]),
+-        variants=variants,
+-        available_stock=sum(variant.available_stock for variant in variants),
+-    )
+-
+-
+-def products() -> tuple[ProductView, ...]:
+-    return tuple(_view(product) for product in db.get_published_products())
+-
+-
+-def featured_products(all_products: tuple[ProductView, ...]) -> tuple[ProductView, ...]:
+-    return tuple(product for product in all_products if product.featured)
+-
+-
+-def get_product(product_id: str) -> ProductView | None:
+-    product = db.get_product_by_slug(product_id.lower())
+-    if product is None:
+-        product = db.get_product_by_id(product_id)
+-    return _view(product) if product else None
+-
+-
+-def related_products(
+-    product: ProductView, all_products: tuple[ProductView, ...], limit: int = 4
+-) -> tuple[ProductView, ...]:
+-    return tuple(
+-        candidate
+-        for candidate in all_products
+-        if candidate.cat == product.cat and candidate.id != product.id
+-    )[:limit]
+-
+-
+-def category_hub(all_products: tuple[ProductView, ...]) -> list[dict[str, Any]]:
+-    return [
+-        {
+-            "key": code,
+-            "label": catalog.CATEGORY_LABELS[code],
+-            "blurb": catalog.CATEGORY_BLURBS[code],
+-            "count": sum(product.cat == code for product in all_products),
+-        }
+-        for code in catalog.CATEGORY_ORDER
+-    ]
+-
+-
+-def browser_catalog(all_products: tuple[ProductView, ...]) -> dict[str, Any]:
+-    return {
+-        product.id: {
+-            "name": product.name,
+-            "variants": [
+-                {
+-                    "sku": variant.sku,
+-                    "code": variant.code,
+-                    "label": variant.label,
+-                    "price_cents": variant.price_cents,
+-                    "available_stock": variant.available_stock,
+-                }
+-                for variant in product.variants
+-            ],
+-        }
+-        for product in all_products
+-    }
++
++    def collections(self) -> tuple[CollectionView, ...]:
++        return tuple(self.collection(c) for c in catalog.COLLECTIONS)
++
++    def browser_catalog(self) -> dict[str, Any]:
++        """SKU-keyed map embedded in store pages for the client-side cart."""
++        result: dict[str, Any] = {}
++        for item in catalog.ITEMS:
++            view = self.view(item)
++            if not view.listed or view.restricted:
++                continue
++            result[item.sku] = {
++                "name": item.name,
++                "price_cents": view.price_cents,
++                "available_stock": view.available_stock,
++                "image": view.image_url,
++                "url": view.url,
++            }
++        return result
+diff --git a/static/pages/store.js b/static/pages/store.js
+index a0495e1..5af8b2c 100644
+--- a/static/pages/store.js
++++ b/static/pages/store.js
+@@ -3,64 +3,34 @@
+ 
+     const dataEl = document.getElementById("psv-catalog");
+     if (!dataEl) return;
++    // SKU -> {name, price_cents, available_stock, image, url}. Only items
++    // that can be sold online are present, so anything else in a stored
++    // cart is dropped on load.
+     const CATALOG = JSON.parse(dataEl.textContent);
+     const CART_KEY = "psv-cart";
+     const CHECKOUT_KEY = "psv-checkout-id";
+-    const SKU_MAP = {};
++    const MAX_QTY = 99;
+     const normalizeSku = (sku) => String(sku || "").trim().toUpperCase();
+ 
+-    for (const [productId, product] of Object.entries(CATALOG)) {
+-        for (const variant of product.variants) {
+-            const sku = normalizeSku(variant.sku);
+-            SKU_MAP[sku] = {
+-                productId,
+-                name: product.name,
+-                variantLabel: variant.label,
+-                priceCents: variant.price_cents,
+-                stock: variant.available_stock,
+-            };
+-        }
+-    }
+-
+     function normalizeQty(value) {
+         const qty = Math.floor(Number(value));
+         return Number.isFinite(qty) && qty > 0 ? qty : 0;
+     }
+ 
++    function capQty(sku, qty) {
++        return Math.min(qty, CATALOG[sku].available_stock, MAX_QTY);
++    }
++
+     function readCart() {
+         try {
+             const stored = JSON.parse(window.localStorage.getItem(CART_KEY));
+             const cleaned = {};
+-            if (Array.isArray(stored)) {
+-                for (const item of stored) {
+-                    const sku = normalizeSku(item && item.sku);
+-                    const qty = normalizeQty(item && item.qty);
+-                    if (SKU_MAP[sku] && qty) {
+-                        cleaned[sku] = Math.min(
+-                            (cleaned[sku] || 0) + qty,
+-                            SKU_MAP[sku].stock,
+-                        );
+-                    }
+-                }
+-                return cleaned;
+-            }
+-
+-            // One-time migration from the design-only productId||variantCode cart.
+-            if (stored && typeof stored === "object") {
+-                for (const [key, rawQty] of Object.entries(stored)) {
+-                    const [productId, code] = key.split("||");
+-                    const product = CATALOG[productId];
+-                    const variant = product && product.variants.find(
+-                        (candidate) => candidate.code === code,
+-                    );
+-                    const qty = normalizeQty(rawQty);
+-                    if (variant && qty) {
+-                        const sku = normalizeSku(variant.sku);
+-                        cleaned[sku] = Math.min(
+-                            (cleaned[sku] || 0) + qty,
+-                            variant.available_stock,
+-                        );
+-                    }
++            if (!Array.isArray(stored)) return cleaned;
++            for (const item of stored) {
++                const sku = normalizeSku(item && item.sku);
++                const qty = normalizeQty(item && item.qty);
++                if (CATALOG[sku] && qty) {
++                    cleaned[sku] = capQty(sku, (cleaned[sku] || 0) + qty);
+                 }
+             }
+             return cleaned;
+@@ -73,7 +43,7 @@
+ 
+     function cartPayload() {
+         return Object.entries(cart)
+-            .filter(([sku, qty]) => SKU_MAP[sku] && qty > 0)
++            .filter(([sku, qty]) => CATALOG[sku] && qty > 0)
+             .map(([sku, qty]) => ({ sku, qty }));
+     }
+ 
+@@ -82,18 +52,26 @@
+     }
+ 
+     saveCart();
+-    const money = (cents) => "$" + (cents / 100).toFixed(2);
++
++    function money(cents) {
++        const dollars = Math.floor(cents / 100);
++        const remainder = cents % 100;
++        return remainder === 0
++            ? "$" + dollars
++            : "$" + dollars + "." + String(remainder).padStart(2, "0");
++    }
+ 
+     function cartEntries() {
+         return cartPayload().map(({ sku, qty }) => {
+-            const item = SKU_MAP[sku];
++            const item = CATALOG[sku];
+             return {
+                 sku,
+                 qty,
+                 name: item.name,
+-                variantLabel: item.variantLabel,
+-                lineTotalCents: item.priceCents * qty,
+-                stock: item.stock,
++                image: item.image,
++                url: item.url,
++                lineTotalCents: item.price_cents * qty,
++                stock: item.available_stock,
+             };
+         });
+     }
+@@ -102,22 +80,38 @@
+         return cartEntries().reduce((sum, item) => sum + item.lineTotalCents, 0);
+     }
+ 
++    let toastTimer = 0;
++    function toast(message) {
++        const node = document.getElementById("storeToast");
++        if (!node) return;
++        node.textContent = message;
++        node.hidden = false;
++        window.clearTimeout(toastTimer);
++        toastTimer = window.setTimeout(() => {
++            node.hidden = true;
++        }, 2200);
++    }
++
+     function addToCart(sku, qty) {
+         sku = normalizeSku(sku);
+-        const item = SKU_MAP[sku];
+-        if (!item || item.stock <= 0) return;
+-        cart[sku] = Math.min((cart[sku] || 0) + qty, item.stock);
++        const item = CATALOG[sku];
++        if (!item || item.available_stock <= 0) return;
++        const before = cart[sku] || 0;
++        cart[sku] = capQty(sku, before + qty);
+         window.sessionStorage.removeItem(CHECKOUT_KEY);
+         saveCart();
+         renderAll();
+-        openCart();
++        toast(
++            cart[sku] === before
++                ? "No more " + item.name + " in stock"
++                : "Added " + item.name + " to your cart",
++        );
+     }
+ 
+     function bumpQty(sku, delta) {
+         sku = normalizeSku(sku);
+-        const item = SKU_MAP[sku];
+-        if (!item) return;
+-        cart[sku] = Math.min((cart[sku] || 0) + delta, item.stock);
++        if (!CATALOG[sku]) return;
++        cart[sku] = capQty(sku, (cart[sku] || 0) + delta);
+         if (!Number.isFinite(cart[sku]) || cart[sku] <= 0) delete cart[sku];
+         window.sessionStorage.removeItem(CHECKOUT_KEY);
+         saveCart();
+@@ -133,13 +127,18 @@
+         overlay.hidden = false;
+         drawer.hidden = false;
+         if (cartButton) cartButton.setAttribute("aria-expanded", "true");
++        const close = document.getElementById("cartClose");
++        if (close) close.focus();
+     }
+ 
+     function closeCart() {
+-        if (!drawer) return;
++        if (!drawer || drawer.hidden) return;
+         overlay.hidden = true;
+         drawer.hidden = true;
+-        if (cartButton) cartButton.setAttribute("aria-expanded", "false");
++        if (cartButton) {
++            cartButton.setAttribute("aria-expanded", "false");
++            cartButton.focus();
++        }
+     }
+ 
+     function el(tag, className, text) {
+@@ -149,39 +148,50 @@
+         return node;
+     }
+ 
+-    function thumbIcon() {
++    function thumb(item, className) {
++        const box = el("div", className);
++        if (item.image) {
++            const img = el("img");
++            img.src = item.image;
++            img.alt = "";
++            box.appendChild(img);
++            return box;
++        }
+         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+         svg.setAttribute("viewBox", "0 0 24 24");
++        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
++        circle.setAttribute("cx", "7.5");
++        circle.setAttribute("cy", "15.5");
++        circle.setAttribute("r", "5.5");
+         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+-        path.setAttribute(
+-            "d",
+-            "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z",
+-        );
+-        svg.appendChild(path);
+-        return svg;
++        path.setAttribute("d", "m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3");
++        svg.append(circle, path);
++        box.appendChild(svg);
++        return box;
+     }
+ 
+     function renderCartItem(item, summary = false) {
+         const row = el("div", summary ? "summary-item" : "cart-item");
+-        const thumb = el("div", summary ? "summary-item-thumb" : "cart-item-thumb");
+-        thumb.appendChild(thumbIcon());
++        const photo = thumb(item, summary ? "summary-item-thumb" : "cart-item-thumb");
+         const info = el("div", summary ? "summary-item-info" : "cart-item-info");
+-        info.appendChild(el("div", summary ? "summary-item-name" : "cart-item-name", item.name));
+-        if (item.variantLabel) {
+-            info.appendChild(el("div", summary ? "summary-item-variant" : "cart-item-variant", item.variantLabel));
+-        }
+         if (summary) {
++            info.appendChild(el("div", "summary-item-name", item.name));
+             info.appendChild(el("div", "summary-item-qty", "Qty " + item.qty));
+-            row.append(thumb, info, el("span", "summary-item-total", money(item.lineTotalCents)));
++            row.append(photo, info, el("span", "summary-item-total", money(item.lineTotalCents)));
+             return row;
+         }
++        const name = el("a", "cart-item-name", item.name);
++        name.href = item.url;
++        info.appendChild(name);
+         const qty = el("div", "cart-item-qty");
+         const dec = el("button", "", "–");
+         dec.type = "button";
++        dec.setAttribute("aria-label", "Decrease quantity of " + item.name);
+         dec.addEventListener("click", () => bumpQty(item.sku, -1));
+         const inc = el("button", "", "+");
+         inc.type = "button";
+-        inc.disabled = item.qty >= item.stock;
++        inc.setAttribute("aria-label", "Increase quantity of " + item.name);
++        inc.disabled = item.qty >= Math.min(item.stock, MAX_QTY);
+         inc.addEventListener("click", () => bumpQty(item.sku, 1));
+         qty.append(dec, el("span", "", String(item.qty)), inc);
+         info.appendChild(qty);
+@@ -189,9 +199,10 @@
+         side.appendChild(el("span", "cart-item-total", money(item.lineTotalCents)));
+         const remove = el("button", "cart-item-remove", "Remove");
+         remove.type = "button";
++        remove.setAttribute("aria-label", "Remove " + item.name + " from cart");
+         remove.addEventListener("click", () => bumpQty(item.sku, -Infinity));
+         side.appendChild(remove);
+-        row.append(thumb, info, side);
++        row.append(photo, info, side);
+         return row;
+     }
+ 
+@@ -236,41 +247,29 @@
+         renderAll();
+     });
+     document.addEventListener("keydown", (event) => {
+-        if (event.key === "Escape" && drawer && !drawer.hidden) closeCart();
++        if (event.key === "Escape") closeCart();
+     });
+ 
++    const qtyValue = document.getElementById("qtyValue");
++    const stepper = qtyValue ? qtyValue.closest(".qty-stepper") : null;
++    const qtyMax = stepper ? normalizeQty(stepper.dataset.max) || 1 : 1;
++
+     document.addEventListener("click", (event) => {
+         const button = event.target.closest("[data-add]");
+         if (!button || button.disabled) return;
+-        const qtyNode = document.getElementById("qtyValue");
+-        const qty = button.hasAttribute("data-detail") && qtyNode
+-            ? normalizeQty(qtyNode.textContent) || 1
++        const qty = button.hasAttribute("data-detail") && qtyValue
++            ? normalizeQty(qtyValue.textContent) || 1
+             : 1;
+         addToCart(button.dataset.sku, qty);
++        if (button.hasAttribute("data-detail")) openCart();
+     });
+ 
+-    const qtyValue = document.getElementById("qtyValue");
+     if (qtyValue) {
+         document.getElementById("qtyDec").addEventListener("click", () => {
+             qtyValue.textContent = String(Math.max(1, normalizeQty(qtyValue.textContent) - 1));
+         });
+         document.getElementById("qtyInc").addEventListener("click", () => {
+-            const sku = document.querySelector("[data-add][data-detail]").dataset.sku;
+-            qtyValue.textContent = String(Math.min(normalizeQty(qtyValue.textContent) + 1, SKU_MAP[sku].stock));
+-        });
+-    }
+-
+-    const variantSelect = document.getElementById("variantSelect");
+-    if (variantSelect) {
+-        variantSelect.addEventListener("change", () => {
+-            const option = variantSelect.selectedOptions[0];
+-            if (!option) return;
+-            document.getElementById("specSku").textContent = option.dataset.sku;
+-            document.getElementById("specUpc").textContent = option.dataset.upc;
+-            const add = document.querySelector("[data-add][data-detail]");
+-            add.dataset.sku = option.value;
+-            add.disabled = Number(option.dataset.stock) <= 0;
+-            qtyValue.textContent = "1";
++            qtyValue.textContent = String(Math.min(qtyMax, normalizeQty(qtyValue.textContent) + 1));
+         });
+     }
+ 
+@@ -332,46 +331,5 @@
+         saveCart();
+     }
+ 
+-    const grid = document.getElementById("productGrid");
+-    if (grid) {
+-        const cells = Array.from(grid.querySelectorAll(".product-cell"));
+-        const chips = Array.from(document.querySelectorAll("#catalogFilters .filter-btn"));
+-        const search = document.getElementById("storeSearch");
+-        let activeCat = (chips.find((chip) => chip.classList.contains("active")) || chips[0]).dataset.cat;
+-        function applyFilters() {
+-            const query = search.value.trim().toLowerCase();
+-            let visible = 0;
+-            const counts = { All: 0 };
+-            for (const chip of chips) counts[chip.dataset.cat] = 0;
+-            for (const cell of cells) {
+-                const matches = !query || cell.dataset.search.includes(query);
+-                if (matches) {
+-                    counts.All += 1;
+-                    counts[cell.dataset.cat] += 1;
+-                }
+-                const show = matches && (activeCat === "All" || cell.dataset.cat === activeCat);
+-                cell.hidden = !show;
+-                if (show) visible += 1;
+-            }
+-            for (const chip of chips) {
+-                chip.classList.toggle("active", chip.dataset.cat === activeCat);
+-                chip.querySelector(".filter-count").textContent = String(counts[chip.dataset.cat]);
+-            }
+-            document.getElementById("resultCount").textContent = visible + " products";
+-            document.getElementById("keysNote").hidden = activeCat !== "KYS";
+-            document.getElementById("storeEmpty").hidden = visible > 0;
+-            document.getElementById("emptyQuery").textContent = query;
+-            const active = chips.find((chip) => chip.dataset.cat === activeCat);
+-            document.getElementById("catalogCrumb").textContent = active.dataset.label;
+-            document.getElementById("catalogTitle").textContent = active.dataset.label;
+-            document.getElementById("catalogBlurb").textContent = active.dataset.blurb;
+-        }
+-        for (const chip of chips) chip.addEventListener("click", () => {
+-            activeCat = chip.dataset.cat;
+-            applyFilters();
+-        });
+-        search.addEventListener("input", applyFilters);
+-    }
+-
+     renderAll();
+ })();
+diff --git a/templates/base.html b/templates/base.html
+index 04073a0..3cebf03 100644
+--- a/templates/base.html
++++ b/templates/base.html
+@@ -45,6 +45,8 @@
+         {% endif %}
+ 
+         <main>{% block main %} {% endblock %}</main>
++        {# Overlays (cart drawer) render outside <main> so its stacking context cannot trap them under the fixed nav. #}
++        {% block overlays %}{% endblock %}
+ 
+         <footer>{% include 'footer.html' %}</footer>
+ 
+diff --git a/templates/pages/store/catalog.html b/templates/pages/store/catalog.html
+deleted file mode 100644
+index 89ac948..0000000
+--- a/templates/pages/store/catalog.html
++++ /dev/null
+@@ -1,101 +0,0 @@
+-{% extends "base.html" %}
+-{% from "store/macros.html" import product_card with context %}
+-{% set initial_label = "All Products" if initial_cat == "All" else categories | selectattr("key", "equalto", initial_cat) | map(attribute="label") | first | default("All Products", true) %}
+-{% set initial_blurb = all_blurb if initial_cat == "All" else categories | selectattr("key", "equalto", initial_cat) | map(attribute="blurb") | first | default(all_blurb, true) %}
+-{% block title %}{{ initial_label }} | PSV Store | Physical Security Village{% endblock %}
+-{% block description %}Browse the Physical Security Village store: bypass tools, keyed-alike utility keys, Covert Instruments kits, RFID hardware, gear, and merch.{% endblock %}
+-{% block styles %}
+-<link href="/static/pages/store.css" rel="stylesheet" />
+-{% endblock %}
+-
+-{% block page_header %}
+-    <div class="page-header-inner">
+-        <div class="breadcrumb">
+-            <a href="/">Home</a>
+-            <span>/</span>
+-            <a href="{{ url_for('store_page') }}">Store</a>
+-            <span>/</span>
+-            <span id="catalogCrumb">{{ initial_label }}</span>
+-        </div>
+-        <h1 class="page-title store-catalog-title" id="catalogTitle">{{ initial_label }}</h1>
+-        <p class="page-summary" id="catalogBlurb">{{ initial_blurb }}</p>
+-    </div>
+-{% endblock %}
+-
+-{% block main %}
+-    <div class="page-shell">
+-        <div class="store-toolbar">
+-            <div class="filter-group" id="catalogFilters" data-all-label="All Products" data-all-blurb="{{ all_blurb }}">
+-                <button
+-                    class="filter-btn{% if initial_cat == 'All' %} active{% endif %}"
+-                    data-cat="All"
+-                    data-label="All Products"
+-                    data-blurb="{{ all_blurb }}"
+-                >All <span class="filter-count">{{ products | length }}</span></button>
+-                {% for c in categories %}
+-                    <button
+-                        class="filter-btn{% if initial_cat == c.key %} active{% endif %}"
+-                        data-cat="{{ c.key }}"
+-                        data-label="{{ c.label }}"
+-                        data-blurb="{{ c.blurb }}"
+-                    >{{ c.label }} <span class="filter-count">{{ c.count }}</span></button>
+-                {% endfor %}
+-            </div>
+-            <div class="search-wrap">
+-                <label class="visually-hidden" for="storeSearch">Search products</label>
+-                <svg viewBox="0 0 24 24">
+-                    <circle cx="11" cy="11" r="8" />
+-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+-                </svg>
+-                <input id="storeSearch" type="search" placeholder="Search products, SKUs…" autocomplete="off" />
+-            </div>
+-        </div>
+-
+-        <div class="store-meta" aria-live="polite">
+-            <span id="resultCount">{{ products | length if initial_cat == "All" else (products | selectattr("cat", "equalto", initial_cat) | list | length) }} products</span>
+-            <span class="keys-note" id="keysNote" {% if initial_cat != "KYS" %}hidden{% endif %}>
+-                <svg viewBox="0 0 24 24">
+-                    <circle cx="7.5" cy="15.5" r="5.5" />
+-                    <path d="m21 2-9.6 9.6" />
+-                    <path d="m15.5 7.5 3 3L22 7l-3-3" />
+-                </svg>
+-                All PSV keys are cut keyed-alike
+-            </span>
+-        </div>
+-
+-        <div class="product-grid" id="productGrid">
+-            {% for p in products %}
+-                <div
+-                    class="product-cell"
+-                    data-cat="{{ p.cat }}"
+-                    data-search="{{ p.search_text }}"
+-                    {% if initial_cat != "All" and p.cat != initial_cat %}hidden{% endif %}
+-                >
+-                    {{ product_card(p, show_sku=true) }}
+-                </div>
+-            {% endfor %}
+-        </div>
+-
+-        <div class="empty-state store-empty" id="storeEmpty" hidden>
+-            <svg viewBox="0 0 24 24">
+-                <circle cx="11" cy="11" r="8" />
+-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+-            </svg>
+-            <p>No products match “<span id="emptyQuery"></span>”. Try a different term or category.</p>
+-        </div>
+-
+-        <div class="store-legal">
+-            <svg viewBox="0 0 24 24">
+-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+-            </svg>
+-            <p>
+-                <strong>Authorized use only.</strong> These items are sold for
+-                education, research, and lawful security testing. By checking
+-                out you confirm you have the right to possess and use them in
+-                your jurisdiction.
+-            </p>
+-        </div>
+-    </div>
+-
+-    {% include "store/cart.html" %}
+-{% endblock %}
+diff --git a/templates/pages/store/checkout.html b/templates/pages/store/checkout.html
+index 2befd14..c5f6c7d 100644
+--- a/templates/pages/store/checkout.html
++++ b/templates/pages/store/checkout.html
+@@ -3,7 +3,7 @@
+ {% block description %}Check out your Physical Security Village store order.{% endblock %}
+ {% block robots %}noindex,nofollow{% endblock %}
+ {% block styles %}
+-<link href="/static/pages/store.css" rel="stylesheet" />
++<link href="/static/pages/store.css?v=2" rel="stylesheet" />
+ {% endblock %}
+ 
+ {% block page_header %}
+@@ -24,14 +24,23 @@
+         <form id="checkoutForm" class="checkout-layout">
+             <div class="checkout-fields">
+                 <div class="checkout-card">
+-                    <div class="checkout-card-title">Secure checkout</div>
++                    <div class="checkout-card-title">Review your order</div>
+                     <p>
+-                        Your cart is validated against current inventory before
+-                        you continue to Stripe. Stripe securely collects payment
+-                        and shipping details; this site never handles card data.
++                        Your cart is checked against current inventory before
++                        you continue to Stripe. Stripe collects payment and
++                        shipping details; this site never handles card data.
+                     </p>
+                     <p class="form-error" id="checkoutError" role="alert" hidden></p>
+                 </div>
++                <div class="checkout-card checkout-legal">
++                    <div class="checkout-card-title">Authorized use only</div>
++                    <p>
++                        These items are sold for education, research, and
++                        lawful security testing. By continuing you confirm you
++                        have the right to possess and use them in your
++                        jurisdiction.
++                    </p>
++                </div>
+             </div>
+ 
+             <aside class="checkout-summary">
+@@ -40,7 +49,7 @@
+                 <div class="summary-totals" id="summaryTotals">
+                     <div class="summary-row">
+                         <span>Subtotal</span>
+-                        <span class="mono" id="summarySubtotal">$0.00</span>
++                        <span class="mono" id="summarySubtotal">$0</span>
+                     </div>
+                     <div class="summary-row">
+                         <span>Shipping &amp; tax</span>
+@@ -50,15 +59,17 @@
+                 <button type="submit" class="btn btn-primary checkout-submit" id="placeOrder">
+                     Continue to secure checkout
+                 </button>
+-                <a href="{{ url_for('store_catalog_page') }}" class="btn btn-outline">Continue shopping</a>
++                <a href="{{ url_for('store_page') }}" class="btn btn-outline">Continue shopping</a>
+                 <p class="summary-empty" id="summaryEmpty" hidden>
+                     Your cart is empty.
+-                    <a href="{{ url_for('store_catalog_page') }}">Browse the store</a>
++                    <a href="{{ url_for('store_page') }}">Browse the store</a>
+                     to add items.
+                 </p>
+             </aside>
+         </form>
+     </div>
++{% endblock %}
+ 
++{% block overlays %}
+     {% include "store/cart.html" %}
+ {% endblock %}
+diff --git a/templates/pages/store/collection.html b/templates/pages/store/collection.html
+new file mode 100644
+index 0000000..e379b81
+--- /dev/null
++++ b/templates/pages/store/collection.html
+@@ -0,0 +1,96 @@
++{% extends "base.html" %}
++{% from "store/macros.html" import item_card, item_row with context %}
++{% block title %}{{ collection.title }} | PSV Store | Physical Security Village{% endblock %}
++{% block description %}{{ collection.blurb or ("Shop " ~ collection.title ~ " from the Physical Security Village store.") }}{% endblock %}
++{% block styles %}
++<link href="/static/pages/store.css?v=2" rel="stylesheet" />
++{% endblock %}
++
++{% block page_header %}
++    <div class="page-header-inner">
++        <div class="breadcrumb">
++            <a href="/">Home</a>
++            <span>/</span>
++            <a href="{{ url_for('store_page') }}">Store</a>
++            <span>/</span>
++            <span>{{ collection.title }}</span>
++        </div>
++        <h1 class="page-title">{{ collection.title }}</h1>
++        <div class="collection-meta">
++            <span>{{ collection.count }} item{{ "" if collection.count == 1 else "s" }}</span>
++            {% if collection.tag %}<span class="chip">{{ collection.tag }}</span>{% endif %}
++        </div>
++        {% if collection.blurb %}<p class="page-summary">{{ collection.blurb }}</p>{% endif %}
++    </div>
++{% endblock %}
++
++{% block main %}
++    <div class="page-shell">
++        {% include "store/toolbar.html" %}
++
++        {% if collection.titled_groups | length > 1 %}
++            <div class="group-jump" role="navigation" aria-label="Sections in {{ collection.title }}">
++                {% for g in collection.titled_groups %}
++                    <a href="#{{ g.anchor }}">{{ g.title }}</a>
++                {% endfor %}
++            </div>
++        {% endif %}
++
++        {% for g in collection.groups %}
++            <section class="store-group" id="{{ g.anchor }}">
++                {% if g.title %}
++                    <h2 class="store-group-title">
++                        {{ g.title }}
++                        {% if g.tag %}<span class="chip">{{ g.tag }}</span>{% endif %}
++                    </h2>
++                {% endif %}
++                {% if g.lede %}<p class="store-group-lede">{{ g.lede }}</p>{% endif %}
++                {% if g.prose %}
++                    <div class="store-prose">
++                        {% for text in g.prose %}<p>{{ text }}</p>{% endfor %}
++                    </div>
++                {% endif %}
++                {% if g.items %}
++                    {% if g.items | length == 1 %}
++                        {{ item_row(g.items[0]) }}
++                    {% else %}
++                        <div class="item-grid">
++                            {% for p in g.items %}{{ item_card(p) }}{% endfor %}
++                        </div>
++                    {% endif %}
++                {% endif %}
++                {% if g.table %}
++                    <div class="table-scroll">
++                        <table class="store-table">
++                            <caption>{{ g.table.caption }}</caption>
++                            <thead>
++                                <tr>
++                                    {% for h in g.table.head %}<th scope="col">{{ h }}</th>{% endfor %}
++                                </tr>
++                            </thead>
++                            <tbody>
++                                {% for tr in g.table.rows %}
++                                    <tr>
++                                        <th scope="row">{{ tr[0] }}</th>
++                                        {% for cell in tr[1:] %}<td>{{ cell }}</td>{% endfor %}
++                                    </tr>
++                                {% endfor %}
++                            </tbody>
++                        </table>
++                    </div>
++                {% endif %}
++            </section>
++        {% endfor %}
++
++        <div class="collection-next" role="navigation" aria-label="Other collections">
++            <span>Keep browsing</span>
++            {% for c in collections if c.slug != collection.slug %}
++                <a href="{{ c.url }}">{{ c.title }} <small>{{ c.count }}</small></a>
++            {% endfor %}
++        </div>
++    </div>
++{% endblock %}
++
++{% block overlays %}
++    {% include "store/cart.html" %}
++{% endblock %}
+diff --git a/templates/pages/store/confirmed.html b/templates/pages/store/confirmed.html
+index 09b0dde..5bc0a4c 100644
+--- a/templates/pages/store/confirmed.html
++++ b/templates/pages/store/confirmed.html
+@@ -3,7 +3,7 @@
+ {% block description %}Your Physical Security Village store order status.{% endblock %}
+ {% block robots %}noindex,nofollow{% endblock %}
+ {% block styles %}
+-<link href="/static/pages/store.css" rel="stylesheet" />
++<link href="/static/pages/store.css?v=2" rel="stylesheet" />
+ {% endblock %}
+ 
+ {% block main %}
+@@ -29,9 +29,11 @@
+                     moment. Your cart has not been cleared.
+                 </p>
+             {% endif %}
+-            <a href="{{ url_for('store_catalog_page') }}" class="btn btn-primary">Continue shopping</a>
++            <a href="{{ url_for('store_page') }}" class="btn btn-primary">Continue shopping</a>
+         </div>
+     </div>
++{% endblock %}
+ 
++{% block overlays %}
+     {% include "store/cart.html" %}
+ {% endblock %}
+diff --git a/templates/pages/store/home.html b/templates/pages/store/home.html
+index cffdddb..3260f94 100644
+--- a/templates/pages/store/home.html
++++ b/templates/pages/store/home.html
+@@ -1,67 +1,112 @@
+ {% extends "base.html" %}
+-{% from "store/macros.html" import product_card, cat_icon with context %}
++{% from "store/macros.html" import item_card, item_photo, collection_card, buy_button with context %}
+ {% block title %}PSV Store | Physical Security Village{% endblock %}
+-{% block description %}Bypass tools, keyed-alike utility keys, RFID research hardware, and village merch from the Physical Security Village store.{% endblock %}
++{% block description %}Bypass tools, Lishi picks, keyed-alike utility and elevator keys, RFID fobs, and gear from the Physical Security Village. Every purchase funds the Village.{% endblock %}
+ {% block styles %}
+-<link href="/static/pages/store.css" rel="stylesheet" />
++<link href="/static/pages/store.css?v=2" rel="stylesheet" />
+ {% endblock %}
+ 
+ {% block page_header %}
+-    <div class="page-header-inner">
++    <div class="page-header-inner store-home-header">
+         <div class="store-hero">
+             <div class="store-hero-copy">
+-                <span class="store-eyebrow">Featured drop</span>
+-                <h1 class="store-hero-title">{{ hero.name }}</h1>
+-                <p class="store-hero-desc">{{ hero.desc }}</p>
+-                <div class="store-hero-cta">
+-                    <span class="price price-hero">{{ hero.price_str }}</span>
+-                    <a href="{{ url_for('store_product_page', product_id=hero.id) }}" class="btn btn-primary">
+-                        Shop now
+-                        <svg viewBox="0 0 24 24">
++                <span class="store-eyebrow">PSV Store</span>
++                <h1 class="page-title">Tools from<br /><em>the Village bench</em></h1>
++                <p class="page-summary">
++                    The same bypass tools, keyed-alike keys, and gear we teach
++                    with at the Village, shipped to your door. Every purchase
++                    goes towards putting on the Village.
++                </p>
++                <div class="store-hero-actions">
++                    <a href="{{ collections[0].url }}" class="btn btn-primary">
++                        Shop bypass tools
++                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                             <line x1="5" y1="12" x2="19" y2="12" />
+                             <polyline points="12 5 19 12 12 19" />
+                         </svg>
+                     </a>
++                    <a href="#collections" class="btn btn-outline">Browse collections</a>
+                 </div>
+             </div>
+-            <div class="store-hero-art" role="img" aria-label="{{ hero.name }} photo placeholder">
+-                {{ cat_icon(hero.cat) }}
+-            </div>
++            <a href="{{ hero.url }}" class="store-hero-card">
++                {{ item_photo(hero, class="photo-hero") }}
++                <div class="store-hero-card-body">
++                    <span class="store-eyebrow store-eyebrow-quiet">Designed in house</span>
++                    <strong>{{ hero.name }}</strong>
++                    <p>{{ hero.desc }}</p>
++                    <span class="store-hero-card-price">
++                        <span class="price price-lg">{{ hero.price_str }}</span>
++                        <span class="store-hero-card-link">View details →</span>
++                    </span>
++                </div>
++            </a>
+         </div>
+     </div>
+ {% endblock %}
+ 
+ {% block main %}
+     <div class="page-shell">
+-        <section class="store-section">
++        {% include "store/toolbar.html" %}
++
++        <section class="store-section" id="collections">
+             <div class="store-section-head">
+-                <h2>Shop by Category</h2>
+-                <a href="{{ url_for('store_catalog_page') }}" class="store-view-all">View all →</a>
++                <h2>Shop by collection</h2>
++                <p>Seven shelves, sorted the way we lay them out on the table.</p>
+             </div>
+-            <div class="cat-hub">
+-                {% for c in categories %}
+-                    <a href="{{ url_for('store_catalog_page') }}?cat={{ c.key }}" class="cat-hub-link">
+-                        {{ c.label }}
+-                        <svg viewBox="0 0 24 24">
+-                            <line x1="5" y1="12" x2="19" y2="12" />
+-                            <polyline points="12 5 19 12 12 19" />
+-                        </svg>
+-                    </a>
++            <div class="collection-grid">
++                {% for c in collections %}
++                    {{ collection_card(c, wide=loop.first) }}
+                 {% endfor %}
+             </div>
+         </section>
+ 
+         <section class="store-section">
+             <div class="store-section-head">
+-                <h2>Featured Kit</h2>
++                <h2>Village picks</h2>
++                <p>What the crew reaches for first.</p>
+             </div>
+-            <div class="product-grid">
++            <div class="item-grid item-grid-picks">
+                 {% for p in featured %}
+-                    {{ product_card(p, featured=true) }}
++                    {{ item_card(p, show_group=true) }}
+                 {% endfor %}
+             </div>
+         </section>
++
++        <section class="store-section store-notes">
++            <div class="store-note">
++                <svg viewBox="0 0 24 24" aria-hidden="true">
++                    <circle cx="7.5" cy="15.5" r="5.5" />
++                    <path d="m21 2-9.6 9.6" />
++                    <path d="m15.5 7.5 3 3L22 7l-3-3" />
++                </svg>
++                <div>
++                    <strong>Keyed alike</strong>
++                    <p>Every PSV key is cut keyed-alike, so it drops straight into your training set and opens what ours opens.</p>
++                </div>
++            </div>
++            <div class="store-note">
++                <svg viewBox="0 0 24 24" aria-hidden="true">
++                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
++                </svg>
++                <div>
++                    <strong>Authorized use only</strong>
++                    <p>These items are sold for education, research, and lawful security testing. By checking out you confirm you may possess and use them where you live.</p>
++                </div>
++            </div>
++            <div class="store-note">
++                <svg viewBox="0 0 24 24" aria-hidden="true">
++                    <rect x="1" y="4" width="22" height="16" rx="2" />
++                    <line x1="1" y1="10" x2="23" y2="10" />
++                </svg>
++                <div>
++                    <strong>Secure checkout</strong>
++                    <p>Payment and shipping details are collected by Stripe. This site never sees your card number, and proceeds fund the Village.</p>
++                </div>
++            </div>
++        </section>
+     </div>
++{% endblock %}
+ 
++{% block overlays %}
+     {% include "store/cart.html" %}
+ {% endblock %}
+diff --git a/templates/pages/store/product.html b/templates/pages/store/product.html
+index 032cf13..338bd30 100644
+--- a/templates/pages/store/product.html
++++ b/templates/pages/store/product.html
+@@ -1,9 +1,9 @@
+ {% extends "base.html" %}
+-{% from "store/macros.html" import product_card, cat_icon with context %}
++{% from "store/macros.html" import item_card, item_photo, buy_button with context %}
+ {% block title %}{{ product.name }} | PSV Store | Physical Security Village{% endblock %}
+-{% block description %}{{ product.desc }}{% endblock %}
++{% block description %}{{ product.desc or (product.name ~ " from the Physical Security Village store.") }}{% endblock %}
+ {% block styles %}
+-<link href="/static/pages/store.css" rel="stylesheet" />
++<link href="/static/pages/store.css?v=2" rel="stylesheet" />
+ {% endblock %}
+ 
+ {% block page_header %}
+@@ -13,9 +13,11 @@
+             <span>/</span>
+             <a href="{{ url_for('store_page') }}">Store</a>
+             <span>/</span>
+-            <a href="{{ url_for('store_catalog_page') }}?cat={{ product.cat }}">{{ product.cat_label }}</a>
+-            <span>/</span>
+-            <span>{{ product.name }}</span>
++            <a href="{{ collection.url }}">{{ collection.title }}</a>
++            {% if group.title %}
++                <span>/</span>
++                <a href="{{ collection.url }}#{{ group.anchor }}">{{ group.title }}</a>
++            {% endif %}
+         </div>
+     </div>
+ {% endblock %}
+@@ -23,68 +25,91 @@
+ {% block main %}
+     <div class="page-shell">
+         <div class="product-detail">
+-            <div class="product-thumb product-detail-thumb">
+-                <div class="product-thumb-placeholder" role="img" aria-label="{{ product.name }} photo placeholder">
+-                    {{ cat_icon(product.cat) }}
+-                </div>
+-                {% if product.is_key %}
+-                    <span class="product-badge">Keyed alike</span>
+-                {% endif %}
++            <div class="product-detail-photo">
++                {{ item_photo(product, class="photo-detail") }}
+             </div>
++
+             <div class="product-detail-info">
+-                <div class="product-card-cat">{{ product.cat_label }}</div>
++                <div class="product-detail-kicker">
++                    <a href="{{ collection.url }}">{{ collection.title }}</a>
++                    {% if group.title %}<span>· {{ group.title }}</span>{% endif %}
++                    {% if group.tag %}<span class="chip">{{ group.tag }}</span>{% endif %}
++                </div>
+                 <h1 class="product-detail-title">{{ product.name }}</h1>
+-                <div class="price price-hero">{{ product.price_str }}</div>
+-                <p class="product-detail-desc">{{ product.desc }}</p>
++                <div class="price price-hero">{{ product.price_str }}{% if product.price_suffix %} <small>{{ product.price_suffix }}</small>{% endif %}</div>
++
++                {% if product.desc %}<p class="product-detail-desc">{{ product.desc }}</p>{% endif %}
+ 
+-                {% if product.variants %}
+-                    <div class="variant-field">
+-                        <label for="variantSelect">Option</label>
+-                        <select id="variantSelect" class="store-input">
+-                            {% for v in product.variants %}
+-                                <option
+-                                    value="{{ v.sku }}"
+-                                    data-sku="{{ v.sku }}"
+-                                    data-upc="{{ v.upc }}"
+-                                    data-price-cents="{{ v.price_cents }}"
+-                                    data-stock="{{ v.available_stock }}"
+-                                    {% if v.sku == product.default_variant.sku %}selected{% endif %}
+-                                    {% if v.available_stock <= 0 %}disabled{% endif %}
+-                                >{{ v.label or v.sku }}{% if v.available_stock <= 0 %} — Sold out{% endif %}</option>
+-                            {% endfor %}
+-                        </select>
++                {% if product.bullets %}
++                    <div class="product-block">
++                        <h2>What's in the set</h2>
++                        <ul class="item-bullets">
++                            {% for b in product.bullets %}<li>{{ b }}</li>{% endfor %}
++                        </ul>
+                     </div>
+                 {% endif %}
+ 
+-                <div class="product-actions">
+-                    <div class="qty-stepper">
+-                        <button type="button" id="qtyDec" aria-label="Decrease quantity">–</button>
+-                        <span id="qtyValue" aria-live="polite">1</span>
+-                        <button type="button" id="qtyInc" aria-label="Increase quantity">+</button>
++                {% if product.note %}<p class="product-note">{{ product.note }}</p>{% endif %}
++
++                {% if product.restricted %}
++                    <div class="product-restricted" role="note">
++                        <svg viewBox="0 0 24 24" aria-hidden="true">
++                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
++                        </svg>
++                        <div>
++                            <strong>Vetting required</strong>
++                            <p>{{ product.restricted_reason }} <a href="{{ url_for('contact_us_page') }}">Get in touch</a> and we will take it from there.</p>
++                        </div>
+                     </div>
+-                    <button
+-                        class="btn btn-primary product-add"
+-                        data-add
+-                        data-id="{{ product.id }}"
+-                        data-sku="{{ product.default_variant.sku }}"
+-                        data-detail
+-                        {% if product.sold_out %}disabled{% endif %}
+-                    >
+-                        {{ "Sold out" if product.sold_out else "Add to cart" }}
+-                    </button>
+-                </div>
++                {% else %}
++                    <div class="product-actions">
++                        {% if product.purchasable %}
++                            <div class="qty-stepper" data-max="{{ [product.available_stock, 99] | min }}">
++                                <button type="button" id="qtyDec" aria-label="Decrease quantity">–</button>
++                                <span id="qtyValue" aria-live="polite">1</span>
++                                <button type="button" id="qtyInc" aria-label="Increase quantity">+</button>
++                            </div>
++                            <button
++                                type="button"
++                                class="btn btn-primary product-add btn-add"
++                                data-add
++                                data-sku="{{ product.sku }}"
++                                data-detail
++                            >Add to cart</button>
++                        {% else %}
++                            <button type="button" class="btn btn-ghost product-add" disabled>Sold out</button>
++                            <p class="product-soldout-note">Out of stock right now. Come see us at the Village table, or check back soon.</p>
++                        {% endif %}
++                    </div>
++                {% endif %}
++
++                {% if product.details %}
++                    <details class="product-details">
++                        <summary>All {{ product.details | length }} functions</summary>
++                        <ol class="product-details-list">
++                            {% for d in product.details %}<li>{{ d }}</li>{% endfor %}
++                        </ol>
++                    </details>
++                {% endif %}
+ 
+                 <dl class="product-specs">
+-                    <div><dt>SKU</dt><dd id="specSku">{{ product.default_variant.sku }}</dd></div>
+-                    <div><dt>UPC</dt><dd id="specUpc">{{ product.default_variant.upc }}</dd></div>
+-                    <div><dt>Category</dt><dd class="spec-plain">{{ product.cat_label }}</dd></div>
++                    <div><dt>SKU</dt><dd class="mono">{{ product.sku }}</dd></div>
++                    {% if product.upc %}<div><dt>UPC</dt><dd class="mono">{{ product.upc }}</dd></div>{% endif %}
+                     <div>
+                         <dt>Availability</dt>
+-                        <dd class="spec-stock" id="specStock">
+-                            <span class="stock-dot"></span>
+-                            {{ "Sold out" if product.sold_out else "In stock" }}
++                        <dd>
++                            {% if product.restricted %}
++                                By request
++                            {% elif product.purchasable %}
++                                <span class="stock-dot stock-dot-on"></span> In stock
++                            {% else %}
++                                <span class="stock-dot"></span> Sold out
++                            {% endif %}
+                         </dd>
+                     </div>
++                    {% if product.category_code == "KYS" %}
++                        <div><dt>Keying</dt><dd>Keyed alike with every other PSV key</dd></div>
++                    {% endif %}
+                 </dl>
+             </div>
+         </div>
+@@ -92,16 +117,17 @@
+         {% if related %}
+             <section class="store-section related-section">
+                 <div class="store-section-head">
+-                    <h2>More from {{ product.cat_label }}</h2>
++                    <h2>More from {{ group.title or collection.title }}</h2>
++                    <a href="{{ collection.url }}" class="store-view-all">All {{ collection.title }} →</a>
+                 </div>
+-                <div class="product-grid related-grid">
+-                    {% for p in related %}
+-                        {{ product_card(p, compact=true) }}
+-                    {% endfor %}
++                <div class="item-grid item-grid-related">
++                    {% for p in related %}{{ item_card(p) }}{% endfor %}
+                 </div>
+             </section>
+         {% endif %}
+     </div>
++{% endblock %}
+ 
++{% block overlays %}
+     {% include "store/cart.html" %}
+ {% endblock %}
+diff --git a/templates/pages/store/search.html b/templates/pages/store/search.html
+new file mode 100644
+index 0000000..372b536
+--- /dev/null
++++ b/templates/pages/store/search.html
+@@ -0,0 +1,52 @@
++{% extends "base.html" %}
++{% from "store/macros.html" import item_card with context %}
++{% block title %}{% if query %}“{{ query }}” | {% endif %}Search | PSV Store | Physical Security Village{% endblock %}
++{% block description %}Search the Physical Security Village store.{% endblock %}
++{% block robots %}noindex,follow{% endblock %}
++{% block styles %}
++<link href="/static/pages/store.css?v=2" rel="stylesheet" />
++{% endblock %}
++
++{% block page_header %}
++    <div class="page-header-inner">
++        <div class="breadcrumb">
++            <a href="/">Home</a>
++            <span>/</span>
++            <a href="{{ url_for('store_page') }}">Store</a>
++            <span>/</span>
++            <span>Search</span>
++        </div>
++        <h1 class="page-title">{% if query %}Results for <em>{{ query }}</em>{% else %}Search the <em>store</em>{% endif %}</h1>
++        {% if query %}
++            <p class="page-summary">{{ results | length }} item{{ "" if results | length == 1 else "s" }} match.</p>
++        {% endif %}
++    </div>
++{% endblock %}
++
++{% block main %}
++    <div class="page-shell">
++        {% include "store/toolbar.html" %}
++
++        {% if results %}
++            <div class="item-grid">
++                {% for p in results %}{{ item_card(p, show_group=true) }}{% endfor %}
++            </div>
++        {% else %}
++            <div class="empty-state store-empty">
++                <svg viewBox="0 0 24 24" aria-hidden="true">
++                    <circle cx="11" cy="11" r="8" />
++                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
++                </svg>
++                {% if query %}
++                    <p>Nothing matches “{{ query }}”. Try a key name, a SKU, or browse a collection above.</p>
++                {% else %}
++                    <p>Type a tool, key, or SKU to search, or pick a collection above.</p>
++                {% endif %}
++            </div>
++        {% endif %}
++    </div>
++{% endblock %}
++
++{% block overlays %}
++    {% include "store/cart.html" %}
++{% endblock %}
+diff --git a/templates/store/cart.html b/templates/store/cart.html
+index d1cf960..225b071 100644
+--- a/templates/store/cart.html
++++ b/templates/store/cart.html
+@@ -30,16 +30,17 @@
+     <div class="cart-foot" id="cartFoot" hidden>
+         <div class="cart-subtotal-row">
+             <span>Subtotal</span>
+-            <span class="cart-subtotal" id="cartSubtotal">$0.00</span>
++            <span class="cart-subtotal" id="cartSubtotal">$0</span>
+         </div>
+         <p class="cart-fineprint">
+             Shipping &amp; taxes are calculated securely by Stripe Checkout.
+         </p>
+         <a href="{{ url_for('store_checkout_page') }}" class="btn btn-primary cart-checkout" id="cartCheckout">
+-            Checkout · <span id="cartCheckoutTotal">$0.00</span>
++            Checkout · <span id="cartCheckoutTotal">$0</span>
+         </a>
+         <button class="btn btn-ghost cart-clear" id="cartClear">Clear cart</button>
+     </div>
+ </aside>
++<div class="store-toast" id="storeToast" role="status" aria-live="polite" hidden></div>
+ <script id="psv-catalog" type="application/json">{{ catalog_json | tojson }}</script>
+-<script src="/static/pages/store.js"></script>
++<script src="/static/pages/store.js?v=2"></script>
+diff --git a/templates/store/macros.html b/templates/store/macros.html
+index 6b853d2..cb778eb 100644
+--- a/templates/store/macros.html
++++ b/templates/store/macros.html
+@@ -1,75 +1,113 @@
+-{% macro cat_icon(cat) %}
+-    {% if cat == "KYS" %}
+-        <svg viewBox="0 0 24 24">
+-            <circle cx="7.5" cy="15.5" r="5.5" />
+-            <path d="m21 2-9.6 9.6" />
+-            <path d="m15.5 7.5 3 3L22 7l-3-3" />
+-        </svg>
+-    {% elif cat == "RFID" %}
+-        <svg viewBox="0 0 24 24">
+-            <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+-            <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+-            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+-            <line x1="12" y1="20" x2="12.01" y2="20" />
+-        </svg>
+-    {% elif cat == "MRC" %}
+-        <svg viewBox="0 0 24 24">
+-            <path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" />
+-        </svg>
+-    {% elif cat == "MSC" %}
+-        <svg viewBox="0 0 24 24">
+-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+-            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+-            <line x1="12" y1="22.08" x2="12" y2="12" />
+-        </svg>
++{% macro key_icon() %}
++    <svg viewBox="0 0 24 24" aria-hidden="true">
++        <circle cx="7.5" cy="15.5" r="5.5" />
++        <path d="m21 2-9.6 9.6" />
++        <path d="m15.5 7.5 3 3L22 7l-3-3" />
++    </svg>
++{% endmacro %}
++
++{% macro item_photo(p, class="") %}
++    <div class="photo {{ class }}{% if not p.image %} photo-blank{% endif %}">
++        {% if p.image %}
++            <img
++                src="{{ p.image_url }}"
++                alt=""
++                loading="lazy"
++                decoding="async"
++            />
++        {% else %}
++            {# Most keys without a photo are elevator/panel keys: show the
++               key's name as an engraved tag instead of an empty box. #}
++            <span class="photo-tag" aria-hidden="true">
++                {{ key_icon() }}
++                {% if p.name | length <= 12 %}<span class="mono">{{ p.name }}</span>{% endif %}
++            </span>
++        {% endif %}
++    </div>
++{% endmacro %}
++
++{% macro buy_button(p, size="btn-sm", label="Add") %}
++    {% if p.restricted %}
++        <a class="btn btn-outline {{ size }}" href="{{ url_for('contact_us_page') }}">Contact to order</a>
++    {% elif p.purchasable %}
++        <button
++            type="button"
++            class="btn btn-primary {{ size }} btn-add"
++            data-add
++            data-sku="{{ p.sku }}"
++            aria-label="Add {{ p.name }} to cart"
++        >{{ label }}</button>
+     {% else %}
+-        <svg viewBox="0 0 24 24">
+-            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+-        </svg>
++        <button type="button" class="btn btn-ghost {{ size }}" disabled>Sold out</button>
+     {% endif %}
+ {% endmacro %}
+ 
+-{% macro product_thumb(p, class="") %}
+-    <div class="product-thumb {{ class }}">
+-        <div class="product-thumb-placeholder" role="img" aria-label="{{ p.name }} photo placeholder">
+-            {{ cat_icon(p.cat) }}
++{% macro item_card(p, show_group=false) %}
++    <article class="item-card{% if p.restricted %} item-card-restricted{% endif %}">
++        <a href="{{ p.url }}" class="item-card-photo" aria-label="View {{ p.name }}" tabindex="-1">
++            {{ item_photo(p) }}
++        </a>
++        <div class="item-card-body">
++            {% if show_group %}
++                <div class="item-card-kicker">{{ p.collection.title }}{% if p.group_title %} · {{ p.group_title }}{% endif %}</div>
++            {% endif %}
++            <a href="{{ p.url }}" class="item-card-name">{{ p.name }}</a>
++            {% if p.desc %}<p class="item-card-desc">{{ p.desc }}</p>{% endif %}
++            <div class="item-card-foot">
++                <span class="price">{{ p.price_str }}{% if p.price_suffix %} <small>{{ p.price_suffix }}</small>{% endif %}</span>
++                {{ buy_button(p) }}
++            </div>
+         </div>
+-        {% if p.is_key %}
+-            <span class="product-badge">Keyed alike</span>
+-        {% elif caller is defined %}
+-            {{ caller() }}
+-        {% endif %}
+-    </div>
++    </article>
+ {% endmacro %}
+ 
+-{% macro product_card(p, show_sku=false, featured=false, compact=false) %}
+-    <article class="product-card">
+-        <a href="{{ url_for('store_product_page', product_id=p.id) }}" class="product-card-link" aria-label="View {{ p.name }}">
+-            {% if featured and not p.is_key %}
+-                {% call product_thumb(p) %}
+-                    <span class="product-badge">Featured</span>
+-                {% endcall %}
++{% macro item_row(p) %}
++    <article class="item-row{% if p.restricted %} item-card-restricted{% endif %}">
++        <a href="{{ p.url }}" class="item-row-photo" aria-label="View {{ p.name }}" tabindex="-1">
++            {{ item_photo(p) }}
++        </a>
++        <div class="item-row-body">
++            <a href="{{ p.url }}" class="item-row-name">{{ p.name }}</a>
++            {% if p.desc %}<p class="item-row-desc">{{ p.desc }}</p>{% endif %}
++            {% if p.bullets %}
++                <ul class="item-bullets">
++                    {% for b in p.bullets %}<li>{{ b }}</li>{% endfor %}
++                </ul>
++            {% endif %}
++            {% if p.restricted %}
++                <p class="item-restricted-note">{{ p.restricted_reason }}</p>
++            {% endif %}
++        </div>
++        <div class="item-row-buy">
++            <span class="price price-lg">{{ p.price_str }}</span>
++            {{ buy_button(p, size="") }}
++        </div>
++    </article>
++{% endmacro %}
++
++{% macro collection_card(c, wide=false) %}
++    <a href="{{ c.url }}" class="collection-card{% if wide %} collection-card-wide{% endif %}">
++        <div class="collection-card-photo">
++            {% if c.cover_url %}
++                <img src="{{ c.cover_url }}" alt="" loading="lazy" decoding="async" />
+             {% else %}
+-                {{ product_thumb(p) }}
++                {{ key_icon() }}
+             {% endif %}
+-        </a>
+-        <div class="product-card-info">
+-            {% if not compact %}<div class="product-card-cat">{{ p.cat_label }}</div>{% endif %}
+-            <a href="{{ url_for('store_product_page', product_id=p.id) }}" class="product-card-name">{{ p.name }}</a>
+-            {% if show_sku %}<div class="product-card-sku">{{ p.sku }}</div>{% endif %}
+-            <div class="product-card-buy">
+-                <span class="price">{{ p.price_str }}</span>
+-                {% if not compact %}
+-                    <button
+-                        class="btn btn-primary btn-add"
+-                        data-add
+-                        data-id="{{ p.id }}"
+-                        data-sku="{{ p.default_variant.sku }}"
+-                        {% if p.sold_out %}disabled{% endif %}
+-                        aria-label="Add {{ p.name }} to cart"
+-                    >{{ "Sold out" if p.sold_out else "Add" }}</button>
+-                {% endif %}
++        </div>
++        <div class="collection-card-body">
++            <div class="collection-card-meta">
++                <span>{{ c.count }} item{{ "" if c.count == 1 else "s" }}</span>
++                {% if c.tag %}<span class="chip">{{ c.tag }}</span>{% endif %}
+             </div>
++            <h3>{{ c.title }}</h3>
++            {% if c.blurb %}<p>{{ c.blurb }}</p>{% endif %}
++            <span class="collection-card-cta">
++                Browse
++                <svg viewBox="0 0 24 24" aria-hidden="true">
++                    <line x1="5" y1="12" x2="19" y2="12" />
++                    <polyline points="12 5 19 12 12 19" />
++                </svg>
++            </span>
+         </div>
+-    </article>
++    </a>
+ {% endmacro %}
+diff --git a/templates/store/toolbar.html b/templates/store/toolbar.html
+new file mode 100644
+index 0000000..ce14801
+--- /dev/null
++++ b/templates/store/toolbar.html
+@@ -0,0 +1,33 @@
++{# Collection navigation and search shown on every store page. #}
++<div class="store-bar" role="navigation" aria-label="Store sections">
++    <div class="store-bar-links">
++        <a
++            href="{{ url_for('store_page') }}"
++            class="store-bar-link{% if request.url.path == url_for('store_page').path %} active{% endif %}"
++            {% if request.url.path == url_for('store_page').path %}aria-current="page"{% endif %}
++        >All</a>
++        {% for c in collections %}
++            <a
++                href="{{ c.url }}"
++                class="store-bar-link{% if request.url.path == c.url %} active{% endif %}"
++                {% if request.url.path == c.url %}aria-current="page"{% endif %}
++            >{{ c.title }}</a>
++        {% endfor %}
++    </div>
++    <form class="store-bar-search search-wrap" action="{{ url_for('store_search_page') }}" method="get" role="search">
++        <label class="visually-hidden" for="storeSearch">Search the store</label>
++        <svg viewBox="0 0 24 24" aria-hidden="true">
++            <circle cx="11" cy="11" r="8" />
++            <line x1="21" y1="21" x2="16.65" y2="16.65" />
++        </svg>
++        <input
++            id="storeSearch"
++            name="q"
++            type="search"
++            value="{{ query | default('') }}"
++            placeholder="Search tools, keys, SKUs…"
++            maxlength="80"
++            autocomplete="off"
++        />
++    </form>
++</div>
+diff --git a/tests/test_store.py b/tests/test_store.py
+index b02670a..3cd5566 100644
+--- a/tests/test_store.py
++++ b/tests/test_store.py
+@@ -1,67 +1,223 @@
++import os
++import re
+ import unittest
++from unittest.mock import patch
+ 
+ from fastapi.testclient import TestClient
+ 
+ from src.main import app
+-from src.store import catalog
++from src.menu import MENU
++from src.store import catalog, db, seed, storefront
++from src.store.models import BASE_SKU_RE
++
++MENU_ITEMS = [
++    item for section in MENU for group in section.groups for item in group.items
++]
+ 
+ 
+ class StoreCatalogTests(unittest.TestCase):
+-    def test_products_are_built_and_grouped(self):
+-        self.assertGreater(len(catalog.PRODUCTS), 50)
+-        cross_key = catalog.PRODUCT_MAP["PSV-BYP-004"]
+-        self.assertEqual(cross_key.name, "Cross Key")
++    def test_every_menu_item_is_in_the_catalog_exactly_once(self):
++        expected = {catalog.sku_for(item) for item in MENU_ITEMS}
++
++        self.assertEqual(set(catalog.ITEMS_BY_SKU), expected)
++        self.assertEqual(len(catalog.ITEMS), len(expected))
++        self.assertEqual(len(catalog.COLLECTIONS), len(MENU))
++        for item in catalog.ITEMS:
++            with self.subTest(sku=item.sku):
++                self.assertRegex(item.sku, BASE_SKU_RE)
++                self.assertGreater(item.price_cents, 0)
++
++    def test_placeholder_skus_are_derived_from_menu_codes(self):
++        bundle = catalog.ITEMS_BY_CODE["TBD003"]
++
++        self.assertEqual(bundle.sku, "PSV-TBD-003")
++        self.assertTrue(bundle.placeholder_sku)
++        self.assertEqual(catalog.ITEMS_BY_CODE["BYP012"].upc, "400001012000")
++
++    def test_slugs_are_unique_and_urls_are_stable(self):
++        slugs = [item.slug for item in catalog.ITEMS]
++
++        self.assertEqual(len(slugs), len(set(slugs)))
++        self.assertEqual(
++            catalog.ITEMS_BY_CODE["BYP012"].slug, "bypass-measurement-wallet-card"
++        )
++        self.assertEqual(
++            catalog.ITEMS_BY_CODE["BYP014002"].slug, "sc4-schlage-c-keyway-6-pin"
++        )
++
++    def test_event_copy_and_footnote_markers_do_not_leak(self):
++        event = re.compile(r"DEF CON|\[\^\d+\]")
++        for item in catalog.ITEMS:
++            for text in (item.name, item.desc, item.note, *item.bullets, *item.details):
++                with self.subTest(sku=item.sku, text=text[:40]):
++                    self.assertIsNone(event.search(text))
++        for collection in catalog.COLLECTIONS:
++            self.assertIsNone(event.search(collection.title))
++            self.assertIsNone(event.search(collection.blurb))
++            for group in collection.groups:
++                for text in (group.lede, *group.prose):
++                    self.assertIsNone(event.search(text))
++
++    def test_section_price_hints_become_tags(self):
++        lishi = catalog.COLLECTION_MAP["lishi"]
++
++        self.assertEqual(lishi.title, "Lishi Tools")
++        self.assertEqual(lishi.tag, "$100 each")
++        self.assertEqual(lishi.count, 8)
++
++    def test_items_needing_vetting_are_restricted(self):
++        restricted = {item.code for item in catalog.ITEMS if item.restricted}
++
++        self.assertEqual(restricted, {"KYS023", "TBD004", "TBD015", "TBD016"})
++        self.assertIn("vetted", catalog.ITEMS_BY_CODE["KYS023"].restricted_reason)
++
++    def test_an_item_listed_in_two_sections_is_one_product(self):
++        a126 = catalog.ITEMS_BY_CODE["KYS014"]
++        placements = [
++            group.title
++            for collection in catalog.COLLECTIONS
++            for group in collection.groups
++            if any(item.sku == a126.sku for item in group.items)
++        ]
++
+         self.assertEqual(
+-            [v.label for v in cross_key.variants], ["Blue", "Black", "Silver"]
++            placements, ["Common Off-the-Shelf Cam Locks", "Enterphone Keys"]
+         )
++        self.assertEqual(a126.collection_slug, "keyed-alike")
+ 
+-    def test_price_overrides_and_hash_prices(self):
+-        self.assertEqual(catalog.PRODUCT_MAP["PSV-RFID-001"].price, 89.99)
+-        for product in catalog.PRODUCTS:
+-            self.assertGreater(product.price, 0)
++    def test_related_items_prefer_the_same_group(self):
++        x4001 = catalog.ITEMS_BY_CODE["KYS028001"]
++        related = catalog.related_items(x4001, limit=3)
++
++        self.assertEqual(
++            [item.code for item in related[:2]], ["KYS028002", "KYS028990"]
++        )
++        self.assertNotIn(x4001, related)
++
++    def test_search_matches_all_terms(self):
++        self.assertEqual(
++            {item.code for item in catalog.search("latch slip")},
++            {"BYP002", "BYP015001", "BYP006"},
++        )
++        self.assertEqual(catalog.search("   "), ())
++        self.assertIn(catalog.ITEMS_BY_CODE["BYP012"], catalog.search("psv-byp-012"))
+ 
+-    def test_featured_and_hero(self):
+-        self.assertEqual(len(catalog.FEATURED), 4)
+-        self.assertEqual(catalog.HERO.id, "PSV-RFID-001")
++
++class StorefrontViewTests(unittest.TestCase):
++    def test_money_formats_whole_dollars_without_cents(self):
++        self.assertEqual(storefront.money(500), "$5")
++        self.assertEqual(storefront.money(1050), "$10.50")
++
++    def test_database_price_and_stock_win_over_the_menu(self):
++        item = catalog.ITEMS_BY_CODE["BYP002"]
++        front = storefront.Storefront(
++            inventory={item.sku: {"price_cents": 650, "available_stock": 2}}
++        )
++        view = front.view(item)
++        missing = front.view(catalog.ITEMS_BY_CODE["BYP006"])
++
++        self.assertEqual(view.price_str, "$6.50")
++        self.assertTrue(view.purchasable)
++        self.assertFalse(missing.listed)
++        self.assertFalse(missing.purchasable)
++        self.assertFalse(missing.sold_out)
++        self.assertEqual(list(front.browser_catalog()), [item.sku])
++
++    def test_restricted_items_never_reach_the_browser_cart(self):
++        feo = catalog.ITEMS_BY_CODE["KYS023"]
++        front = storefront.Storefront(
++            inventory={feo.sku: {"price_cents": 1000, "available_stock": 5}}
++        )
++
++        self.assertFalse(front.view(feo).purchasable)
++        self.assertNotIn(feo.sku, front.browser_catalog())
+ 
+ 
+ class StoreRouteTests(unittest.TestCase):
+-    def test_store_pages_render(self):
+-        with TestClient(app) as client:
++    def setUp(self):
++        db.require_schema()
++
++    def test_bootstrap_seeds_every_item_and_keeps_restricted_items_unpublished(self):
++        self.assertEqual(seed.bootstrap_catalog(), len(catalog.ITEMS))
++        self.assertEqual(seed.bootstrap_catalog(), 0)
++
++        inventory = db.sku_inventory()
++        self.assertEqual(inventory["PSV-BYP-012"]["price_cents"], 4000)
++        self.assertEqual(inventory["PSV-BYP-012"]["available_stock"], 0)
++        self.assertNotIn("PSV-KYS-023", inventory)
++        self.assertEqual(db.get_product_by_id("PSV-KYS-023")["published"], False)
++
++    def test_store_pages_render_from_the_menu(self):
++        with (
++            patch.dict(os.environ, {"STORE_BOOTSTRAP_STOCK": "5"}),
++            TestClient(app) as client,
++        ):
+             home = client.get("/store")
+-            cat = client.get("/store/catalog")
+-            keys = client.get("/store/catalog?cat=KYS")
+-            product = client.get("/store/product/PSV-BYP-004")
++            elevator = client.get("/store/collection/elevator")
++            product = client.get("/store/product/bypass-measurement-wallet-card")
++            search = client.get("/store/search", params={"q": "latch slip"})
+             checkout = client.get("/store/checkout")
+             confirmed = client.get("/store/confirmed?session_id=cs_pending")
++            legacy = client.get("/store/catalog", follow_redirects=False)
+ 
+         self.assertEqual(home.status_code, 200)
+-        self.assertIn("Featured drop", home.text)
+-        self.assertIn("Shop by Category", home.text)
+-
+-        self.assertEqual(cat.status_code, 200)
+-        self.assertIn("All Products", cat.text)
+-        self.assertIn('id="storeSearch"', cat.text)
++        self.assertIn("Shop by collection", home.text)
++        for collection in catalog.COLLECTIONS:
++            self.assertIn(f'href="/store/collection/{collection.slug}"', home.text)
++        self.assertNotIn("DEF CON", home.text)
+ 
+-        self.assertEqual(keys.status_code, 200)
+-        self.assertIn("keyed-alike", keys.text)
++        self.assertEqual(elevator.status_code, 200)
++        self.assertIn("MAD Fixtures", elevator.text)
++        self.assertIn("Quick Reference", elevator.text)
++        self.assertIn('id="mad-fixtures"', elevator.text)
++        self.assertIn("Contact to order", elevator.text)
+ 
+         self.assertEqual(product.status_code, 200)
+-        self.assertIn("Cross Key", product.text)
+-        self.assertIn('id="variantSelect"', product.text)
++        self.assertIn("All 27 functions", product.text)
++        self.assertIn("PSV-BYP-012", product.text)
++        self.assertIn('data-sku="PSV-BYP-012"', product.text)
++
++        self.assertEqual(search.status_code, 200)
++        self.assertIn('class="item-card-name">Keychain Latch Slip', search.text)
++        self.assertNotIn('class="item-card-name">Thumbturn', search.text)
+ 
+         self.assertEqual(checkout.status_code, 200)
+-        self.assertIn("Stripe securely collects payment", checkout.text)
++        self.assertIn("this site never handles card data", checkout.text)
+         self.assertNotIn("Card number", checkout.text)
+ 
+         self.assertEqual(confirmed.status_code, 200)
+         self.assertIn("Payment is processing", confirmed.text)
+ 
+-    def test_unknown_product_returns_404(self):
++        self.assertEqual(legacy.status_code, 301)
++        self.assertTrue(legacy.headers["location"].endswith("/store"))
++
++    def test_sold_out_and_restricted_items_cannot_be_added(self):
++        seed.bootstrap_catalog()
+         with TestClient(app) as client:
+-            response = client.get("/store/product/PSV-NOPE-999")
++            product = client.get("/store/product/bare-metal-latch-slip")
++            feo = client.get("/store/product/feo-k1")
+ 
+-        self.assertEqual(response.status_code, 404)
++        self.assertIn("Sold out", product.text)
++        self.assertNotIn("data-add", product.text)
++        self.assertIn("Vetting required", feo.text)
++        self.assertNotIn("data-add", feo.text)
++        self.assertNotIn("PSV-KYS-023", feo.text.split('id="psv-catalog"')[1])
++
++    def test_unknown_pages_return_404(self):
++        with TestClient(app) as client:
++            self.assertEqual(client.get("/store/product/PSV-NOPE-999").status_code, 404)
++            self.assertEqual(client.get("/store/collection/nope").status_code, 404)
++
++    def test_search_query_is_escaped_and_bounded(self):
++        with TestClient(app) as client:
++            response = client.get(
++                "/store/search", params={"q": "<script>alert(1)</script>"}
++            )
++            too_long = client.get("/store/search", params={"q": "x" * 81})
++
++        self.assertEqual(response.status_code, 200)
++        self.assertNotIn("<script>alert", response.text)
++        self.assertEqual(too_long.status_code, 422)
+ 
+     def test_confirmed_does_not_reflect_an_unknown_session_id(self):
+         with TestClient(app) as client:
+@@ -81,7 +237,8 @@ class StoreRouteTests(unittest.TestCase):
+         self.assertIn('/store">Store</a>', home)
+         self.assertNotIn("Store coming soon", home)
+         self.assertIn("<loc>https://physsec.org/store</loc>", sitemap)
+-        self.assertIn("<loc>https://physsec.org/store/catalog</loc>", sitemap)
++        self.assertIn("<loc>https://physsec.org/store/collection/lishi</loc>", sitemap)
++        self.assertNotIn("/store/catalog", sitemap)
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/tests/test_store_backend.py b/tests/test_store_backend.py
+index 78f293c..9bdb116 100644
+--- a/tests/test_store_backend.py
++++ b/tests/test_store_backend.py
+@@ -7,7 +7,7 @@ import stripe
+ from fastapi.testclient import TestClient
+ 
+ from src.main import app
+-from src.store import db, seed, stripe_client
++from src.store import catalog, db, seed, stripe_client
+ from src.store import router as store_router
+ from src.store.config import (
+     bootstrap_stock,
+@@ -16,7 +16,7 @@ from src.store.config import (
+     store_enabled,
+ )
+ from src.store.models import ProductInput, VariantInput
+-from src.store.storefront import ProductView, VariantView
++from src.store.storefront import Storefront
+ 
+ 
+ def _database(_tmp_path, *, stock: int = 1):
+@@ -108,28 +108,14 @@ def test_production_database_requires_tls(monkeypatch):
+     assert database_url().endswith("sslmode=verify-full")
+ 
+ 
+-def test_product_default_variant_prefers_available_stock():
+-    variants = (
+-        VariantView("001", "Sold out", "PSV-RFID-001-001", "", 1000, 0),
+-        VariantView("002", "Available", "PSV-RFID-001-002", "", 1000, 2),
+-    )
+-    product = ProductView(
+-        id="PSV-RFID-001",
+-        name="RFID Tool",
+-        cat="RFID",
+-        cat_label="RFID",
+-        sku=variants[0].sku,
+-        upc="",
+-        desc="",
+-        featured=False,
+-        price_cents=1000,
+-        price_str="$10.00",
+-        price_varies=False,
+-        variants=variants,
+-        available_stock=2,
++def test_storefront_caps_browser_stock_at_zero():
++    front = Storefront(
++        inventory={"PSV-BYP-002": {"price_cents": 500, "available_stock": 0}}
+     )
++    view = front.view(catalog.ITEMS_BY_SKU["PSV-BYP-002"])
+ 
+-    assert product.default_variant.sku == "PSV-RFID-001-002"
++    assert view.listed and view.sold_out and not view.purchasable
++    assert front.browser_catalog()["PSV-BYP-002"]["available_stock"] == 0
+ 
+ 
+ def test_cart_normalization_caps_duplicate_sku_totals(tmp_path):

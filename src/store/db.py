@@ -245,6 +245,30 @@ def variant_exists(sku: str) -> bool:
         )
 
 
+def reconcile_menu_item(
+    sku: str, price_cents: int, *, restricted: bool
+) -> dict[str, bool]:
+    """Bring an already-imported SKU in line with the menu.
+
+    The menu is the price authority, so a stale database price is replaced.
+    Restricted items are unpublished; nothing is ever published here, so an
+    operator who hid a product deliberately keeps it hidden.
+    """
+    with connection(write=True) as conn:
+        priced = conn.execute(
+            "UPDATE variants SET price_cents=%s WHERE sku=%s AND price_cents<>%s",
+            (price_cents, sku.upper(), price_cents),
+        ).rowcount
+        unpublished = 0
+        if restricted:
+            unpublished = conn.execute(
+                "UPDATE products SET published=false,updated_at=%s "
+                "WHERE published AND id=(SELECT product_id FROM variants WHERE sku=%s)",
+                (utc_now(), sku.upper()),
+            ).rowcount
+    return {"price_updated": bool(priced), "unpublished": bool(unpublished)}
+
+
 def sku_inventory() -> dict[str, dict[str, Any]]:
     """Return price and availability for every published variant, by SKU."""
     with connection() as conn:

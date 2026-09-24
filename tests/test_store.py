@@ -58,12 +58,31 @@ class StoreCatalogTests(unittest.TestCase):
                 for text in (group.lede, *group.prose):
                     self.assertIsNone(event.search(text))
 
-    def test_section_price_hints_become_tags(self):
+    def test_section_price_hints_become_tags_only_when_uniform(self):
         lishi = catalog.COLLECTION_MAP["lishi"]
+        elevator = catalog.COLLECTION_MAP["elevator"]
 
         self.assertEqual(lishi.title, "Lishi Tools")
         self.assertEqual(lishi.tag, "$100 each")
         self.assertEqual(lishi.count, 8)
+        # The elevator section says "$10 each" but also sells sets.
+        self.assertEqual(elevator.title, "Elevator Keys")
+        self.assertEqual(elevator.tag, "")
+
+    def test_every_referenced_footnote_is_kept(self):
+        common_set = catalog.ITEMS_BY_CODE["TBD004"]
+
+        self.assertTrue(common_set.restricted)
+        self.assertEqual(len(common_set.footnotes), 2)
+        self.assertIn(common_set.restricted_reason, common_set.footnotes)
+        self.assertTrue(any("$40" in note for note in common_set.footnotes))
+        self.assertEqual(catalog.ITEMS_BY_CODE["BYP002"].footnotes, ())
+
+    def test_jump_links_include_table_only_groups(self):
+        titles = [g.title for g in catalog.COLLECTION_MAP["elevator"].titled_groups]
+
+        self.assertIn("Quick Reference", titles)
+        self.assertNotIn("", titles)
 
     def test_items_needing_vetting_are_restricted(self):
         restricted = {item.code for item in catalog.ITEMS if item.restricted}
@@ -147,6 +166,62 @@ class StoreRouteTests(unittest.TestCase):
         self.assertNotIn("PSV-KYS-023", inventory)
         self.assertEqual(db.get_product_by_id("PSV-KYS-023")["published"], False)
 
+    def test_bootstrap_reconciles_stale_prices_and_published_restricted_items(self):
+        seed.bootstrap_catalog()
+        with db.connection(write=True) as conn:
+            conn.execute(
+                "UPDATE variants SET price_cents=1234,stock_on_hand=7 "
+                "WHERE sku='PSV-BYP-012'"
+            )
+            conn.execute(
+                "UPDATE products SET published=true WHERE base_sku='PSV-KYS-023'"
+            )
+            conn.execute(
+                "UPDATE products SET published=false WHERE base_sku='PSV-BYP-002'"
+            )
+
+        self.assertEqual(seed.bootstrap_catalog(), 0)
+
+        inventory = db.sku_inventory()
+        self.assertEqual(inventory["PSV-BYP-012"]["price_cents"], 4000)
+        self.assertEqual(inventory["PSV-BYP-012"]["available_stock"], 7)
+        self.assertNotIn("PSV-KYS-023", inventory)
+        # Operators may hide items deliberately; bootstrap never re-publishes.
+        self.assertNotIn("PSV-BYP-002", inventory)
+
+    def test_restricted_items_are_refused_server_side_even_when_published(self):
+        seed.bootstrap_catalog()
+        with db.connection(write=True) as conn:
+            conn.execute(
+                "UPDATE products SET published=true WHERE base_sku='PSV-KYS-023'"
+            )
+            conn.execute(
+                "UPDATE variants SET stock_on_hand=5 "
+                "WHERE sku IN ('PSV-KYS-023','PSV-BYP-002')"
+            )
+        cart = {
+            "items": [
+                {"sku": "psv-kys-023", "qty": 1},
+                {"sku": "PSV-BYP-002", "qty": 1},
+            ]
+        }
+        with TestClient(app) as client:
+            checkout = client.post("/store/checkout", json=cart)
+            info = client.post("/store/api/cart-info", json=cart)
+
+        self.assertEqual(checkout.status_code, 409)
+        self.assertEqual(
+            checkout.json()["problems"],
+            [{"sku": "PSV-KYS-023", "reason": "restricted"}],
+        )
+        self.assertEqual(info.json()["items"], [])
+        self.assertEqual(
+            info.json()["problems"], [{"sku": "PSV-KYS-023", "reason": "restricted"}]
+        )
+        with db.connection() as conn:
+            count = conn.execute("SELECT COUNT(*) AS count FROM checkouts").fetchone()
+        self.assertEqual(count["count"], 0)
+
     def test_store_pages_render_from_the_menu(self):
         with (
             patch.dict(os.environ, {"STORE_BOOTSTRAP_STOCK": "5"}),
@@ -170,6 +245,8 @@ class StoreRouteTests(unittest.TestCase):
         self.assertIn("MAD Fixtures", elevator.text)
         self.assertIn("Quick Reference", elevator.text)
         self.assertIn('id="mad-fixtures"', elevator.text)
+        self.assertIn('href="#quick-reference"', elevator.text)
+        self.assertNotIn('class="chip">$10 each', elevator.text)
         self.assertIn("Contact to order", elevator.text)
 
         self.assertEqual(product.status_code, 200)

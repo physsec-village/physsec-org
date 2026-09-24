@@ -77,6 +77,9 @@
             {% if p.restricted %}
                 <p class="item-restricted-note">{{ p.restricted_reason }}</p>
             {% endif %}
+            {% for note in p.footnotes if note != p.restricted_reason %}
+                <p class="item-restricted-note">{{ note }}</p>
+            {% endfor %}
         </div>
         <div class="item-row-buy">
             <span class="price price-lg">{{ p.price_str }}</span>

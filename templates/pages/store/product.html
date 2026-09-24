@@ -50,6 +50,9 @@
                 {% endif %}
 
                 {% if product.note %}<p class="product-note">{{ product.note }}</p>{% endif %}
+                {% for note in product.footnotes if note != product.restricted_reason %}
+                    <p class="product-note">{{ note }}</p>
+                {% endfor %}
 
                 {% if product.restricted %}
                     <div class="product-restricted" role="note">

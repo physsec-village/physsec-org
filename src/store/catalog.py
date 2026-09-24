@@ -33,9 +33,11 @@ _EVENT_COPY = (
 # shows prices per item, so the hint becomes a small tag instead.
 _TITLE_PRICE_TAG = re.compile(r"\s+[—–-]\s+(\$\d+\s+each)$", re.IGNORECASE)
 
-# A footnote marker in an item's name or contents means the item cannot be
-# shipped without vetting (FEO-K1, the national fire service key).
-_VETTING_MARKER = "[^1]"
+# Footnote markers ("[^2]") in menu copy point into FOOTNOTES. The first
+# footnote is the FEO-K1 vetting rule: an item carrying it cannot be shipped
+# without vetting.
+_FOOTNOTE_REF = re.compile(r"\[\^(\d+)\]")
+_VETTING_FOOTNOTE = 1
 
 # Placeholder SKUs for menu items that do not have one yet. The prefix keeps
 # them out of the real PSV-BYP/KYS/... families until inventory assigns one.
@@ -86,6 +88,7 @@ class StoreItem:
     image: str = ""
     upc: str = ""
     feature: bool = False
+    footnotes: tuple[str, ...] = ()
     restricted: bool = False
     restricted_reason: str = ""
     collection_slug: str = ""
@@ -151,7 +154,12 @@ class Collection:
 
     @property
     def titled_groups(self) -> tuple[StoreGroup, ...]:
-        return tuple(group for group in self.groups if group.title and group.items)
+        """Groups worth a jump link: titled, with items or a reference table."""
+        return tuple(
+            group
+            for group in self.groups
+            if group.title and (group.items or group.table)
+        )
 
 
 def _scrub(text: str) -> str:
@@ -182,10 +190,31 @@ def sku_for(item: Item) -> str:
     return f"PSV-{PLACEHOLDER_CATEGORY}-{code.removeprefix(PLACEHOLDER_CATEGORY)}"
 
 
-def _needs_vetting(item: Item) -> bool:
-    return _VETTING_MARKER in item.name or any(
-        _VETTING_MARKER in bullet for bullet in item.bullets
-    )
+def _footnote_numbers(item: Item) -> tuple[int, ...]:
+    """Footnote numbers referenced anywhere in the item's copy, in order."""
+    found: list[int] = []
+    for text in (item.name, item.desc, item.note, *item.bullets, *item.details):
+        for match in _FOOTNOTE_REF.finditer(text):
+            number = int(match.group(1))
+            if number not in found and 1 <= number <= len(FOOTNOTES):
+                found.append(number)
+    return tuple(found)
+
+
+def _price_tag(title: str, prices: list[int]) -> tuple[str, str]:
+    """Split a "$N each" hint off a section title.
+
+    The hint only becomes a tag when every item in the section really costs
+    that much; the elevator section says "$10 each" but also sells sets.
+    """
+    match = _TITLE_PRICE_TAG.search(title)
+    if not match:
+        return title, ""
+    clean = _TITLE_PRICE_TAG.sub("", title).strip()
+    amount_cents = int(re.sub(r"\D", "", match.group(1))) * 100
+    if prices and all(price == amount_cents for price in prices):
+        return clean, match.group(1).lower()
+    return clean, ""
 
 
 def _build() -> tuple[tuple[Collection, ...], dict[str, StoreItem]]:
@@ -195,9 +224,6 @@ def _build() -> tuple[tuple[Collection, ...], dict[str, StoreItem]]:
     collections: list[Collection] = []
 
     for section in MENU:
-        match = _TITLE_PRICE_TAG.search(section.title)
-        title = _TITLE_PRICE_TAG.sub("", section.title).strip()
-        tag = match.group(1).lower() if match else ""
         groups: list[StoreGroup] = []
         for index, group in enumerate(section.groups):
             items: list[StoreItem] = []
@@ -214,7 +240,8 @@ def _build() -> tuple[tuple[Collection, ...], dict[str, StoreItem]]:
                 if slugs.get(slug, sku) != sku:
                     slug = f"{slug}-{raw.code.lower()}"
                 slugs[slug] = sku
-                restricted = _needs_vetting(raw)
+                footnotes = _footnote_numbers(raw)
+                restricted = _VETTING_FOOTNOTE in footnotes
                 item = StoreItem(
                     code=raw.code,
                     sku=sku,
@@ -229,8 +256,11 @@ def _build() -> tuple[tuple[Collection, ...], dict[str, StoreItem]]:
                     image=raw.image,
                     upc=upcs.get(sku, ""),
                     feature=raw.feature,
+                    footnotes=tuple(FOOTNOTES[number - 1] for number in footnotes),
                     restricted=restricted,
-                    restricted_reason=FOOTNOTES[0] if restricted else "",
+                    restricted_reason=FOOTNOTES[_VETTING_FOOTNOTE - 1]
+                    if restricted
+                    else "",
                     collection_slug=section.slug,
                     group_title=group.title,
                 )
@@ -247,6 +277,10 @@ def _build() -> tuple[tuple[Collection, ...], dict[str, StoreItem]]:
                     anchor=slugify(group.title) if group.title else f"group-{index}",
                 )
             )
+        title, tag = _price_tag(
+            section.title,
+            [item.price_cents for group in groups for item in group.items],
+        )
         cover = COLLECTION_COVERS.get(section.slug) or next(
             (item.image for group in groups for item in group.items if item.image),
             "",

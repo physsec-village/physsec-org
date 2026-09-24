@@ -46,7 +46,23 @@ class CartPayload(BaseModel):
 
 
 def _items(payload: CartPayload) -> list[dict[str, Any]]:
-    return [{"sku": item.sku, "qty": item.qty} for item in payload.items]
+    """Normalize the cart and refuse items that need vetting.
+
+    `products.published` is the database-side guard, but the menu's
+    restricted flag is enforced here too so a row that was published by an
+    earlier import or by hand can still never be checked out.
+    """
+    items = [
+        {"sku": item.sku.strip().upper(), "qty": item.qty} for item in payload.items
+    ]
+    restricted = [
+        {"sku": item["sku"], "reason": "restricted"}
+        for item in items
+        if (entry := catalog.ITEMS_BY_SKU.get(item["sku"])) and entry.restricted
+    ]
+    if restricted:
+        raise db.CartUnavailable(restricted)
+    return items
 
 
 def _context(front: storefront.Storefront, **extra: Any) -> dict[str, Any]:
@@ -137,7 +153,10 @@ def store_checkout_page(request: Request):
 
 @router.post("/api/cart-info")
 def store_cart_info(payload: CartPayload):
-    normalized, problems = db.normalize_cart(_items(payload))
+    try:
+        normalized, problems = db.normalize_cart(_items(payload))
+    except db.CartUnavailable as exc:
+        return {"items": [], "problems": exc.problems}
     return {"items": normalized, "problems": problems}
 
 

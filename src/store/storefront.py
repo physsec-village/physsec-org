@@ -82,21 +82,6 @@ class CollectionView:
     def url(self) -> str:
         return f"/store/collection/{self.slug}"
 
-    @property
-    def items(self) -> tuple[ItemView, ...]:
-        seen: set[str] = set()
-        ordered: list[ItemView] = []
-        for group in self.groups:
-            for item in group.items:
-                if item.sku not in seen:
-                    seen.add(item.sku)
-                    ordered.append(item)
-        return tuple(ordered)
-
-    @property
-    def titled_groups(self) -> tuple[GroupView, ...]:
-        return tuple(group for group in self.groups if group.title and group.items)
-
 
 class Storefront:
     """One request's view of the catalog against a single inventory snapshot."""

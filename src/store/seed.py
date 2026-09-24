@@ -18,24 +18,36 @@ def bootstrap_catalog() -> int:
 
 
 def _bootstrap_catalog() -> int:
-    """Import menu items that the database does not know about yet.
+    """Import menu items the database lacks and reconcile the ones it has.
 
     Every menu item becomes one product with one variant keyed by its SKU.
     Prices come from the menu, but stock defaults to zero so a fresh
     production deployment cannot accidentally sell unconfigured items.
     Items that require vetting are imported unpublished so they can never be
-    added to a cart.
+    added to a cart. SKUs that already exist keep their stock but take the
+    menu's price, and are unpublished if the menu now requires vetting.
     """
     initial_stock = bootstrap_stock()
     imported = 0
     for item in catalog.ITEMS:
-        if db.get_product_by_id(item.sku) is not None:
-            continue
         if db.variant_exists(item.sku):
-            # A previous catalog import already sells this SKU as part of a
-            # different product. Keep that row as the price/stock authority
-            # rather than failing startup on the unique constraint.
-            logger.warning("store_catalog_sku_already_present sku=%s", item.sku)
+            changes = db.reconcile_menu_item(
+                item.sku, item.price_cents, restricted=item.restricted
+            )
+            if changes["price_updated"]:
+                logger.warning(
+                    "store_price_synced sku=%s price_cents=%d",
+                    item.sku,
+                    item.price_cents,
+                )
+            if changes["unpublished"]:
+                logger.warning("store_restricted_item_unpublished sku=%s", item.sku)
+            continue
+        if db.get_product_by_id(item.sku) is not None:
+            # An earlier import created this SKU as a product family whose
+            # variants carry -NNN suffixes, so there is no sellable variant
+            # with this exact SKU. Leave the family alone and say so.
+            logger.warning("store_catalog_sku_is_a_family sku=%s", item.sku)
             continue
         db.create_product(
             ProductInput(
@@ -62,24 +74,4 @@ def _bootstrap_catalog() -> int:
         imported,
         initial_stock,
     )
-    _warn_on_price_drift()
     return imported
-
-
-def _warn_on_price_drift() -> None:
-    """Flag SKUs whose database price no longer matches the menu.
-
-    The database is what checkout charges and what the storefront displays,
-    so a drift is not an error, but it usually means the menu was updated
-    without updating inventory (or the other way around).
-    """
-    inventory = db.sku_inventory()
-    for item in catalog.ITEMS:
-        row = inventory.get(item.sku)
-        if row is not None and int(row["price_cents"]) != item.price_cents:
-            logger.warning(
-                "store_price_drift sku=%s menu_cents=%d database_cents=%d",
-                item.sku,
-                item.price_cents,
-                int(row["price_cents"]),
-            )
