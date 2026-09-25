@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from .dependencies import templates
 from .forms.turnstile import get_turnstile_settings
 from .menu import FOOTNOTES, MENU
+from .store import catalog as store_catalog
 from .store import db
 
 router = APIRouter()
@@ -18,7 +19,9 @@ SITEMAP_PATHS = (
     "/forms/calls",
     "/forms/volunteer",
 )
-STORE_SITEMAP_PATHS = ("/store", "/store/catalog")
+STORE_SITEMAP_PATHS = ("/store",) + tuple(
+    f"/store/collection/{collection.slug}" for collection in store_catalog.COLLECTIONS
+)
 
 
 @router.get("/", response_class=HTMLResponse)

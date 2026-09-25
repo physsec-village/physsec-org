@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% from "store/macros.html" import item_card, item_row with context %}
+{% block title %}{{ collection.title }} | PSV Store | Physical Security Village{% endblock %}
+{% block description %}{{ collection.blurb or ("Shop " ~ collection.title ~ " from the Physical Security Village store.") }}{% endblock %}
+{% block styles %}
+<link href="/static/pages/store.css?v=2" rel="stylesheet" />
+{% endblock %}
+
+{% block page_header %}
+    <div class="page-header-inner">
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            <span>/</span>
+            <a href="{{ url_for('store_page') }}">Store</a>
+            <span>/</span>
+            <span>{{ collection.title }}</span>
+        </div>
+        <h1 class="page-title">{{ collection.title }}</h1>
+        <div class="collection-meta">
+            <span>{{ collection.count }} item{{ "" if collection.count == 1 else "s" }}</span>
+            {% if collection.tag %}<span class="chip">{{ collection.tag }}</span>{% endif %}
+        </div>
+        {% if collection.blurb %}<p class="page-summary">{{ collection.blurb }}</p>{% endif %}
+    </div>
+{% endblock %}
+
+{% block main %}
+    <div class="page-shell">
+        {% include "store/toolbar.html" %}
+
+        {% if collection.titled_groups | length > 1 %}
+            <div class="group-jump" role="navigation" aria-label="Sections in {{ collection.title }}">
+                {% for g in collection.titled_groups %}
+                    <a href="#{{ g.anchor }}">{{ g.title }}</a>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% for g in collection.groups %}
+            <section class="store-group" id="{{ g.anchor }}">
+                {% if g.title %}
+                    <h2 class="store-group-title">
+                        {{ g.title }}
+                        {% if g.tag %}<span class="chip">{{ g.tag }}</span>{% endif %}
+                    </h2>
+                {% endif %}
+                {% if g.lede %}<p class="store-group-lede">{{ g.lede }}</p>{% endif %}
+                {% if g.prose %}
+                    <div class="store-prose">
+                        {% for text in g.prose %}<p>{{ text }}</p>{% endfor %}
+                    </div>
+                {% endif %}
+                {% if g.items %}
+                    {% if g.items | length == 1 %}
+                        {{ item_row(g.items[0]) }}
+                    {% else %}
+                        <div class="item-grid">
+                            {% for p in g.items %}{{ item_card(p) }}{% endfor %}
+                        </div>
+                    {% endif %}
+                {% endif %}
+                {% if g.table %}
+                    <div class="table-scroll">
+                        <table class="store-table">
+                            <caption>{{ g.table.caption }}</caption>
+                            <thead>
+                                <tr>
+                                    {% for h in g.table.head %}<th scope="col">{{ h }}</th>{% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tr in g.table.rows %}
+                                    <tr>
+                                        <th scope="row">{{ tr[0] }}</th>
+                                        {% for cell in tr[1:] %}<td>{{ cell }}</td>{% endfor %}
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </section>
+        {% endfor %}
+
+        <div class="collection-next" role="navigation" aria-label="Other collections">
+            <span>Keep browsing</span>
+            {% for c in collections if c.slug != collection.slug %}
+                <a href="{{ c.url }}">{{ c.title }} <small>{{ c.count }}</small></a>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}
+
+{% block overlays %}
+    {% include "store/cart.html" %}
+{% endblock %}

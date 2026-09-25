@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% from "store/macros.html" import product_card, cat_icon with context %}
+{% from "store/macros.html" import item_card, item_photo, buy_button with context %}
 {% block title %}{{ product.name }} | PSV Store | Physical Security Village{% endblock %}
-{% block description %}{{ product.desc }}{% endblock %}
+{% block description %}{{ product.desc or (product.name ~ " from the Physical Security Village store.") }}{% endblock %}
 {% block styles %}
-<link href="/static/pages/store.css" rel="stylesheet" />
+<link href="/static/pages/store.css?v=2" rel="stylesheet" />
 {% endblock %}
 
 {% block page_header %}
@@ -13,9 +13,11 @@
             <span>/</span>
             <a href="{{ url_for('store_page') }}">Store</a>
             <span>/</span>
-            <a href="{{ url_for('store_catalog_page') }}?cat={{ product.cat }}">{{ product.cat_label }}</a>
-            <span>/</span>
-            <span>{{ product.name }}</span>
+            <a href="{{ collection.url }}">{{ collection.title }}</a>
+            {% if group.title %}
+                <span>/</span>
+                <a href="{{ collection.url }}#{{ group.anchor }}">{{ group.title }}</a>
+            {% endif %}
         </div>
     </div>
 {% endblock %}
@@ -23,68 +25,94 @@
 {% block main %}
     <div class="page-shell">
         <div class="product-detail">
-            <div class="product-thumb product-detail-thumb">
-                <div class="product-thumb-placeholder" role="img" aria-label="{{ product.name }} photo placeholder">
-                    {{ cat_icon(product.cat) }}
-                </div>
-                {% if product.is_key %}
-                    <span class="product-badge">Keyed alike</span>
-                {% endif %}
+            <div class="product-detail-photo">
+                {{ item_photo(product, class="photo-detail") }}
             </div>
-            <div class="product-detail-info">
-                <div class="product-card-cat">{{ product.cat_label }}</div>
-                <h1 class="product-detail-title">{{ product.name }}</h1>
-                <div class="price price-hero">{{ product.price_str }}</div>
-                <p class="product-detail-desc">{{ product.desc }}</p>
 
-                {% if product.variants %}
-                    <div class="variant-field">
-                        <label for="variantSelect">Option</label>
-                        <select id="variantSelect" class="store-input">
-                            {% for v in product.variants %}
-                                <option
-                                    value="{{ v.sku }}"
-                                    data-sku="{{ v.sku }}"
-                                    data-upc="{{ v.upc }}"
-                                    data-price-cents="{{ v.price_cents }}"
-                                    data-stock="{{ v.available_stock }}"
-                                    {% if v.sku == product.default_variant.sku %}selected{% endif %}
-                                    {% if v.available_stock <= 0 %}disabled{% endif %}
-                                >{{ v.label or v.sku }}{% if v.available_stock <= 0 %} — Sold out{% endif %}</option>
-                            {% endfor %}
-                        </select>
+            <div class="product-detail-info">
+                <div class="product-detail-kicker">
+                    <a href="{{ collection.url }}">{{ collection.title }}</a>
+                    {% if group.title %}<span>· {{ group.title }}</span>{% endif %}
+                    {% if group.tag %}<span class="chip">{{ group.tag }}</span>{% endif %}
+                </div>
+                <h1 class="product-detail-title">{{ product.name }}</h1>
+                <div class="price price-hero">{{ product.price_str }}{% if product.price_suffix %} <small>{{ product.price_suffix }}</small>{% endif %}</div>
+
+                {% if product.desc %}<p class="product-detail-desc">{{ product.desc }}</p>{% endif %}
+
+                {% if product.bullets %}
+                    <div class="product-block">
+                        <h2>What's in the set</h2>
+                        <ul class="item-bullets">
+                            {% for b in product.bullets %}<li>{{ b }}</li>{% endfor %}
+                        </ul>
                     </div>
                 {% endif %}
 
-                <div class="product-actions">
-                    <div class="qty-stepper">
-                        <button type="button" id="qtyDec" aria-label="Decrease quantity">–</button>
-                        <span id="qtyValue" aria-live="polite">1</span>
-                        <button type="button" id="qtyInc" aria-label="Increase quantity">+</button>
+                {% if product.note %}<p class="product-note">{{ product.note }}</p>{% endif %}
+                {% for note in product.footnotes if note != product.restricted_reason %}
+                    <p class="product-note">{{ note }}</p>
+                {% endfor %}
+
+                {% if product.restricted %}
+                    <div class="product-restricted" role="note">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        <div>
+                            <strong>Vetting required</strong>
+                            <p>{{ product.restricted_reason }} <a href="{{ url_for('contact_us_page') }}">Get in touch</a> and we will take it from there.</p>
+                        </div>
                     </div>
-                    <button
-                        class="btn btn-primary product-add"
-                        data-add
-                        data-id="{{ product.id }}"
-                        data-sku="{{ product.default_variant.sku }}"
-                        data-detail
-                        {% if product.sold_out %}disabled{% endif %}
-                    >
-                        {{ "Sold out" if product.sold_out else "Add to cart" }}
-                    </button>
-                </div>
+                {% else %}
+                    <div class="product-actions">
+                        {% if product.purchasable %}
+                            <div class="qty-stepper" data-max="{{ [product.available_stock, 99] | min }}">
+                                <button type="button" id="qtyDec" aria-label="Decrease quantity">–</button>
+                                <span id="qtyValue" aria-live="polite">1</span>
+                                <button type="button" id="qtyInc" aria-label="Increase quantity">+</button>
+                            </div>
+                            <button
+                                type="button"
+                                class="btn btn-primary product-add btn-add"
+                                data-add
+                                data-sku="{{ product.sku }}"
+                                data-detail
+                            >Add to cart</button>
+                        {% else %}
+                            <button type="button" class="btn btn-ghost product-add" disabled>Sold out</button>
+                            <p class="product-soldout-note">Out of stock right now. Come see us at the Village table, or check back soon.</p>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                {% if product.details %}
+                    <details class="product-details">
+                        <summary>All {{ product.details | length }} functions</summary>
+                        <ol class="product-details-list">
+                            {% for d in product.details %}<li>{{ d }}</li>{% endfor %}
+                        </ol>
+                    </details>
+                {% endif %}
 
                 <dl class="product-specs">
-                    <div><dt>SKU</dt><dd id="specSku">{{ product.default_variant.sku }}</dd></div>
-                    <div><dt>UPC</dt><dd id="specUpc">{{ product.default_variant.upc }}</dd></div>
-                    <div><dt>Category</dt><dd class="spec-plain">{{ product.cat_label }}</dd></div>
+                    <div><dt>SKU</dt><dd class="mono">{{ product.sku }}</dd></div>
+                    {% if product.upc %}<div><dt>UPC</dt><dd class="mono">{{ product.upc }}</dd></div>{% endif %}
                     <div>
                         <dt>Availability</dt>
-                        <dd class="spec-stock" id="specStock">
-                            <span class="stock-dot"></span>
-                            {{ "Sold out" if product.sold_out else "In stock" }}
+                        <dd>
+                            {% if product.restricted %}
+                                By request
+                            {% elif product.purchasable %}
+                                <span class="stock-dot stock-dot-on"></span> In stock
+                            {% else %}
+                                <span class="stock-dot"></span> Sold out
+                            {% endif %}
                         </dd>
                     </div>
+                    {% if product.category_code == "KYS" %}
+                        <div><dt>Keying</dt><dd>Keyed alike with every other PSV key</dd></div>
+                    {% endif %}
                 </dl>
             </div>
         </div>
@@ -92,16 +120,17 @@
         {% if related %}
             <section class="store-section related-section">
                 <div class="store-section-head">
-                    <h2>More from {{ product.cat_label }}</h2>
+                    <h2>More from {{ group.title or collection.title }}</h2>
+                    <a href="{{ collection.url }}" class="store-view-all">All {{ collection.title }} →</a>
                 </div>
-                <div class="product-grid related-grid">
-                    {% for p in related %}
-                        {{ product_card(p, compact=true) }}
-                    {% endfor %}
+                <div class="item-grid item-grid-related">
+                    {% for p in related %}{{ item_card(p) }}{% endfor %}
                 </div>
             </section>
         {% endif %}
     </div>
+{% endblock %}
 
+{% block overlays %}
     {% include "store/cart.html" %}
 {% endblock %}

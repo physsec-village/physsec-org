@@ -7,7 +7,7 @@ import stripe
 from fastapi.testclient import TestClient
 
 from src.main import app
-from src.store import db, seed, stripe_client
+from src.store import catalog, db, seed, stripe_client
 from src.store import router as store_router
 from src.store.config import (
     bootstrap_stock,
@@ -16,7 +16,7 @@ from src.store.config import (
     store_enabled,
 )
 from src.store.models import ProductInput, VariantInput
-from src.store.storefront import ProductView, VariantView
+from src.store.storefront import Storefront
 
 
 def _database(_tmp_path, *, stock: int = 1):
@@ -108,28 +108,14 @@ def test_production_database_requires_tls(monkeypatch):
     assert database_url().endswith("sslmode=verify-full")
 
 
-def test_product_default_variant_prefers_available_stock():
-    variants = (
-        VariantView("001", "Sold out", "PSV-RFID-001-001", "", 1000, 0),
-        VariantView("002", "Available", "PSV-RFID-001-002", "", 1000, 2),
+def test_storefront_caps_browser_stock_at_zero():
+    front = Storefront(
+        inventory={"PSV-BYP-002": {"price_cents": 500, "available_stock": 0}}
     )
-    product = ProductView(
-        id="PSV-RFID-001",
-        name="RFID Tool",
-        cat="RFID",
-        cat_label="RFID",
-        sku=variants[0].sku,
-        upc="",
-        desc="",
-        featured=False,
-        price_cents=1000,
-        price_str="$10.00",
-        price_varies=False,
-        variants=variants,
-        available_stock=2,
-    )
+    view = front.view(catalog.ITEMS_BY_SKU["PSV-BYP-002"])
 
-    assert product.default_variant.sku == "PSV-RFID-001-002"
+    assert view.listed and view.sold_out and not view.purchasable
+    assert front.browser_catalog()["PSV-BYP-002"]["available_stock"] == 0
 
 
 def test_cart_normalization_caps_duplicate_sku_totals(tmp_path):

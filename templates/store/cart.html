@@ -30,16 +30,17 @@
     <div class="cart-foot" id="cartFoot" hidden>
         <div class="cart-subtotal-row">
             <span>Subtotal</span>
-            <span class="cart-subtotal" id="cartSubtotal">$0.00</span>
+            <span class="cart-subtotal" id="cartSubtotal">$0</span>
         </div>
         <p class="cart-fineprint">
             Shipping &amp; taxes are calculated securely by Stripe Checkout.
         </p>
         <a href="{{ url_for('store_checkout_page') }}" class="btn btn-primary cart-checkout" id="cartCheckout">
-            Checkout · <span id="cartCheckoutTotal">$0.00</span>
+            Checkout · <span id="cartCheckoutTotal">$0</span>
         </a>
         <button class="btn btn-ghost cart-clear" id="cartClear">Clear cart</button>
     </div>
 </aside>
+<div class="store-toast" id="storeToast" role="status" aria-live="polite" hidden></div>
 <script id="psv-catalog" type="application/json">{{ catalog_json | tojson }}</script>
-<script src="/static/pages/store.js"></script>
+<script src="/static/pages/store.js?v=2"></script>

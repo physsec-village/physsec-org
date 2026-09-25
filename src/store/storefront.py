@@ -1,4 +1,10 @@
-"""Presentation adapters for the redesigned storefront."""
+"""Presentation adapters joining the menu catalog with live inventory.
+
+Copy, photos, and grouping come from `catalog` (the menu). Price and
+availability come from PostgreSQL so the storefront never shows a price that
+checkout would not charge. Items missing from the database are shown but
+cannot be added to a cart.
+"""
 
 from __future__ import annotations
 
@@ -6,154 +12,117 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import catalog, db
+from .catalog import Collection, StoreGroup, StoreItem
+
+Inventory = dict[str, dict[str, Any]]
+
+
+def money(cents: int) -> str:
+    dollars, remainder = divmod(int(cents), 100)
+    return f"${dollars}" if remainder == 0 else f"${dollars}.{remainder:02d}"
 
 
 @dataclass(frozen=True)
-class VariantView:
-    code: str
-    label: str
-    sku: str
-    upc: str
+class ItemView:
+    item: StoreItem
     price_cents: int
     available_stock: int
+    listed: bool
 
-
-@dataclass(frozen=True)
-class ProductView:
-    id: str
-    name: str
-    cat: str
-    cat_label: str
-    sku: str
-    upc: str
-    desc: str
-    featured: bool
-    price_cents: int
-    price_str: str
-    price_varies: bool
-    variants: tuple[VariantView, ...]
-    available_stock: int
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.item, name)
 
     @property
-    def is_key(self) -> bool:
-        return self.cat == "KYS"
+    def price_str(self) -> str:
+        return money(self.price_cents)
+
+    @property
+    def purchasable(self) -> bool:
+        return self.listed and not self.restricted and self.available_stock > 0
 
     @property
     def sold_out(self) -> bool:
-        return self.available_stock <= 0
+        return self.listed and not self.restricted and self.available_stock <= 0
 
     @property
-    def default_variant(self) -> VariantView:
-        """Prefer an available variant for one-click product-card adds."""
-        return next(
-            (variant for variant in self.variants if variant.available_stock > 0),
-            self.variants[0],
+    def image_url(self) -> str:
+        return f"/static/images/menu/{self.image}" if self.image else ""
+
+    @property
+    def url(self) -> str:
+        return f"/store/product/{self.slug}"
+
+    @property
+    def collection(self) -> Collection:
+        return catalog.collection_for(self.item)
+
+
+@dataclass(frozen=True)
+class GroupView:
+    group: StoreGroup
+    items: tuple[ItemView, ...]
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.group, name)
+
+
+@dataclass(frozen=True)
+class CollectionView:
+    collection: Collection
+    groups: tuple[GroupView, ...]
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.collection, name)
+
+    @property
+    def cover_url(self) -> str:
+        return f"/static/images/menu/{self.cover}" if self.cover else ""
+
+    @property
+    def url(self) -> str:
+        return f"/store/collection/{self.slug}"
+
+
+class Storefront:
+    """One request's view of the catalog against a single inventory snapshot."""
+
+    def __init__(self, inventory: Inventory | None = None):
+        self.inventory = db.sku_inventory() if inventory is None else inventory
+
+    def view(self, item: StoreItem) -> ItemView:
+        row = self.inventory.get(item.sku)
+        if row is None:
+            return ItemView(item, item.price_cents, 0, listed=False)
+        return ItemView(
+            item, int(row["price_cents"]), int(row["available_stock"]), listed=True
         )
 
-    @property
-    def search_text(self) -> str:
-        values = [self.name, self.sku, self.cat_label]
-        values.extend(variant.label for variant in self.variants)
-        values.extend(variant.sku for variant in self.variants)
-        return " ".join(values).lower()
+    def views(self, items: tuple[StoreItem, ...]) -> tuple[ItemView, ...]:
+        return tuple(self.view(item) for item in items)
 
-
-def _money(cents: int) -> str:
-    return f"${cents / 100:.2f}"
-
-
-def _view(product: dict[str, Any]) -> ProductView:
-    raw_variants = product["variants"]
-    variants = tuple(
-        VariantView(
-            code=(
-                variant["sku"].removeprefix(f"{product['base_sku']}-")
-                if variant["sku"] != product["base_sku"]
-                else "_"
+    def collection(self, collection: Collection) -> CollectionView:
+        return CollectionView(
+            collection,
+            tuple(
+                GroupView(group, self.views(group.items)) for group in collection.groups
             ),
-            label=variant["name"],
-            sku=variant["sku"],
-            upc=variant["upc"],
-            price_cents=int(variant["price_cents"]),
-            available_stock=max(0, int(variant["available_stock"])),
         )
-        for variant in raw_variants
-    )
-    first = variants[0]
-    price_cents = int(product["min_price_cents"])
-    price_str = (
-        f"From {_money(price_cents)}"
-        if product["price_varies"]
-        else _money(price_cents)
-    )
-    return ProductView(
-        id=product["slug"].upper(),
-        name=product["name"],
-        cat=product["category_code"],
-        cat_label=product["category_label"],
-        sku=first.sku,
-        upc=first.upc,
-        desc=product["description"],
-        featured=bool(product["featured"]),
-        price_cents=price_cents,
-        price_str=price_str,
-        price_varies=bool(product["price_varies"]),
-        variants=variants,
-        available_stock=sum(variant.available_stock for variant in variants),
-    )
 
+    def collections(self) -> tuple[CollectionView, ...]:
+        return tuple(self.collection(c) for c in catalog.COLLECTIONS)
 
-def products() -> tuple[ProductView, ...]:
-    return tuple(_view(product) for product in db.get_published_products())
-
-
-def featured_products(all_products: tuple[ProductView, ...]) -> tuple[ProductView, ...]:
-    return tuple(product for product in all_products if product.featured)
-
-
-def get_product(product_id: str) -> ProductView | None:
-    product = db.get_product_by_slug(product_id.lower())
-    if product is None:
-        product = db.get_product_by_id(product_id)
-    return _view(product) if product else None
-
-
-def related_products(
-    product: ProductView, all_products: tuple[ProductView, ...], limit: int = 4
-) -> tuple[ProductView, ...]:
-    return tuple(
-        candidate
-        for candidate in all_products
-        if candidate.cat == product.cat and candidate.id != product.id
-    )[:limit]
-
-
-def category_hub(all_products: tuple[ProductView, ...]) -> list[dict[str, Any]]:
-    return [
-        {
-            "key": code,
-            "label": catalog.CATEGORY_LABELS[code],
-            "blurb": catalog.CATEGORY_BLURBS[code],
-            "count": sum(product.cat == code for product in all_products),
-        }
-        for code in catalog.CATEGORY_ORDER
-    ]
-
-
-def browser_catalog(all_products: tuple[ProductView, ...]) -> dict[str, Any]:
-    return {
-        product.id: {
-            "name": product.name,
-            "variants": [
-                {
-                    "sku": variant.sku,
-                    "code": variant.code,
-                    "label": variant.label,
-                    "price_cents": variant.price_cents,
-                    "available_stock": variant.available_stock,
-                }
-                for variant in product.variants
-            ],
-        }
-        for product in all_products
-    }
+    def browser_catalog(self) -> dict[str, Any]:
+        """SKU-keyed map embedded in store pages for the client-side cart."""
+        result: dict[str, Any] = {}
+        for item in catalog.ITEMS:
+            view = self.view(item)
+            if not view.listed or view.restricted:
+                continue
+            result[item.sku] = {
+                "name": item.name,
+                "price_cents": view.price_cents,
+                "available_stock": view.available_stock,
+                "image": view.image_url,
+                "url": view.url,
+            }
+        return result

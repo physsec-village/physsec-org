@@ -1,4 +1,4 @@
-"""Resumable import of the storefront design catalog into PostgreSQL."""
+"""Resumable import of the menu-derived catalog into PostgreSQL."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import logging
 
 from . import catalog, db
 from .config import bootstrap_stock
-from .models import ProductInput, VariantInput, cents_from_dollars
+from .models import ProductInput, VariantInput
 
 logger = logging.getLogger(__name__)
 
@@ -18,49 +18,54 @@ def bootstrap_catalog() -> int:
 
 
 def _bootstrap_catalog() -> int:
-    """Import the bundled catalog only when the database has no products.
+    """Import menu items the database lacks and reconcile the ones it has.
 
-    Imports resume per base SKU. Prices come from the approved design data, but
-    stock defaults to zero so a fresh production deployment cannot accidentally
-    sell unconfigured items.
+    Every menu item becomes one product with one variant keyed by its SKU.
+    Prices come from the menu, but stock defaults to zero so a fresh
+    production deployment cannot accidentally sell unconfigured items.
+    Items that require vetting are imported unpublished so they can never be
+    added to a cart. SKUs that already exist keep their stock but take the
+    menu's price, and are unpublished if the menu now requires vetting.
     """
     initial_stock = bootstrap_stock()
-    grouped: dict[str, list[catalog.Product]] = {}
-    for product in catalog.PRODUCTS:
-        grouped.setdefault("-".join(product.id.split("-")[:3]), []).append(product)
-
     imported = 0
-    for base_sku, members in grouped.items():
-        if db.get_product_by_id(base_sku) is not None:
+    for item in catalog.ITEMS:
+        if db.variant_exists(item.sku):
+            changes = db.reconcile_menu_item(
+                item.sku, item.price_cents, restricted=item.restricted
+            )
+            if changes["price_updated"]:
+                logger.warning(
+                    "store_price_synced sku=%s price_cents=%d",
+                    item.sku,
+                    item.price_cents,
+                )
+            if changes["unpublished"]:
+                logger.warning("store_restricted_item_unpublished sku=%s", item.sku)
             continue
-        product = members[0]
-        source_variants: list[tuple[catalog.Variant, catalog.Product]] = []
-        for member in members:
-            variants = member.variants or (
-                catalog.Variant(code="_", label="", sku=member.sku, upc=member.upc),
-            )
-            source_variants.extend((variant, member) for variant in variants)
-        variants = [
-            VariantInput(
-                sku=variant.sku,
-                name=variant.label or (member.name if len(members) > 1 else ""),
-                upc=variant.upc,
-                price_cents=cents_from_dollars(str(member.price)),
-                stock_on_hand=initial_stock,
-                position=position,
-            )
-            for position, (variant, member) in enumerate(source_variants)
-        ]
+        if db.get_product_by_id(item.sku) is not None:
+            # An earlier import created this SKU as a product family whose
+            # variants carry -NNN suffixes, so there is no sellable variant
+            # with this exact SKU. Leave the family alone and say so.
+            logger.warning("store_catalog_sku_is_a_family sku=%s", item.sku)
+            continue
         db.create_product(
             ProductInput(
-                name=product.name,
-                slug=product.id,
-                base_sku=base_sku,
-                description=product.desc,
-                category_label=product.cat_label,
-                featured=any(member in catalog.FEATURED for member in members),
-                published=True,
-                variants=variants,
+                name=item.name,
+                slug=item.slug,
+                base_sku=item.sku,
+                description=item.desc,
+                category_label=item.category_label,
+                featured=item.feature,
+                published=not item.restricted,
+                variants=[
+                    VariantInput(
+                        sku=item.sku,
+                        upc=item.upc,
+                        price_cents=item.price_cents,
+                        stock_on_hand=initial_stock,
+                    )
+                ],
             ),
         )
         imported += 1

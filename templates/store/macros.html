@@ -1,75 +1,116 @@
-{% macro cat_icon(cat) %}
-    {% if cat == "KYS" %}
-        <svg viewBox="0 0 24 24">
-            <circle cx="7.5" cy="15.5" r="5.5" />
-            <path d="m21 2-9.6 9.6" />
-            <path d="m15.5 7.5 3 3L22 7l-3-3" />
-        </svg>
-    {% elif cat == "RFID" %}
-        <svg viewBox="0 0 24 24">
-            <path d="M5 12.55a11 11 0 0 1 14.08 0" />
-            <path d="M1.42 9a16 16 0 0 1 21.16 0" />
-            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-            <line x1="12" y1="20" x2="12.01" y2="20" />
-        </svg>
-    {% elif cat == "MRC" %}
-        <svg viewBox="0 0 24 24">
-            <path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" />
-        </svg>
-    {% elif cat == "MSC" %}
-        <svg viewBox="0 0 24 24">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-            <line x1="12" y1="22.08" x2="12" y2="12" />
-        </svg>
-    {% else %}
-        <svg viewBox="0 0 24 24">
-            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-        </svg>
-    {% endif %}
+{% macro key_icon() %}
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="7.5" cy="15.5" r="5.5" />
+        <path d="m21 2-9.6 9.6" />
+        <path d="m15.5 7.5 3 3L22 7l-3-3" />
+    </svg>
 {% endmacro %}
 
-{% macro product_thumb(p, class="") %}
-    <div class="product-thumb {{ class }}">
-        <div class="product-thumb-placeholder" role="img" aria-label="{{ p.name }} photo placeholder">
-            {{ cat_icon(p.cat) }}
-        </div>
-        {% if p.is_key %}
-            <span class="product-badge">Keyed alike</span>
-        {% elif caller is defined %}
-            {{ caller() }}
+{% macro item_photo(p, class="") %}
+    <div class="photo {{ class }}{% if not p.image %} photo-blank{% endif %}">
+        {% if p.image %}
+            <img
+                src="{{ p.image_url }}"
+                alt=""
+                loading="lazy"
+                decoding="async"
+            />
+        {% else %}
+            {# Most keys without a photo are elevator/panel keys: show the
+               key's name as an engraved tag instead of an empty box. #}
+            <span class="photo-tag" aria-hidden="true">
+                {{ key_icon() }}
+                {% if p.name | length <= 12 %}<span class="mono">{{ p.name }}</span>{% endif %}
+            </span>
         {% endif %}
     </div>
 {% endmacro %}
 
-{% macro product_card(p, show_sku=false, featured=false, compact=false) %}
-    <article class="product-card">
-        <a href="{{ url_for('store_product_page', product_id=p.id) }}" class="product-card-link" aria-label="View {{ p.name }}">
-            {% if featured and not p.is_key %}
-                {% call product_thumb(p) %}
-                    <span class="product-badge">Featured</span>
-                {% endcall %}
-            {% else %}
-                {{ product_thumb(p) }}
-            {% endif %}
+{% macro buy_button(p, size="btn-sm", label="Add") %}
+    {% if p.restricted %}
+        <a class="btn btn-outline {{ size }}" href="{{ url_for('contact_us_page') }}">Contact to order</a>
+    {% elif p.purchasable %}
+        <button
+            type="button"
+            class="btn btn-primary {{ size }} btn-add"
+            data-add
+            data-sku="{{ p.sku }}"
+            aria-label="Add {{ p.name }} to cart"
+        >{{ label }}</button>
+    {% else %}
+        <button type="button" class="btn btn-ghost {{ size }}" disabled>Sold out</button>
+    {% endif %}
+{% endmacro %}
+
+{% macro item_card(p, show_group=false) %}
+    <article class="item-card{% if p.restricted %} item-card-restricted{% endif %}">
+        <a href="{{ p.url }}" class="item-card-photo" aria-label="View {{ p.name }}" tabindex="-1">
+            {{ item_photo(p) }}
         </a>
-        <div class="product-card-info">
-            {% if not compact %}<div class="product-card-cat">{{ p.cat_label }}</div>{% endif %}
-            <a href="{{ url_for('store_product_page', product_id=p.id) }}" class="product-card-name">{{ p.name }}</a>
-            {% if show_sku %}<div class="product-card-sku">{{ p.sku }}</div>{% endif %}
-            <div class="product-card-buy">
-                <span class="price">{{ p.price_str }}</span>
-                {% if not compact %}
-                    <button
-                        class="btn btn-primary btn-add"
-                        data-add
-                        data-id="{{ p.id }}"
-                        data-sku="{{ p.default_variant.sku }}"
-                        {% if p.sold_out %}disabled{% endif %}
-                        aria-label="Add {{ p.name }} to cart"
-                    >{{ "Sold out" if p.sold_out else "Add" }}</button>
-                {% endif %}
+        <div class="item-card-body">
+            {% if show_group %}
+                <div class="item-card-kicker">{{ p.collection.title }}{% if p.group_title %} · {{ p.group_title }}{% endif %}</div>
+            {% endif %}
+            <a href="{{ p.url }}" class="item-card-name">{{ p.name }}</a>
+            {% if p.desc %}<p class="item-card-desc">{{ p.desc }}</p>{% endif %}
+            <div class="item-card-foot">
+                <span class="price">{{ p.price_str }}{% if p.price_suffix %} <small>{{ p.price_suffix }}</small>{% endif %}</span>
+                {{ buy_button(p) }}
             </div>
         </div>
     </article>
+{% endmacro %}
+
+{% macro item_row(p) %}
+    <article class="item-row{% if p.restricted %} item-card-restricted{% endif %}">
+        <a href="{{ p.url }}" class="item-row-photo" aria-label="View {{ p.name }}" tabindex="-1">
+            {{ item_photo(p) }}
+        </a>
+        <div class="item-row-body">
+            <a href="{{ p.url }}" class="item-row-name">{{ p.name }}</a>
+            {% if p.desc %}<p class="item-row-desc">{{ p.desc }}</p>{% endif %}
+            {% if p.bullets %}
+                <ul class="item-bullets">
+                    {% for b in p.bullets %}<li>{{ b }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if p.restricted %}
+                <p class="item-restricted-note">{{ p.restricted_reason }}</p>
+            {% endif %}
+            {% for note in p.footnotes if note != p.restricted_reason %}
+                <p class="item-restricted-note">{{ note }}</p>
+            {% endfor %}
+        </div>
+        <div class="item-row-buy">
+            <span class="price price-lg">{{ p.price_str }}</span>
+            {{ buy_button(p, size="") }}
+        </div>
+    </article>
+{% endmacro %}
+
+{% macro collection_card(c, wide=false) %}
+    <a href="{{ c.url }}" class="collection-card{% if wide %} collection-card-wide{% endif %}">
+        <div class="collection-card-photo">
+            {% if c.cover_url %}
+                <img src="{{ c.cover_url }}" alt="" loading="lazy" decoding="async" />
+            {% else %}
+                {{ key_icon() }}
+            {% endif %}
+        </div>
+        <div class="collection-card-body">
+            <div class="collection-card-meta">
+                <span>{{ c.count }} item{{ "" if c.count == 1 else "s" }}</span>
+                {% if c.tag %}<span class="chip">{{ c.tag }}</span>{% endif %}
+            </div>
+            <h3>{{ c.title }}</h3>
+            {% if c.blurb %}<p>{{ c.blurb }}</p>{% endif %}
+            <span class="collection-card-cta">
+                Browse
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                </svg>
+            </span>
+        </div>
+    </a>
 {% endmacro %}

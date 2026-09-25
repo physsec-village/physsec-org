@@ -235,27 +235,54 @@ def get_product_by_id(product_id: int | str) -> dict[str, Any] | None:
         return _hydrate_products(conn, [row])[0] if row else None
 
 
-def catalog_json() -> dict[str, Any]:
-    """Return a SKU-first catalog safe to embed in storefront pages."""
-    result: dict[str, Any] = {}
-    for product in get_published_products():
-        result[product["base_sku"]] = {
-            "name": product["name"],
-            "price_cents": product["price_cents"],
-            "variants": [
-                {
-                    "sku": v["sku"],
-                    "code": v["sku"].split("-")[-1]
-                    if v["sku"] != product["base_sku"]
-                    else "_",
-                    "label": v["name"],
-                    "price_cents": v["price_cents"],
-                    "available_stock": max(0, v["available_stock"]),
-                }
-                for v in product["variants"]
-            ],
+def variant_exists(sku: str) -> bool:
+    with connection() as conn:
+        return (
+            conn.execute(
+                "SELECT 1 FROM variants WHERE sku=%s", (sku.upper(),)
+            ).fetchone()
+            is not None
+        )
+
+
+def reconcile_menu_item(
+    sku: str, price_cents: int, *, restricted: bool
+) -> dict[str, bool]:
+    """Bring an already-imported SKU in line with the menu.
+
+    The menu is the price authority, so a stale database price is replaced.
+    Restricted items are unpublished; nothing is ever published here, so an
+    operator who hid a product deliberately keeps it hidden.
+    """
+    with connection(write=True) as conn:
+        priced = conn.execute(
+            "UPDATE variants SET price_cents=%s WHERE sku=%s AND price_cents<>%s",
+            (price_cents, sku.upper(), price_cents),
+        ).rowcount
+        unpublished = 0
+        if restricted:
+            unpublished = conn.execute(
+                "UPDATE products SET published=false,updated_at=%s "
+                "WHERE published AND id=(SELECT product_id FROM variants WHERE sku=%s)",
+                (utc_now(), sku.upper()),
+            ).rowcount
+    return {"price_updated": bool(priced), "unpublished": bool(unpublished)}
+
+
+def sku_inventory() -> dict[str, dict[str, Any]]:
+    """Return price and availability for every published variant, by SKU."""
+    with connection() as conn:
+        rows = conn.execute(
+            f"SELECT v.sku,v.price_cents,{_available_sql()} AS available_stock "
+            "FROM variants v JOIN products p ON p.id=v.product_id WHERE p.published"
+        ).fetchall()
+    return {
+        row["sku"]: {
+            "price_cents": int(row["price_cents"]),
+            "available_stock": max(0, int(row["available_stock"])),
         }
-    return result
+        for row in rows
+    }
 
 
 def normalize_cart(
