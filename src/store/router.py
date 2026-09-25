@@ -58,11 +58,27 @@ def _items(payload: CartPayload) -> list[dict[str, Any]]:
     restricted = [
         {"sku": item["sku"], "reason": "restricted"}
         for item in items
-        if (entry := catalog.ITEMS_BY_SKU.get(item["sku"])) and entry.restricted
+        if _is_restricted(item["sku"])
     ]
     if restricted:
         raise db.CartUnavailable(restricted)
     return items
+
+
+def _is_restricted(sku: str) -> bool:
+    """True when the SKU, or the family it belongs to, needs vetting.
+
+    A legacy or hand-made family product can carry `PSV-KYS-023-001` style
+    variants under a restricted base SKU, so the check covers both.
+    """
+    candidates = {sku}
+    parts = sku.split("-")
+    if len(parts) == 4:
+        candidates.add("-".join(parts[:3]))
+    return any(
+        (entry := catalog.ITEMS_BY_SKU.get(candidate)) is not None and entry.restricted
+        for candidate in candidates
+    )
 
 
 def _context(front: storefront.Storefront, **extra: Any) -> dict[str, Any]:

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from src.main import app
 from src.menu import MENU
 from src.store import catalog, db, seed, storefront
-from src.store.models import BASE_SKU_RE
+from src.store.models import BASE_SKU_RE, ProductInput, VariantInput
 
 MENU_ITEMS = [
     item for section in MENU for group in section.groups for item in group.items
@@ -279,6 +279,27 @@ class StoreRouteTests(unittest.TestCase):
         self.assertIn("Vetting required", feo.text)
         self.assertNotIn("data-add", feo.text)
         self.assertNotIn("PSV-KYS-023", feo.text.split('id="psv-catalog"')[1])
+
+    def test_restricted_family_variants_are_refused_too(self):
+        db.create_product(
+            ProductInput(
+                name="FEO-K1 family",
+                base_sku="PSV-KYS-023",
+                category_label="Keys",
+                variants=[
+                    VariantInput(sku="PSV-KYS-023-001", price_cents=1000, stock=5)
+                ],
+            )
+        )
+        cart = {"items": [{"sku": "PSV-KYS-023-001", "qty": 1}]}
+        with TestClient(app) as client:
+            checkout = client.post("/store/checkout", json=cart)
+
+        self.assertEqual(checkout.status_code, 409)
+        self.assertEqual(
+            checkout.json()["problems"],
+            [{"sku": "PSV-KYS-023-001", "reason": "restricted"}],
+        )
 
     def test_unknown_pages_return_404(self):
         with TestClient(app) as client:
