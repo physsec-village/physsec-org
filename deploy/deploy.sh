@@ -99,14 +99,29 @@ if is_running blue && is_running green; then
         filed=blue
     fi
     unfiled=$(other_colour "$filed")
-    if is_healthy "$filed" && $NGINX_TEST_CMD && $NGINX_RELOAD_CMD; then
+    if is_healthy "$filed"; then
+        # Finish the switch. An nginx failure here means nothing is known
+        # about what nginx serves, so leave both colours running and stop.
+        if ! $NGINX_TEST_CMD || ! $NGINX_RELOAD_CMD; then
+            echo "nginx test or reload failed during recovery; leaving both colours running." >&2
+            exit 1
+        fi
         drain_old_workers
         compose stop "$unfiled"
         active=$filed
     else
-        echo "Falling back to $unfiled; $filed is unhealthy or nginx rejected the include." >&2
+        echo "$filed is unhealthy; reverting the include to $unfiled." >&2
+        recovery_previous=$(cat "$UPSTREAM_FILE" 2>/dev/null || true)
         printf 'server 127.0.0.1:%s;\n' "$(host_port "$unfiled")" > "$UPSTREAM_FILE"
-        $NGINX_TEST_CMD && $NGINX_RELOAD_CMD
+        if ! $NGINX_TEST_CMD || ! $NGINX_RELOAD_CMD; then
+            echo "nginx test or reload failed during recovery; restoring the include and leaving both colours running." >&2
+            if [ -n "$recovery_previous" ]; then
+                printf '%s\n' "$recovery_previous" > "$UPSTREAM_FILE"
+            else
+                rm -f "$UPSTREAM_FILE"
+            fi
+            exit 1
+        fi
         compose stop "$filed"
         active=$unfiled
     fi
