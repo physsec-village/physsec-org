@@ -202,8 +202,9 @@ hosted Supabase production database.
   is built and started while the active colour keeps serving; once the new
   container passes its health check the script rewrites the nginx upstream
   include named by `PSV_UPSTREAM_FILE`, validates and gracefully reloads nginx,
-  and only then stops the old colour. A failed health check or rejected nginx
-  config leaves the active colour untouched and fails the deploy. The reload
+  and stops the old colour only after the pre-reload nginx workers have
+  drained. Runs are serialized with `flock`. A failed health check or rejected
+  nginx config leaves the active colour untouched and fails the deploy. The reload
   is the only privileged step and is allowed through the exact `sudo` rule in
   [`deploy/sudoers/psv-deploy`](deploy/sudoers/psv-deploy). The systemd unit's
   `ExecStart` and `ExecReload` use the same script for boot and manual service

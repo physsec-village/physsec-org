@@ -1,5 +1,8 @@
 name: Deploy to VPS
 
+# Deploys use SSH credentials, not GITHUB_TOKEN.
+permissions: {}
+
 on:
   workflow_dispatch:
     inputs:

@@ -16,7 +16,16 @@
 #                       (default: sudo -n /usr/sbin/nginx -t)
 #   PSV_NGINX_RELOAD_CMD command that reloads nginx
 #                       (default: sudo -n /usr/bin/systemctl reload nginx)
+#   PSV_DRAIN_TIMEOUT   max seconds to wait for old nginx workers to finish
+#                       in-flight requests before stopping the old colour
+#                       (default: 60; nginx proxy_read_timeout is 30s)
 set -eu
+
+# Serialize deploys per checkout: two concurrent runs could both pick the same
+# idle colour. Re-exec under an exclusive lock held for the whole run.
+if [ -z "${PSV_DEPLOY_LOCKED:-}" ]; then
+    PSV_DEPLOY_LOCKED=1 exec flock -w 900 .deploy.lock "$0" "$@"
+fi
 
 env_value() {
     sed -n "s/^$1=//p" .env 2>/dev/null | tail -n 1
@@ -25,8 +34,10 @@ env_value() {
 UPSTREAM_FILE=${PSV_UPSTREAM_FILE:-$(env_value PSV_UPSTREAM_FILE)}
 NGINX_TEST_CMD=${PSV_NGINX_TEST_CMD:-$(env_value PSV_NGINX_TEST_CMD)}
 NGINX_RELOAD_CMD=${PSV_NGINX_RELOAD_CMD:-$(env_value PSV_NGINX_RELOAD_CMD)}
+DRAIN_TIMEOUT=${PSV_DRAIN_TIMEOUT:-$(env_value PSV_DRAIN_TIMEOUT)}
 : "${NGINX_TEST_CMD:=sudo -n /usr/sbin/nginx -t}"
 : "${NGINX_RELOAD_CMD:=sudo -n /usr/bin/systemctl reload nginx}"
+: "${DRAIN_TIMEOUT:=60}"
 
 if [ -z "$UPSTREAM_FILE" ]; then
     echo "PSV_UPSTREAM_FILE is not set; see deploy/README.md." >&2
@@ -51,15 +62,53 @@ other_colour() {
     if [ "$1" = blue ]; then echo green; else echo blue; fi
 }
 
-# Determine the active colour. Normally exactly one is running. If both are
-# (an interrupted deploy), trust the upstream include; if neither is, this is
-# a first install or a migration from the single-service layout.
+is_healthy() {
+    [ "$(docker inspect --format '{{.State.Health.Status}}' "$(compose ps -q "$1")" 2>/dev/null)" = healthy ]
+}
+
+# Wait for nginx workers from before the reload to finish their in-flight
+# requests. Graceful-shutdown workers retitle themselves, which any user can
+# see in the process list, so this needs no privileges. Bounded because a
+# hung client keeps a worker alive indefinitely.
+drain_old_workers() {
+    waited=0
+    while ps -eo args= | grep -q '^nginx: worker process is shutting down'; do
+        if [ "$waited" -ge "$DRAIN_TIMEOUT" ]; then
+            echo "Old nginx workers still draining after ${DRAIN_TIMEOUT}s; proceeding." >&2
+            return
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+}
+
+# Determine the active colour. Normally exactly one is running. If neither
+# is, this is a first install or a migration from the single-service layout.
+#
+# If both are running, an earlier deploy was interrupted. The include file
+# alone does not say whether nginx ever loaded it, so converge first: if the
+# colour named in the file is healthy, (re)load nginx so the file and the
+# loaded config agree and finish the switch; otherwise restore the file to the
+# other colour. Either way, exactly one colour is left running before the
+# normal flow chooses which colour to replace.
 active=""
 if is_running blue && is_running green; then
+    echo "Both colours are running; recovering an interrupted deploy." >&2
+    filed=green
     if [ -f "$UPSTREAM_FILE" ] && grep -q ":$(host_port blue);" "$UPSTREAM_FILE"; then
-        active=blue
+        filed=blue
+    fi
+    unfiled=$(other_colour "$filed")
+    if is_healthy "$filed" && $NGINX_TEST_CMD && $NGINX_RELOAD_CMD; then
+        drain_old_workers
+        compose stop "$unfiled"
+        active=$filed
     else
-        active=green
+        echo "Falling back to $unfiled; $filed is unhealthy or nginx rejected the include." >&2
+        printf 'server 127.0.0.1:%s;\n' "$(host_port "$unfiled")" > "$UPSTREAM_FILE"
+        $NGINX_TEST_CMD && $NGINX_RELOAD_CMD
+        compose stop "$filed"
+        active=$unfiled
     fi
 elif is_running blue; then
     active=blue
@@ -136,9 +185,10 @@ fi
 
 echo "nginx now routes to $new on 127.0.0.1:$new_port."
 
-# Old nginx workers finish in-flight requests after the reload; give them a
-# moment before the old colour receives SIGTERM (uvicorn then drains too).
-sleep 5
+# Old nginx workers finish in-flight requests after the reload; stop the old
+# colour only once they are gone (uvicorn then drains its own connections
+# within Compose's stop grace period).
+drain_old_workers
 
 if [ -n "$active" ]; then
     compose stop "$active"

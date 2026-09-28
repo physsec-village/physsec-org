@@ -18,7 +18,13 @@ checkouts.
    named by `PSV_UPSTREAM_FILE`, runs `sudo -n nginx -t`, and runs
    `sudo -n systemctl reload nginx` (a graceful reload; existing requests
    finish on the old workers);
-4. stops the old colour after a short grace period.
+4. waits for the pre-reload nginx workers to finish their in-flight requests
+   (bounded by `PSV_DRAIN_TIMEOUT`, default 60 s), then stops the old colour.
+
+Runs are serialized per checkout with `flock` on `.deploy.lock`. If a run is
+interrupted with both colours running, the next run first converges nginx on
+the colour named in the include (if it is healthy) or reverts to the other,
+then proceeds normally.
 
 If step 2 or 3 fails, the previous include is restored and the active colour
 keeps serving. There is no separate rollback step: re-deploying the previous
