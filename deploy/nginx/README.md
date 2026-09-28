@@ -4,15 +4,32 @@ These files keep the site's reverse-proxy behavior under version control while
 leaving certificates, private keys, and host-specific provisioning outside the
 repository.
 
-The supplied virtual host assumes:
+Both virtual hosts proxy to an `upstream` block whose single `server` line
+lives in an include under `/etc/nginx/psv-upstreams/`. `deploy/deploy.sh`
+rewrites that include to point at the active blue/green colour and reloads
+nginx; see [`../README.md`](../README.md) for the host setup.
 
-- the application listens only on `127.0.0.1:8080`;
+The supplied production virtual host assumes:
+
+- the application colours listen only on `127.0.0.1:8080` (blue) and
+  `127.0.0.1:8082` (green), and the active one is named in
+  `/etc/nginx/psv-upstreams/production.conf`;
 - the host-managed certificate and key exist at
   `/etc/nginx/host-certs/physsec.org.cert.pem` and
   `/etc/nginx/host-certs/physsec.org.key.pem`, and the certificate covers both
   `physsec.org` and `www.physsec.org`; and
 - the distribution uses the conventional `/etc/nginx/sites-available` and
   `/etc/nginx/sites-enabled` layout.
+
+The supplied dev virtual host in `dev.physsec.org.conf` assumes:
+
+- the dev application colours listen only on `127.0.0.1:8081` (blue) and
+  `127.0.0.1:8083` (green), and the active one is named in
+  `/etc/nginx/psv-upstreams/dev.conf`;
+- the host-managed certificate and key exist at
+  `/etc/nginx/host-certs/dev.physsec.org.cert.pem` and
+  `/etc/nginx/host-certs/dev.physsec.org.key.pem`; and
+- the host uses the same snippet and sites-available/sites-enabled layout.
 
 If the host uses different paths, update the installed copy or adapt the paths
 before enabling it. Install and validate it with:
@@ -24,6 +41,10 @@ sudo install -D -m 0644 deploy/nginx/physsec.org.conf \
   /etc/nginx/sites-available/physsec-org.conf
 sudo ln -sfn /etc/nginx/sites-available/physsec-org.conf \
   /etc/nginx/sites-enabled/physsec-org.conf
+sudo install -D -m 0644 deploy/nginx/dev.physsec.org.conf \
+  /etc/nginx/sites-available/dev-physsec-org.conf
+sudo ln -sfn /etc/nginx/sites-available/dev-physsec-org.conf \
+  /etc/nginx/sites-enabled/dev-physsec-org.conf
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -33,12 +54,16 @@ virtual host that claims these domain names so nginx does not select an
 unexpected server block.
 
 The production virtual host redirects HTTP and `www.physsec.org` requests to
-the canonical `https://physsec.org` origin. It proxies the apex domain to
-`127.0.0.1:8080`, the concrete loopback address on which Compose publishes the
-application. It also replaces `X-Forwarded-For` with `$remote_addr` instead of
+the canonical `https://physsec.org` origin. It proxies the apex domain to the
+`psv_production` upstream, which resolves to the loopback port on which Compose
+publishes the active colour. It also replaces `X-Forwarded-For` with `$remote_addr` instead of
 using `$proxy_add_x_forwarded_for`. That difference is intentional: the app
 trusts nginx's forwarded address for rate limiting, so nginx must discard any
 client-supplied forwarding chain.
+
+The dev virtual host redirects HTTP to `https://dev.physsec.org`, proxies to
+the `psv_dev` upstream, sends `X-Robots-Tag: noindex, nofollow`, and serves a
+disallow-all `robots.txt`.
 
 ## Content Security Policy rollout
 

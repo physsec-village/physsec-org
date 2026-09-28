@@ -2,15 +2,95 @@ name: Deploy to VPS
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        type: choice
+        default: dev
+        options:
+          - dev
+          - production
   push:
-    branches:
-      - main
+    branches: ['**']
 
 jobs:
-  deploy:
-    name: Deploy app
+  resolve:
+    name: Resolve deployment target
     runs-on: ubuntu-latest
-    concurrency: deploy-group
+    outputs:
+      deploy: ${{ steps.resolve.outputs.deploy }}
+      environment: ${{ steps.resolve.outputs.environment }}
+      branch: ${{ steps.resolve.outputs.branch }}
+    steps:
+      - id: resolve
+        name: Resolve target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_ENVIRONMENT: ${{ inputs.environment || '' }}
+          DEV_BRANCH: ${{ vars.DEV_BRANCH }}
+        run: |
+          set -eu
+
+          deploy=false
+          target_environment=skip
+          branch="$REF_NAME"
+
+          if [ "$EVENT_NAME" = "push" ]; then
+            if [ "$REF_NAME" = "main" ]; then
+              deploy=true
+              target_environment=production
+              branch=main
+            elif [ -n "$DEV_BRANCH" ] && [ "$REF_NAME" = "$DEV_BRANCH" ]; then
+              deploy=true
+              target_environment=dev
+            else
+              echo "No deployment target for push to $REF_NAME; skipping."
+            fi
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            case "$INPUT_ENVIRONMENT" in
+              production)
+                if [ "$REF_NAME" != "main" ]; then
+                  echo "::error::Production deployments must run from main; current ref is $REF_NAME."
+                  exit 1
+                fi
+                deploy=true
+                target_environment=production
+                branch=main
+                ;;
+              dev)
+                deploy=true
+                target_environment=dev
+                ;;
+              *)
+                echo "::error::Unsupported environment: $INPUT_ENVIRONMENT"
+                exit 1
+                ;;
+            esac
+          else
+            echo "No deployment target for event $EVENT_NAME; skipping."
+          fi
+
+          {
+            echo "deploy=$deploy"
+            echo "environment=$target_environment"
+            echo "branch=$branch"
+          } >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy ${{ needs.resolve.outputs.environment }}
+    needs: resolve
+    if: needs.resolve.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve.outputs.environment }}
+    concurrency:
+      group: deploy-${{ needs.resolve.outputs.environment }}
+      cancel-in-progress: false
+    env:
+      BRANCH: ${{ needs.resolve.outputs.branch }}
+      TARGET_ENV: ${{ needs.resolve.outputs.environment }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
@@ -18,8 +98,20 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          envs: BRANCH,TARGET_ENV,DEPLOY_PATH
           script: |
             set -eu
-            cd "${{ secrets.DEPLOY_PATH }}"
-            git pull --ff-only origin main
+            cd "$DEPLOY_PATH"
+
+            if [ "$TARGET_ENV" = "production" ]; then
+              git fetch origin main
+              git merge --ff-only origin/main
+            elif [ "$TARGET_ENV" = "dev" ]; then
+              git fetch --prune origin "$BRANCH"
+              git checkout -q -B "$BRANCH" FETCH_HEAD
+            else
+              echo "Unsupported deployment environment: $TARGET_ENV" >&2
+              exit 1
+            fi
+
             ./deploy/deploy.sh

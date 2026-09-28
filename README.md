@@ -21,8 +21,10 @@ This repository contains the FastAPI-based website for Physical Security Village
 - `templates/`: page templates, navbar, footer, base layout, 404 page
 - `static/`: global and page-specific CSS, logos, SVG assets
 - `Dockerfile`: container image definition
-- `docker-compose.yml`: single-service app deployment
-- `psv-website.service`: example `systemd` unit for running Docker Compose on a host
+- `docker-compose.yml`: blue/green app deployment, with per-checkout Compose
+  interpolation for prod/dev
+- `psv-website.service`: example production `systemd` unit for running Docker Compose on a host
+- `psv-website-dev.service`: example dev `systemd` unit for the second checkout
 
 ## Routes
 
@@ -61,10 +63,12 @@ If you are not using `uv`, install from `pyproject.toml` with your preferred Pyt
 The containerized path is:
 
 ```bash
-docker compose up --build
+docker compose --profile blue up --build
 ```
 
-The compose file publishes the app on `127.0.0.1:8080`.
+The compose file defines two identical `blue` and `green` services for
+blue/green deployment; run one colour locally. Blue publishes on
+`127.0.0.1:8080` by default (green on `127.0.0.1:8082`).
 
 ## Environment Variables
 
@@ -140,6 +144,7 @@ SKU/quantity pairs.
 
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Stripe Checkout.
 - `STORE_PUBLIC_ORIGIN` is the canonical HTTPS origin used for Stripe redirects.
+  Use `https://dev.physsec.org` in the dev checkout.
 - `STORE_SHIP_COUNTRIES` is a comma-separated country allowlist.
 - `STRIPE_SHIPPING_RATE_IDS` optionally supplies Stripe shipping rates.
 - `STORE_AUTOMATIC_TAX=true` enables Stripe Tax.
@@ -175,22 +180,42 @@ hosted Supabase production database.
 - The `Dockerfile` installs the exact dependency versions in `uv.lock` with a
   pinned uv release and pinned Python base-image digest, then starts the site
   with `fastapi run src/main.py --proxy-headers --port 8080`.
-- `psv-website.service` expects the repository to live at `/opt/psv-website`.
+- Production lives at `https://physsec.org` from `/opt/psv-website`; dev lives
+  at `https://dev.physsec.org` from `/opt/psv-website-dev`.
+- `psv-website.service` expects the production repository to live at
+  `/opt/psv-website`; `psv-website-dev.service` expects the dev repository to
+  live at `/opt/psv-website-dev`.
 - The service file is an example deployment artifact, not a portable installer; adjust paths and service management to match the target host.
+- Compose uses per-checkout interpolation from `.env`: production can keep the
+  defaults (`psv-website:latest`, blue on `127.0.0.1:8080`, green on
+  `127.0.0.1:8082`), while dev sets `COMPOSE_PROJECT_NAME=psv-website-dev`,
+  `PSV_IMAGE=psv-website-dev`, `PSV_BLUE_PORT=8081`, and `PSV_GREEN_PORT=8083`
+  so both stacks coexist.
 - The app serves `/healthz` for liveness and `/readyz` for store database
   readiness. The compose file uses the liveness endpoint.
+- The GitHub Actions workflow deploys pushes to `main` to the `production`
+  Environment, pushes to the repository variable `DEV_BRANCH` to the `dev`
+  Environment, and skips other branch pushes. Manual dispatch can deploy any
+  branch to dev; production dispatch is accepted only from `main`.
 - Deploys invoke [`deploy/deploy.sh`](deploy/deploy.sh) directly as the
-  deployment account, avoiding interactive `sudo` in GitHub Actions. The
-  script builds the new image while the old container keeps serving, swaps
-  containers only after the new one passes its health check, and otherwise
-  rolls back to the previously tagged image (`psv-website:previous`) and fails
-  the deploy. The systemd unit's `ExecStart` and `ExecReload` use the same
-  script for boot and manual service operations; changes to the unit itself
-  require an administrator to run `systemctl daemon-reload` on the host.
-- A production nginx reverse-proxy configuration and security-header policy are
+  deployment account. It is a zero-downtime blue/green deploy: the idle colour
+  is built and started while the active colour keeps serving; once the new
+  container passes its health check the script rewrites the nginx upstream
+  include named by `PSV_UPSTREAM_FILE`, validates and gracefully reloads nginx,
+  and only then stops the old colour. A failed health check or rejected nginx
+  config leaves the active colour untouched and fails the deploy. The reload
+  is the only privileged step and is allowed through the exact `sudo` rule in
+  [`deploy/sudoers/psv-deploy`](deploy/sudoers/psv-deploy). The systemd unit's
+  `ExecStart` and `ExecReload` use the same script for boot and manual service
+  operations; changes to the unit itself require an administrator to run
+  `systemctl daemon-reload` on the host.
+- Production and dev nginx reverse-proxy configurations and the shared
+  security-header policy are
   versioned under [`deploy/nginx`](deploy/nginx/README.md). Install them on the
   host only after adapting certificate and distribution-specific paths, then
   validate with `nginx -t` before reloading nginx.
+- See [`deploy/README.md`](deploy/README.md) for the one-time dev host runbook
+  and GitHub Environment setup.
 
 ## Placeholders To Replace
 
@@ -203,6 +228,11 @@ The repository still contains several stubbed or provisional values that should 
 | `pyproject.toml` | `description = "Add your description here"` | Real package/project description |
 | `.env` inputs consumed by `src/forms/email.py` and `src/forms/router.py` | `MAIL_USERNAME`, `MAIL_PASSWORD`, `RECEIVER_EMAIL` are expected but not documented in-repo beyond code | Real SMTP credentials and destination inbox |
 | `psv-website.service` | `WorkingDirectory=/opt/psv-website` | Actual deployment path if this unit is used |
+| `psv-website-dev.service` | `WorkingDirectory=/opt/psv-website-dev` | Actual dev deployment path if this unit is used |
+| `.github/workflows/deploy.yml` | Repository variable `DEV_BRANCH` and Environment secret `DEPLOY_PATH` | Branch dev should track; `/opt/psv-website` for production and `/opt/psv-website-dev` for dev |
+| `.env.example` | Commented `COMPOSE_PROJECT_NAME`, `PSV_IMAGE`, `PSV_BLUE_PORT`, `PSV_GREEN_PORT`, `PSV_UPSTREAM_FILE` defaults | Per-checkout values for each deployment stack |
+| `deploy/sudoers/psv-deploy` | `DEPLOY_USER` | The deployment account name |
+| `deploy/nginx/dev.physsec.org.conf` | `/etc/nginx/host-certs/dev.physsec.org.*.pem` | Actual dev certificate and private key paths if the host differs |
 
 ### Disabled or "coming soon" site sections
 
