@@ -196,7 +196,10 @@ hosted Supabase production database.
 - The GitHub Actions workflow deploys pushes to `main` to the `production`
   Environment, pushes to the repository variable `DEV_BRANCH` to the `dev`
   Environment, and skips other branch pushes. Manual dispatch can deploy any
-  branch to dev; production dispatch is accepted only from `main`.
+  branch to dev; production dispatch is accepted only from `main`, and the
+  `production` Environment should additionally be restricted to `main` in
+  GitHub. All SSH and path secrets live on the Environments, not the
+  repository.
 - Deploys invoke [`deploy/deploy.sh`](deploy/deploy.sh) directly as the
   deployment account. It is a zero-downtime blue/green deploy: the idle colour
   is built and started while the active colour keeps serving; once the new

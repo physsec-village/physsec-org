@@ -95,11 +95,13 @@ it starts `green` on `127.0.0.1:8082`, switches nginx, then retires the legacy
 
 ## Dev checkout
 
-Clone the repository to `/opt/psv-website-dev` owned by the deploy account:
+Clone the repository to `/opt/psv-website-dev` as the deploy account, so the
+clone uses that account's GitHub SSH key (root usually has none) and the
+checkout is owned correctly from the start:
 
 ```bash
-sudo git clone git@github.com:physsec-village/physsec-org.git /opt/psv-website-dev
-sudo chown -R DEPLOY_USER:DEPLOY_USER /opt/psv-website-dev
+sudo install -d -m 0755 -o DEPLOY_USER -g DEPLOY_USER /opt/psv-website-dev
+sudo -u DEPLOY_USER git clone git@github.com:physsec-village/physsec-org.git /opt/psv-website-dev
 sudo -u DEPLOY_USER mkdir -p /opt/psv-website-dev/data/media
 ```
 
@@ -145,17 +147,34 @@ sudo systemctl enable --now psv-website-dev.service
 
 ## GitHub
 
-Create GitHub Environments named `production` and `dev`. Add an Environment
-secret named `DEPLOY_PATH` to each and remove any repository-level
-`DEPLOY_PATH`:
+The workflow runs on pushes to every branch, and a workflow file on a branch
+can be edited by anyone who can push that branch. Two GitHub settings keep
+that from becoming production access:
 
-```text
-production: /opt/psv-website
-dev: /opt/psv-website-dev
-```
+1. **Environment-scoped secrets.** Create GitHub Environments named
+   `production` and `dev`. Put *all* deployment secrets on the Environments,
+   not on the repository: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and
+   `DEPLOY_PATH`. Remove any repository-level copies. Jobs only receive an
+   Environment's secrets when they select that Environment.
 
-Keep `VPS_HOST`, `VPS_USER`, and `VPS_SSH_KEY` as repository secrets. Create a
-repository variable named `DEV_BRANCH` with the branch that dev should track.
+   ```text
+   DEPLOY_PATH  production: /opt/psv-website   dev: /opt/psv-website-dev
+   ```
+
+2. **Production branch policy.** In the `production` Environment's
+   **Deployment branches and tags** setting, choose **Selected branches and
+   tags** and add only `main`. GitHub then refuses to run a job that selects
+   `production` from any other ref, independently of the check inside the
+   workflow file.
+
+Create a repository variable named `DEV_BRANCH` with the branch that dev
+should track.
+
+Both Environments currently share one host account, so anyone who can deploy
+to dev can in principle reach the production checkout on the host. If dev
+deployers are less trusted than production deployers, give dev its own host
+account and SSH key (scoped to `/opt/psv-website-dev`, its upstream include,
+and its own sudoers entry) and put that key on the `dev` Environment only.
 
 Pushes to `main` deploy production. Pushes to `DEV_BRANCH` deploy dev. Manual
 workflow dispatch can deploy any selected branch to dev; production dispatch
