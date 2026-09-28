@@ -1,16 +1,16 @@
 [Unit]
-Description=PSV Website (Docker Compose)
+Description=PSV Website dev environment (Docker Compose)
 Requires=docker.service
 After=docker.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-WorkingDirectory=/opt/psv-website
+WorkingDirectory=/opt/psv-website-dev
 # Boot and deploy both go through the health-gated script, so a deploy that
 # finds the unit inactive cannot bypass the health check and rollback path.
-ExecStart=/opt/psv-website/deploy/deploy.sh
-ExecReload=/opt/psv-website/deploy/deploy.sh
+ExecStart=/opt/psv-website-dev/deploy/deploy.sh
+ExecReload=/opt/psv-website-dev/deploy/deploy.sh
 ExecStop=/usr/bin/docker compose --profile blue --profile green down
 
 [Install]

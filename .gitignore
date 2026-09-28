@@ -111,3 +111,4 @@ supabase/.branches/
 supabase/.temp/
 
 .idea/*
+.deploy.lock
