@@ -69,15 +69,39 @@ is_healthy() {
     [ "$(docker inspect --format '{{.State.Health.Status}}' "$(compose ps -q "$1")" 2>/dev/null)" = healthy ]
 }
 
-# Wait for nginx workers from before the reload to finish their in-flight
-# requests. Graceful-shutdown workers retitle themselves, which any user can
-# see in the process list, so this needs no privileges. Bounded because a
-# hung client keeps a worker alive indefinitely.
+# PIDs of the current nginx workers, read from the process list so this needs
+# no privileges. Matches both "nginx: worker process" and the "... is shutting
+# down" title a worker takes on while it drains.
+nginx_worker_pids() {
+    ps -eo pid=,args= | awk '$2 == "nginx:" && $3 == "worker" && $4 == "process" { print $1 }'
+}
+
+# Reload nginx, first recording which workers predate the reload. The reload
+# command only signals the master and returns at once, so the workers it will
+# retire cannot be identified afterwards by looking for "shutting down".
+old_workers=""
+reload_nginx() {
+    old_workers=$(nginx_worker_pids)
+    $NGINX_RELOAD_CMD
+}
+
+# Wait for the workers recorded by reload_nginx to exit, i.e. to finish their
+# in-flight requests. Bounded because a hung client keeps a worker alive
+# indefinitely.
 drain_old_workers() {
     waited=0
-    while ps -eo args= | grep -q '^nginx: worker process is shutting down'; do
+    while [ -n "$old_workers" ]; do
+        still_running=""
+        for pid in $old_workers; do
+            if ps -o args= -p "$pid" 2>/dev/null | grep -q '^nginx: worker process'; then
+                still_running="$still_running $pid"
+            fi
+        done
+        old_workers=${still_running# }
+        [ -n "$old_workers" ] || break
         if [ "$waited" -ge "$DRAIN_TIMEOUT" ]; then
             echo "Old nginx workers still draining after ${DRAIN_TIMEOUT}s; proceeding." >&2
+            old_workers=""
             return
         fi
         sleep 1
@@ -105,7 +129,7 @@ if is_running blue && is_running green; then
     if is_healthy "$filed"; then
         # Finish the switch. An nginx failure here means nothing is known
         # about what nginx serves, so leave both colours running and stop.
-        if ! $NGINX_TEST_CMD || ! $NGINX_RELOAD_CMD; then
+        if ! $NGINX_TEST_CMD || ! reload_nginx; then
             echo "nginx test or reload failed during recovery; leaving both colours running." >&2
             exit 1
         fi
@@ -116,7 +140,7 @@ if is_running blue && is_running green; then
         echo "$filed is unhealthy; reverting the include to $unfiled." >&2
         recovery_previous=$(cat "$UPSTREAM_FILE" 2>/dev/null || true)
         printf 'server 127.0.0.1:%s;\n' "$(host_port "$unfiled")" > "$UPSTREAM_FILE"
-        if ! $NGINX_TEST_CMD || ! $NGINX_RELOAD_CMD; then
+        if ! $NGINX_TEST_CMD || ! reload_nginx; then
             echo "nginx test or reload failed during recovery; restoring the include and leaving both colours running." >&2
             if [ -n "$recovery_previous" ]; then
                 printf '%s\n' "$recovery_previous" > "$UPSTREAM_FILE"
@@ -125,6 +149,7 @@ if is_running blue && is_running green; then
             fi
             exit 1
         fi
+        drain_old_workers
         compose stop "$filed"
         active=$unfiled
     fi
@@ -193,7 +218,7 @@ if ! $NGINX_TEST_CMD; then
     exit 1
 fi
 
-if ! $NGINX_RELOAD_CMD; then
+if ! reload_nginx; then
     echo "nginx reload failed; restoring the previous upstream." >&2
     restore_upstream
     $NGINX_RELOAD_CMD || true

@@ -171,10 +171,15 @@ Create a repository variable named `DEV_BRANCH` with the branch that dev
 should track.
 
 Both Environments currently share one host account, so anyone who can deploy
-to dev can in principle reach the production checkout on the host. If dev
-deployers are less trusted than production deployers, give dev its own host
-account and SSH key (scoped to `/opt/psv-website-dev`, its upstream include,
-and its own sudoers entry) and put that key on the `dev` Environment only.
+to dev can in principle reach the production checkout on the host. This is
+acceptable only while everyone who can deploy to dev is also trusted with
+production. Before giving anyone dev-only access, give dev its own host
+account and SSH key, scoped to `/opt/psv-website-dev`, its upstream include,
+and its own sudoers entry, and put that key on the `dev` Environment only.
+Note that a separate account is not enough on its own: membership in the
+`docker` group is equivalent to root on the host and reaches the production
+containers, so a dev-only account also needs rootless Docker or a separate
+host to be genuinely isolated.
 
 Pushes to `main` deploy production. Pushes to `DEV_BRANCH` deploy dev. Manual
 workflow dispatch can deploy any selected branch to dev; production dispatch
