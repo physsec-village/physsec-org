@@ -27,8 +27,11 @@ if [ -z "${PSV_DEPLOY_LOCKED:-}" ]; then
     PSV_DEPLOY_LOCKED=1 exec flock -w 900 .deploy.lock "$0" "$@"
 fi
 
+# Read KEY=value from .env, stripping one matching layer of surrounding quotes
+# the way Compose does, so a quoted value means the same thing to both.
 env_value() {
-    sed -n "s/^$1=//p" .env 2>/dev/null | tail -n 1
+    sed -n "s/^$1=//p" .env 2>/dev/null | tail -n 1 \
+        | sed -e "s/^'\(.*\)'\$/\1/" -e 's/^"\(.*\)"$/\1/'
 }
 
 UPSTREAM_FILE=${PSV_UPSTREAM_FILE:-$(env_value PSV_UPSTREAM_FILE)}
