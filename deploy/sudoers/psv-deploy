@@ -1,0 +1,7 @@
+# Lets the deployment account validate and gracefully reload nginx so
+# deploy/deploy.sh can switch the blue/green upstream without downtime.
+# Replace DEPLOY_USER, then install with:
+#   visudo -cf deploy/sudoers/psv-deploy
+#   sudo install -m 0440 deploy/sudoers/psv-deploy /etc/sudoers.d/psv-deploy
+# The command list is deliberately exact; the account gets no other root access.
+DEPLOY_USER ALL=(root) NOPASSWD: /usr/sbin/nginx -t, /usr/bin/systemctl reload nginx
