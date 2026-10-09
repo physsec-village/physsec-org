@@ -10,6 +10,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 ENV PATH="/psv-website/.venv/bin:$PATH"
 
 COPY ./src /psv-website/src
+COPY ./db /psv-website/db
 COPY ./static /psv-website/static
 COPY ./templates /psv-website/templates
 
