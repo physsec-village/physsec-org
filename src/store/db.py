@@ -111,7 +111,7 @@ def catalog_bootstrap_lock() -> Iterator[None]:
 
 
 def require_schema() -> None:
-    """Fail startup when the versioned Supabase migration is absent."""
+    """Fail startup when the versioned store migration is absent."""
     status = readiness()
     if not status["ready"]:
         raise RuntimeError(f"Store database is not ready: {status}")
