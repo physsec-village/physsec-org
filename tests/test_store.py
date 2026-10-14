@@ -125,6 +125,17 @@ def test_search_escapes_wildcards(catalog_factory):
         assert [p["id"] for p in db.search_products(query)] == [special["id"]]
 
 
+def test_search_results_name_their_collection_and_group(client, catalog_factory):
+    product = catalog_factory.product(slug="probe", name="Magnetic Probe")
+    collection = catalog_factory.collection(slug="bypass", title="Bypass Tools")
+    catalog_factory.add(catalog_factory.group(collection, "Alarm Bypass"), product)
+
+    response = client.get("/store/search?q=probe")
+
+    assert response.status_code == 200
+    assert "Bypass Tools · Alarm Bypass" in response.text
+
+
 def test_collection_order_counts_cover_and_memberships(catalog_factory):
     hidden = catalog_factory.product(slug="hidden", published=False, images=["/hidden.jpg"])
     plain = catalog_factory.product(slug="plain")

@@ -153,6 +153,20 @@ def _hydrate_products(
     ):
         image = dict(row)
         images_by_product[int(row["product_id"])].append(image)
+    memberships_by_product: dict[int, list[dict[str, Any]]] = {
+        product_id: [] for product_id in product_ids
+    }
+    for row in conn.execute(
+        "SELECT i.product_id,c.id collection_id,c.slug collection_slug,"
+        "c.title collection_title,g.id group_id,g.title group_title "
+        "FROM collection_items i JOIN collection_groups g ON g.id=i.group_id "
+        "JOIN collections c ON c.id=g.collection_id AND c.published "
+        "WHERE i.product_id = ANY(%s) "
+        "ORDER BY i.product_id,c.position,c.id,g.position,g.id",
+        (product_ids,),
+    ):
+        membership = dict(row)
+        memberships_by_product[int(membership.pop("product_id"))].append(membership)
 
     for product in products:
         variants = variants_by_product[product["id"]]
@@ -161,6 +175,7 @@ def _hydrate_products(
         product.update(
             variants=variants,
             images=images,
+            memberships=memberships_by_product[product["id"]],
             primary_image=images[0] if images else None,
             variant_count=len(variants),
             total_stock=sum(max(0, int(v["available_stock"])) for v in variants),
@@ -255,19 +270,7 @@ def get_product_by_slug(slug: str) -> dict[str, Any] | None:
         ).fetchone()
         if row is None:
             return None
-        product = _hydrate_products(conn, [row])[0]
-        product["memberships"] = [
-            dict(membership)
-            for membership in conn.execute(
-                "SELECT c.id collection_id,c.slug collection_slug,"
-                "c.title collection_title,g.id group_id,g.title group_title "
-                "FROM collection_items i JOIN collection_groups g ON g.id=i.group_id "
-                "JOIN collections c ON c.id=g.collection_id AND c.published "
-                "WHERE i.product_id=%s ORDER BY c.position,c.id,g.position,g.id",
-                (product["id"],),
-            )
-        ]
-        return product
+        return _hydrate_products(conn, [row])[0]
 
 
 def search_products(query: str) -> list[dict[str, Any]]:
