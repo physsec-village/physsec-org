@@ -21,10 +21,9 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from .config import database_url
-from .models import ProductInput, VariantInput, VariantUpdate, slugify
 
 MEDIA_DIR = os.getenv("STORE_MEDIA_DIR", "data/media")
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _pool: ConnectionPool | None = None
 
 
@@ -99,17 +98,6 @@ def close_pool() -> None:
         _pool = None
 
 
-@contextmanager
-def catalog_bootstrap_lock() -> Iterator[None]:
-    """Serialize resumable catalog bootstrap across application instances."""
-    with connection(write=True) as conn:
-        conn.execute("SET LOCAL lock_timeout TO '60s'")
-        conn.execute(
-            "SELECT pg_advisory_xact_lock(hashtext('physsec-store-catalog-bootstrap'))"
-        )
-        yield
-
-
 def require_schema() -> None:
     """Fail startup when the versioned store migration is absent."""
     status = readiness()
@@ -128,12 +116,6 @@ def readiness() -> dict[str, Any]:
         return {"ready": version == SCHEMA_VERSION, "schema_version": version}
     except (psycopg.Error, RuntimeError, ValueError) as exc:
         return {"ready": False, "error": type(exc).__name__}
-
-
-def products_count() -> int:
-    with connection() as conn:
-        row = conn.execute("SELECT COUNT(*) AS count FROM products").fetchone()
-        return int(row["count"])
 
 
 def _available_sql(alias: str = "v") -> str:
@@ -169,7 +151,7 @@ def _hydrate_products(
         "ORDER BY product_id,position,id",
         (product_ids,),
     ):
-        image = {**dict(row), "url": f"/media/{row['filename']}"}
+        image = dict(row)
         images_by_product[int(row["product_id"])].append(image)
 
     for product in products:
@@ -182,8 +164,7 @@ def _hydrate_products(
             primary_image=images[0] if images else None,
             variant_count=len(variants),
             total_stock=sum(max(0, int(v["available_stock"])) for v in variants),
-            all_sold_out=bool(variants)
-            and all(int(v["available_stock"]) <= 0 for v in variants),
+            all_sold_out=not any(int(v["available_stock"]) > 0 for v in variants),
             min_price_cents=min(prices, default=0),
             max_price_cents=max(prices, default=0),
             price_cents=prices[0] if prices else 0,
@@ -198,119 +179,196 @@ def get_published_products(featured: bool | None = None) -> list[dict[str, Any]]
         clause, params = " AND p.featured=%s", [featured]
     with connection() as conn:
         rows = conn.execute(
-            "SELECT p.*,COALESCE(c.label,p.category_code) category_label "
-            "FROM products p LEFT JOIN categories c ON c.code=p.category_code "
-            f"WHERE p.published{clause} ORDER BY p.featured DESC,p.name",
+            f"SELECT p.* FROM products p WHERE p.published{clause} "
+            "ORDER BY p.featured DESC,p.name,p.id",
             params,
         ).fetchall()
         return _hydrate_products(conn, rows)
 
 
-def get_product_by_slug(
-    slug: str, published_only: bool = True
-) -> dict[str, Any] | None:
-    published = " AND p.published" if published_only else ""
+def get_published_collections() -> list[dict[str, Any]]:
+    with connection() as conn:
+        rows = conn.execute(
+            "SELECT c.*,(SELECT COUNT(DISTINCT i.product_id) "
+            "FROM collection_groups g JOIN collection_items i ON i.group_id=g.id "
+            "JOIN products p ON p.id=i.product_id AND p.published "
+            "WHERE g.collection_id=c.id) AS item_count,"
+            "(SELECT im.url FROM collection_groups g "
+            "JOIN collection_items i ON i.group_id=g.id "
+            "JOIN products p ON p.id=i.product_id AND p.published "
+            "JOIN product_images im ON im.product_id=p.id "
+            "WHERE g.collection_id=c.id "
+            "ORDER BY g.position,g.id,i.position,p.id,im.position,im.id LIMIT 1) "
+            "AS cover_url FROM collections c WHERE c.published "
+            "ORDER BY c.position,c.id"
+        )
+        return [dict(row) for row in rows]
+
+
+def get_collection_by_slug(slug: str) -> dict[str, Any] | None:
     with connection() as conn:
         row = conn.execute(
-            "SELECT p.*,COALESCE(c.label,p.category_code) category_label "
-            "FROM products p LEFT JOIN categories c ON c.code=p.category_code "
-            f"WHERE p.slug=%s{published}",
-            (slug,),
+            "SELECT * FROM collections WHERE slug=%s AND published", (slug,)
         ).fetchone()
-        return _hydrate_products(conn, [row])[0] if row else None
+        if row is None:
+            return None
+        collection = dict(row)
+        groups = [
+            dict(group)
+            for group in conn.execute(
+                "SELECT * FROM collection_groups WHERE collection_id=%s "
+                "ORDER BY position,id",
+                (collection["id"],),
+            )
+        ]
+        rows = conn.execute(
+            "SELECT p.*,i.group_id FROM collection_groups g "
+            "JOIN collection_items i ON i.group_id=g.id "
+            "JOIN products p ON p.id=i.product_id AND p.published "
+            "WHERE g.collection_id=%s "
+            "ORDER BY g.position,g.id,i.position,p.id",
+            (collection["id"],),
+        ).fetchall()
+        by_group = {group["id"]: [] for group in groups}
+        for product in _hydrate_products(conn, rows):
+            by_group[product.pop("group_id")].append(product)
+        for group in groups:
+            group["products"] = by_group[group["id"]]
+        collection["groups"] = groups
+        collection["item_count"] = len({row["id"] for row in rows})
+        collection["cover_url"] = next(
+            (
+                product["primary_image"]["url"]
+                for group in groups
+                for product in group["products"]
+                if product["primary_image"]
+            ),
+            None,
+        )
+        return collection
 
 
-def get_product_by_id(product_id: int | str) -> dict[str, Any] | None:
-    if isinstance(product_id, int):
-        predicate, params = "p.id=%s", (product_id,)
-    else:
-        predicate, params = "p.base_sku=%s", (product_id.upper(),)
+def get_product_by_slug(slug: str) -> dict[str, Any] | None:
     with connection() as conn:
         row = conn.execute(
-            "SELECT p.*,COALESCE(c.label,p.category_code) category_label "
-            "FROM products p LEFT JOIN categories c ON c.code=p.category_code "
-            f"WHERE {predicate}",
-            params,
+            "SELECT * FROM products WHERE slug=%s AND published", (slug,)
         ).fetchone()
-        return _hydrate_products(conn, [row])[0] if row else None
+        if row is None:
+            return None
+        product = _hydrate_products(conn, [row])[0]
+        product["memberships"] = [
+            dict(membership)
+            for membership in conn.execute(
+                "SELECT c.id collection_id,c.slug collection_slug,"
+                "c.title collection_title,g.id group_id,g.title group_title "
+                "FROM collection_items i JOIN collection_groups g ON g.id=i.group_id "
+                "JOIN collections c ON c.id=g.collection_id AND c.published "
+                "WHERE i.product_id=%s ORDER BY c.position,c.id,g.position,g.id",
+                (product["id"],),
+            )
+        ]
+        return product
 
 
-def catalog_json() -> dict[str, Any]:
-    """Return a SKU-first catalog safe to embed in storefront pages."""
-    result: dict[str, Any] = {}
-    for product in get_published_products():
-        result[product["base_sku"]] = {
-            "name": product["name"],
-            "price_cents": product["price_cents"],
-            "variants": [
-                {
-                    "sku": v["sku"],
-                    "code": v["sku"].split("-")[-1]
-                    if v["sku"] != product["base_sku"]
-                    else "_",
-                    "label": v["name"],
-                    "price_cents": v["price_cents"],
-                    "available_stock": max(0, v["available_stock"]),
-                }
-                for v in product["variants"]
-            ],
-        }
-    return result
+def search_products(query: str) -> list[dict[str, Any]]:
+    query = query.strip()
+    if not query:
+        return []
+    escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
+    with connection() as conn:
+        rows = conn.execute(
+            "SELECT p.* FROM products p WHERE p.published AND ("
+            "p.name ILIKE %s OR p.description ILIKE %s OR EXISTS("
+            "SELECT 1 FROM variants v WHERE v.product_id=p.id "
+            "AND (v.name ILIKE %s OR v.sku ILIKE %s))) ORDER BY p.name,p.id",
+            (pattern, pattern, pattern, pattern),
+        ).fetchall()
+        return _hydrate_products(conn, rows)
+
+
+def get_related_products(product_id: int, limit: int = 4) -> list[dict[str, Any]]:
+    with connection() as conn:
+        rows = conn.execute(
+            "WITH related AS (SELECT other.product_id,"
+            "MIN(CASE WHEN other.group_id=own.group_id THEN 0 ELSE 1 END) priority "
+            "FROM collection_items own "
+            "JOIN collection_groups own_group ON own_group.id=own.group_id "
+            "JOIN collections c ON c.id=own_group.collection_id AND c.published "
+            "JOIN collection_groups other_group ON other_group.collection_id=c.id "
+            "JOIN collection_items other ON other.group_id=other_group.id "
+            "WHERE own.product_id=%s AND other.product_id<>%s "
+            "GROUP BY other.product_id) "
+            "SELECT p.* FROM related r JOIN products p ON p.id=r.product_id "
+            "WHERE p.published ORDER BY r.priority,p.name,p.id LIMIT %s",
+            (product_id, product_id, max(0, min(limit, 4))),
+        ).fetchall()
+        return _hydrate_products(conn, rows)
+
+
+def _requested_cart(
+    items: Sequence[Mapping[str, Any]],
+) -> tuple[dict[int, int], list[dict[str, Any]]]:
+    requested: dict[int, int] = {}
+    problems: list[dict[str, Any]] = []
+    for raw in items:
+        variant_id = raw.get("variant_id")
+        qty = raw.get("qty")
+        if type(variant_id) is not int or variant_id < 1:
+            problems.append({"variant_id": variant_id, "reason": "unavailable"})
+            continue
+        if type(qty) is not int or not 1 <= qty <= 99:
+            problems.append({"variant_id": variant_id, "reason": "quantity"})
+            continue
+        total = requested.get(variant_id, 0) + qty
+        if total > 99:
+            problems.append({"variant_id": variant_id, "reason": "quantity"})
+            continue
+        requested[variant_id] = total
+    if len(requested) > 90:
+        return {}, [{"variant_id": None, "reason": "too_many_distinct_items"}]
+    return requested, problems
 
 
 def normalize_cart(
     items: Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    requested: dict[str, int] = {}
-    problems: list[dict[str, Any]] = []
-    for raw in items:
-        sku = str(raw.get("sku", "")).strip().upper()
-        try:
-            qty = int(raw.get("qty", 0))
-        except TypeError, ValueError:
-            qty = 0
-        if not sku or qty < 1 or qty > 99:
-            problems.append({"sku": sku, "reason": "quantity"})
-            continue
-        total = requested.get(sku, 0) + qty
-        if total > 99:
-            problems.append({"sku": sku, "reason": "quantity"})
-            continue
-        requested[sku] = total
-    if len(requested) > 90:
-        return [], [{"sku": "", "reason": "too_many_distinct_items"}]
+    requested, problems = _requested_cart(items)
     if not requested:
         return [], problems
     with connection() as conn:
         rows = _cart_rows(conn, requested)
-    found = {row["sku"] for row in rows}
+    found = {row["variant_id"] for row in rows}
     normalized = []
     for row in rows:
         item = dict(row)
-        item["qty"] = requested[item["sku"]]
+        item["qty"] = requested[item["variant_id"]]
         if item["qty"] > int(item["available_stock"]):
             problems.append(
                 {
-                    "sku": item["sku"],
+                    "variant_id": item["variant_id"],
                     "reason": "stock",
                     "available_stock": max(0, item["available_stock"]),
                 }
             )
         normalized.append(item)
     problems.extend(
-        {"sku": sku, "reason": "unavailable"} for sku in requested if sku not in found
+        {"variant_id": variant_id, "reason": "unavailable"}
+        for variant_id in requested if variant_id not in found
     )
     return normalized, problems
 
 
 def _cart_rows(
-    conn: psycopg.Connection, requested: Mapping[str, int]
+    conn: psycopg.Connection, requested: Mapping[int, int]
 ) -> list[Mapping[str, Any]]:
     return conn.execute(
-        f"SELECT v.id variant_id,v.sku,v.name variant_name,v.price_cents,"
+        "SELECT v.id variant_id,v.sku,v.name variant_name,v.price_cents,"
         f"{_available_sql()} available_stock,p.name product_name,p.slug,"
-        "p.base_sku FROM variants v JOIN products p ON p.id=v.product_id "
-        "WHERE p.published AND v.sku = ANY(%s)",
+        "(SELECT im.url FROM product_images im WHERE im.product_id=p.id "
+        "ORDER BY im.position,im.id LIMIT 1) image_url "
+        "FROM variants v JOIN products p ON p.id=v.product_id "
+        "WHERE p.published AND v.id = ANY(%s) ORDER BY v.id",
         (list(requested),),
     ).fetchall()
 
@@ -326,62 +384,53 @@ def reserve_checkout(
         raise ValueError(
             "Reservation lifetime must be between 31 minutes and 24 hours."
         )
-    requested: dict[str, int] = {}
-    for raw in items:
-        sku = str(raw.get("sku", "")).strip().upper()
-        try:
-            qty = int(raw.get("qty", 0))
-        except TypeError, ValueError:
-            qty = 0
-        if not sku or not 1 <= qty <= 99:
-            raise CartUnavailable([{"sku": sku, "reason": "quantity"}])
-        requested[sku] = requested.get(sku, 0) + qty
-    if (
-        not requested
-        or len(requested) > 90
-        or any(qty > 99 for qty in requested.values())
-    ):
-        raise CartUnavailable([{"sku": "", "reason": "cart_size"}])
+    requested, problems = _requested_cart(items)
+    if problems:
+        raise CartUnavailable(problems)
+    if not requested:
+        raise CartUnavailable([{"variant_id": None, "reason": "cart_size"}])
     now_dt = datetime.now(UTC)
     created_at = _timestamp(now_dt)
     expires_at = _timestamp(now_dt + timedelta(minutes=ttl_minutes))
     checkout_id = uuid.uuid4().hex
     with connection(write=True) as conn:
         conn.execute(
-            "SELECT id FROM variants WHERE sku = ANY(%s) ORDER BY id FOR UPDATE",
+            "SELECT id FROM variants WHERE id = ANY(%s) ORDER BY id FOR UPDATE",
             (sorted(requested),),
         ).fetchall()
         rows = _cart_rows(conn, requested)
-        by_sku = {row["sku"]: row for row in rows}
+        by_id = {row["variant_id"]: row for row in rows}
         problems = []
-        for sku, qty in requested.items():
-            row = by_sku.get(sku)
+        for variant_id, qty in requested.items():
+            row = by_id.get(variant_id)
             if row is None:
-                problems.append({"sku": sku, "reason": "unavailable"})
+                problems.append({"variant_id": variant_id, "reason": "unavailable"})
             elif qty > int(row["available_stock"]):
                 problems.append(
                     {
-                        "sku": sku,
+                        "variant_id": variant_id,
                         "reason": "stock",
                         "available_stock": max(0, int(row["available_stock"])),
                     }
                 )
         if problems:
             raise CartUnavailable(problems)
-        subtotal = sum(int(by_sku[s]["price_cents"]) * q for s, q in requested.items())
+        subtotal = sum(int(by_id[v]["price_cents"]) * q for v, q in requested.items())
         conn.execute(
             "INSERT INTO checkouts(id,status,currency,subtotal_cents,created_at,expires_at) "
             "VALUES(%s,'creating',%s,%s,%s,%s)",
             (checkout_id, currency.lower(), subtotal, created_at, expires_at),
         )
-        for sku, qty in requested.items():
-            row = by_sku[sku]
+        for variant_id, qty in requested.items():
+            row = by_id[variant_id]
             conn.execute(
-                "INSERT INTO checkout_items VALUES(%s,%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO checkout_items("
+                "checkout_id,variant_id,sku,product_name,variant_name,"
+                "unit_amount_cents,quantity) VALUES(%s,%s,%s,%s,%s,%s,%s)",
                 (
                     checkout_id,
-                    row["variant_id"],
-                    sku,
+                    variant_id,
+                    row["sku"],
                     row["product_name"],
                     row["variant_name"],
                     row["price_cents"],
@@ -392,7 +441,7 @@ def reserve_checkout(
                 "INSERT INTO inventory_reservations("
                 "checkout_id,variant_id,quantity,state,expires_at,created_at) "
                 "VALUES(%s,%s,%s,'active',%s,%s)",
-                (checkout_id, row["variant_id"], qty, expires_at, created_at),
+                (checkout_id, variant_id, qty, expires_at, created_at),
             )
     return get_checkout(checkout_id) or {}
 
@@ -411,8 +460,8 @@ def get_checkout(checkout_id: str) -> dict[str, Any] | None:
         checkout["items"] = [
             dict(item)
             for item in conn.execute(
-                "SELECT sku,product_name,variant_name,unit_amount_cents,quantity "
-                "FROM checkout_items WHERE checkout_id=%s ORDER BY sku",
+                "SELECT variant_id,sku,product_name,variant_name,unit_amount_cents,quantity "
+                "FROM checkout_items WHERE checkout_id=%s ORDER BY variant_id",
                 (checkout_id,),
             )
         ]
@@ -682,8 +731,8 @@ def process_paid_event(
             ),
         )
         conn.execute(
-            "INSERT INTO order_items(order_id,sku,product_name,variant_name,"
-            "quantity,unit_amount_cents) SELECT %s,sku,product_name,variant_name,"
+            "INSERT INTO order_items(order_id,variant_id,sku,product_name,variant_name,"
+            "quantity,unit_amount_cents) SELECT %s,variant_id,sku,product_name,variant_name,"
             "quantity,unit_amount_cents FROM checkout_items WHERE checkout_id=%s",
             (order_id, checkout_id),
         )
@@ -791,333 +840,3 @@ def _shipping(session: Mapping[str, Any]) -> Any:
     if isinstance(collected, Mapping) and collected.get("shipping_details"):
         return collected["shipping_details"]
     return session.get("shipping_details")
-
-
-# Product mutation helpers retained for seed/admin integration.  Variants with
-# active reservations cannot be destructively replaced.
-def create_product(
-    product: ProductInput,
-    images: list[dict[str, Any]] | None = None,
-) -> int:
-    now = utc_now()
-    with connection(write=True) as conn:
-        conn.execute(
-            "INSERT INTO categories(code,label) VALUES(%s,%s) "
-            "ON CONFLICT(code) DO UPDATE SET label=excluded.label "
-            "WHERE excluded.label<>excluded.code",
-            (product.category_code, product.category_label or product.category_code),
-        )
-        base = slugify(product.slug)
-        slug, suffix = base, 2
-        while conn.execute("SELECT 1 FROM products WHERE slug=%s", (slug,)).fetchone():
-            slug, suffix = f"{base}-{suffix}", suffix + 1
-        row = conn.execute(
-            "INSERT INTO products(slug,name,base_sku,description,category_code,"
-            "featured,published,created_at,updated_at) "
-            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-            (
-                slug,
-                product.name,
-                product.base_sku,
-                product.description,
-                product.category_code,
-                product.featured,
-                product.published,
-                now,
-                now,
-            ),
-        ).fetchone()
-        product_id = int(row["id"])
-        for variant in product.variants:
-            conn.execute(
-                "INSERT INTO variants(product_id,sku,upc,name,price_cents,"
-                "stock_on_hand,position) VALUES(%s,%s,%s,%s,%s,%s,%s)",
-                (
-                    product_id,
-                    variant.sku,
-                    variant.upc,
-                    variant.name,
-                    variant.price_cents,
-                    variant.stock_on_hand,
-                    variant.position,
-                ),
-            )
-        for image in images or []:
-            conn.execute(
-                "INSERT INTO product_images(product_id,filename,alt,position) "
-                "VALUES(%s,%s,%s,%s)",
-                (
-                    product_id,
-                    image["filename"],
-                    image.get("alt", ""),
-                    int(image.get("position", 0)),
-                ),
-            )
-        return product_id
-
-
-# Store admin.  The application role cannot DELETE, so products are retired by
-# unpublishing them rather than removed.
-ORDER_FULFILLMENT_STATES = ("unfulfilled", "processing", "shipped", "canceled")
-ORDER_REVIEW_STATES = ("clear", "needs_review")
-
-
-STALE_FORM = "This was changed after you loaded the page. Review it and save again."
-
-
-class AdminError(StoreError):
-    """A rejected admin change whose message is safe to show the admin."""
-
-
-def _version(value: str) -> datetime:
-    """Parse the `updated_at` an admin form was loaded with."""
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        raise AdminError(STALE_FORM) from None
-    if parsed.tzinfo is None:
-        raise AdminError(STALE_FORM)
-    return parsed
-
-
-def admin_products() -> list[dict[str, Any]]:
-    """Return every product, published or not, with stock and reservations."""
-    with connection() as conn:
-        rows = conn.execute(
-            "SELECT p.*,COALESCE(c.label,p.category_code) category_label "
-            "FROM products p LEFT JOIN categories c ON c.code=p.category_code "
-            "ORDER BY p.category_code,p.name,p.id"
-        ).fetchall()
-        products = _hydrate_products(conn, rows)
-    for product in products:
-        _add_reserved(product)
-    return products
-
-
-def admin_product(product_id: int) -> dict[str, Any] | None:
-    product = get_product_by_id(product_id)
-    return _add_reserved(product) if product else None
-
-
-def _add_reserved(product: dict[str, Any]) -> dict[str, Any]:
-    for variant in product["variants"]:
-        variant["reserved"] = int(variant["stock_on_hand"]) - int(
-            variant["available_stock"]
-        )
-    product["stock_on_hand"] = sum(
-        int(variant["stock_on_hand"]) for variant in product["variants"]
-    )
-    product["reserved"] = sum(variant["reserved"] for variant in product["variants"])
-    return product
-
-
-def update_product(
-    product_id: int,
-    *,
-    name: str,
-    description: str,
-    featured: bool,
-    published: bool,
-    variants: Sequence[VariantUpdate],
-    version: str,
-) -> None:
-    """Update product details and variant price/stock in one transaction.
-
-    `version` is the product's `updated_at` when the form loaded; every admin
-    edit advances it, so a stale form is rejected rather than undoing another
-    edit. Sales change stock without touching it, so a stock edit is applied
-    only when the admin changed the value they were shown, and is rejected if
-    stock moved since the form loaded.
-    """
-    name = name.strip()
-    if not name:
-        raise AdminError("Product name is required.")
-    loaded_at = _version(version)
-    with connection(write=True) as conn:
-        product = conn.execute(
-            "SELECT updated_at FROM products WHERE id=%s FOR UPDATE", (product_id,)
-        ).fetchone()
-        if not product:
-            raise AdminError("Product not found.")
-        if product["updated_at"] != loaded_at:
-            raise AdminError(STALE_FORM)
-        # Lock first, then read reservations in a later statement so its
-        # snapshot includes any reservation committed while waiting.
-        conn.execute(
-            "SELECT id FROM variants WHERE product_id=%s ORDER BY id FOR UPDATE",
-            (product_id,),
-        ).fetchall()
-        current = {
-            int(row["id"]): row
-            for row in conn.execute(
-                f"SELECT v.id,v.sku,v.stock_on_hand,{_available_sql()} available_stock "
-                "FROM variants v WHERE v.product_id=%s",
-                (product_id,),
-            )
-        }
-        for variant in variants:
-            row = current.get(variant.id)
-            if row is None:
-                raise AdminError("A variant does not belong to this product.")
-            stock = int(row["stock_on_hand"])
-            new_stock = stock
-            if variant.stock_on_hand != variant.expected_stock:
-                if variant.expected_stock != stock:
-                    raise AdminError(
-                        f"Stock for {row['sku']} changed to {stock} while you were "
-                        "editing. Review it and save again."
-                    )
-                reserved = stock - int(row["available_stock"])
-                if variant.stock_on_hand < reserved:
-                    raise AdminError(
-                        f"Stock for {row['sku']} cannot go below the {reserved} "
-                        "units reserved by open checkouts."
-                    )
-                new_stock = variant.stock_on_hand
-            conn.execute(
-                "UPDATE variants SET name=%s,upc=%s,price_cents=%s,stock_on_hand=%s "
-                "WHERE id=%s",
-                (
-                    variant.name,
-                    variant.upc,
-                    variant.price_cents,
-                    new_stock,
-                    variant.id,
-                ),
-            )
-        conn.execute(
-            "UPDATE products SET name=%s,description=%s,featured=%s,published=%s,"
-            "updated_at=clock_timestamp() WHERE id=%s",
-            (name, description.strip(), featured, published, product_id),
-        )
-
-
-def admin_create_product(product: ProductInput) -> int:
-    """Create a product, keeping an existing category's label."""
-    with connection() as conn:
-        row = conn.execute(
-            "SELECT label FROM categories WHERE code=%s", (product.category_code,)
-        ).fetchone()
-    if row:
-        product = product.model_copy(update={"category_label": row["label"]})
-    try:
-        return create_product(product)
-    except psycopg.errors.UniqueViolation as exc:
-        raise AdminError("That SKU is already in use.") from exc
-
-
-def add_variant(product_id: int, variant: VariantInput) -> None:
-    with connection(write=True) as conn:
-        product = conn.execute(
-            "SELECT base_sku FROM products WHERE id=%s FOR UPDATE", (product_id,)
-        ).fetchone()
-        if not product:
-            raise AdminError("Product not found.")
-        base_sku = product["base_sku"]
-        if variant.sku != base_sku and not variant.sku.startswith(f"{base_sku}-"):
-            raise AdminError(f"Variant SKUs must start with {base_sku}.")
-        position = conn.execute(
-            "SELECT COALESCE(MAX(position)+1,0) AS position FROM variants "
-            "WHERE product_id=%s",
-            (product_id,),
-        ).fetchone()["position"]
-        try:
-            with conn.transaction():
-                conn.execute(
-                    "INSERT INTO variants(product_id,sku,upc,name,price_cents,"
-                    "stock_on_hand,position) VALUES(%s,%s,%s,%s,%s,%s,%s)",
-                    (
-                        product_id,
-                        variant.sku,
-                        variant.upc,
-                        variant.name,
-                        variant.price_cents,
-                        variant.stock_on_hand,
-                        position,
-                    ),
-                )
-        except psycopg.errors.UniqueViolation as exc:
-            raise AdminError("That SKU is already in use.") from exc
-        conn.execute(
-            "UPDATE products SET updated_at=clock_timestamp() WHERE id=%s",
-            (product_id,),
-        )
-
-
-def admin_orders(
-    *, fulfillment_state: str | None = None, limit: int = 200
-) -> list[dict[str, Any]]:
-    clause, params = "", []
-    if fulfillment_state:
-        clause, params = "WHERE o.fulfillment_state=%s", [fulfillment_state]
-    with connection() as conn:
-        return [
-            dict(row)
-            for row in conn.execute(
-                "SELECT o.id,o.email,o.currency,o.amount_total_cents,o.payment_state,"
-                "o.fulfillment_state,o.review_state,o.refund_state,o.created_at,"
-                "(SELECT COALESCE(SUM(i.quantity),0) FROM order_items i "
-                "WHERE i.order_id=o.id) AS item_count "
-                f"FROM orders o {clause} ORDER BY o.created_at DESC,o.id LIMIT %s",
-                [*params, max(1, min(limit, 1000))],
-            )
-        ]
-
-
-def admin_order_counts() -> dict[str, int]:
-    counts = dict.fromkeys(ORDER_FULFILLMENT_STATES, 0)
-    with connection() as conn:
-        for row in conn.execute(
-            "SELECT fulfillment_state,COUNT(*) AS count FROM orders "
-            "GROUP BY fulfillment_state"
-        ):
-            counts[row["fulfillment_state"]] = int(row["count"])
-    return counts
-
-
-def admin_order(order_id: str) -> dict[str, Any] | None:
-    with connection() as conn:
-        row = conn.execute("SELECT * FROM orders WHERE id=%s", (order_id,)).fetchone()
-        if not row:
-            return None
-        order = dict(row)
-        order["items"] = [
-            dict(item)
-            for item in conn.execute(
-                "SELECT sku,product_name,variant_name,quantity,unit_amount_cents "
-                "FROM order_items WHERE order_id=%s ORDER BY id",
-                (order_id,),
-            )
-        ]
-        return order
-
-
-def update_order(
-    order_id: str,
-    *,
-    fulfillment_state: str,
-    review_state: str,
-    review_reason: str,
-    version: str,
-) -> None:
-    """Update admin-owned order state, rejecting a form loaded before the
-    order last changed (another admin's edit or a refund webhook)."""
-    if fulfillment_state not in ORDER_FULFILLMENT_STATES:
-        raise AdminError("Unknown fulfillment state.")
-    if review_state not in ORDER_REVIEW_STATES:
-        raise AdminError("Unknown review state.")
-    reason = review_reason.strip()[:500] or None
-    loaded_at = _version(version)
-    with connection(write=True) as conn:
-        order = conn.execute(
-            "SELECT updated_at FROM orders WHERE id=%s FOR UPDATE", (order_id,)
-        ).fetchone()
-        if not order:
-            raise AdminError("Order not found.")
-        if order["updated_at"] != loaded_at:
-            raise AdminError(STALE_FORM)
-        conn.execute(
-            "UPDATE orders SET fulfillment_state=%s,review_state=%s,review_reason=%s,"
-            "updated_at=clock_timestamp() WHERE id=%s",
-            (fulfillment_state, review_state, reason, order_id),
-        )
