@@ -226,7 +226,7 @@ def test_distinct_paid_events_for_one_checkout_are_idempotent(catalog_factory):
         )
         assert (
             conn.execute(
-                "SELECT stock_on_hand FROM variants WHERE id=1"
+                "SELECT stock_on_hand FROM variants WHERE id=%s", (variant_id,)
             ).fetchone()["stock_on_hand"]
             == 0
         )
