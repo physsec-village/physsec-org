@@ -48,12 +48,16 @@ DRAIN_TIMEOUT=${PSV_DRAIN_TIMEOUT:-$(env_value PSV_DRAIN_TIMEOUT)}
 : "${NGINX_TEST_CMD:=sudo -n /usr/sbin/nginx -t}"
 : "${NGINX_RELOAD_CMD:=sudo -n /usr/bin/systemctl reload nginx}"
 : "${DRAIN_TIMEOUT:=60}"
+# At 0 the deadline would pass before nginx retitles its old workers, so
+# every switch would look like a rejected reload.
 case $DRAIN_TIMEOUT in
-    ''|*[!0-9]*)
-        echo "PSV_DRAIN_TIMEOUT must be a whole number of seconds, got '$DRAIN_TIMEOUT'." >&2
-        exit 1
-        ;;
+    ''|*[!0-9]*) drain_ok="" ;;
+    *) [ "$DRAIN_TIMEOUT" -ge 1 ] && drain_ok=1 || drain_ok="" ;;
 esac
+if [ -z "$drain_ok" ]; then
+    echo "PSV_DRAIN_TIMEOUT must be a whole number of seconds, at least 1; got '$DRAIN_TIMEOUT'." >&2
+    exit 1
+fi
 SWITCH_LOCK=${PSV_SWITCH_LOCK:-$(env_value PSV_SWITCH_LOCK)}
 
 if [ -z "$UPSTREAM_FILE" ]; then
