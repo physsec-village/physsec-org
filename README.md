@@ -105,34 +105,26 @@ configuration is required. Set `STORE_ENABLED=true` only after applying the
 migration and configuring the deployment environment; enabled store
 misconfiguration fails application startup.
 
-The store uses the Supabase-managed PostgreSQL database configured by
-`DATABASE_URL`. Use the direct connection URL for a persistent IPv6-capable
-deployment, or Supabase's session pooler on an IPv4-only host. Production URLs
-must require TLS (`sslmode=require`). The database password belongs only in the
-deployment `.env`; it must not be committed or sent to the browser.
+The store uses a private PostgreSQL VM managed in the
+`physsec-village/physsec-oci` repository. Production URLs must require TLS
+(`sslmode=require`, `verify-ca`, or `verify-full`). Use the restricted
+`store_app` role in `DATABASE_URL`, and keep the owner role URL in
+`MIGRATION_DATABASE_URL` for migrations only. Both secrets belong only in the
+deployment `.env`; they must not be committed or sent to the browser.
 
-Schema changes are versioned in `supabase/migrations`. Link this checkout to the
-project and apply pending migrations before deploying the application:
+Schema changes are versioned in `db/migrations` and applied by:
 
 ```sh
-supabase link --project-ref xrszuoznhlnnvktdjzdy
-supabase db push
+MIGRATION_DATABASE_URL=postgresql://postgres:psv_test_password@127.0.0.1:55432/psv_test uv run python -m src.store.migrate
 ```
 
-The migration creates a restricted, non-login `store_app` role. In the Supabase
-SQL editor, assign it a generated password and enable login:
+Deploys run pending migrations automatically when `MIGRATION_DATABASE_URL` is
+non-empty in `.env`; leaving it empty skips migrations. The database roles,
+TLS configuration, and backups are owned by the `physsec-oci`
+`ansible/roles/postgres` role. Backups run on the database VM.
 
-```sql
-alter role store_app login password 'GENERATE-A-UNIQUE-PASSWORD';
-```
-
-Use `store_app`, not the project-owner `postgres` role, in the application's
-`DATABASE_URL`. Keep the owner URL for migration commands only. If the deployment
-cannot reach the direct IPv6 endpoint, obtain the matching session-pooler URL
-from Supabase's Connect dialog.
-
-The store tables live in the private `store` schema, outside the browser-facing
-Data API surface, and access is revoked from `anon` and `authenticated`. A fresh
+The store tables live in the `store` schema, which `PUBLIC` cannot use; only
+`store_app` is granted access. A fresh
 database imports the bundled catalog with zero stock, so checkout remains
 unavailable until inventory is explicitly loaded. Prices and inventory are
 always resolved server-side in integer cents and browser carts contain only
@@ -161,14 +153,31 @@ SQLite compatibility layer:
 
 ```sh
 docker compose -f docker-compose.test.yml up -d
-PGPASSWORD=psv_test_password psql \
-  postgresql://postgres@127.0.0.1:55432/psv_test \
-  -f supabase/migrations/20260727000000_store_schema.sql
+MIGRATION_DATABASE_URL=postgresql://postgres:psv_test_password@127.0.0.1:55432/psv_test uv run python -m src.store.migrate
 uv run pytest
 ```
 
 Set `TEST_DATABASE_URL` to override the local test URL. Never point tests at the
-hosted Supabase production database.
+production database.
+
+#### Migrating off Supabase
+
+1. Provision roles and the `psv_store` database with the `physsec-oci` playbook.
+   Put both PostgreSQL URLs in the production `.env`, then deploy once to create
+   the schema while the store remains disabled.
+2. Copy data, unless Supabase holds nothing worth keeping (the store has never
+   been enabled in production, so a fresh catalog may be all you need). Use a
+   `postgres:17` client container on the app host. Supabase's direct host is
+   IPv6-only, so use the session-pooler URL from its Connect dialog. Put the old
+   Supabase owner URL and new `MIGRATION_DATABASE_URL` in a temporary `0600`
+   env file and pass it with `--env-file`, not command-line arguments. Pipe
+   `pg_dump --data-only --schema=store --exclude-table=store.schema_metadata --no-owner --no-privileges`
+   from the Supabase URL into
+   `psql -v ON_ERROR_STOP=1 --single-transaction` on `MIGRATION_DATABASE_URL`.
+   Identity sequence values are included in a data-only dump via `setval`.
+3. Verify `/readyz` and row counts. Only then enable the store if desired.
+4. Pause the Supabase project, keep it for a week, then delete it to stop
+   billing.
 
 ## Deployment Notes
 
@@ -181,12 +190,13 @@ hosted Supabase production database.
   readiness. The compose file uses the liveness endpoint.
 - Deploys invoke [`deploy/deploy.sh`](deploy/deploy.sh) directly as the
   deployment account, avoiding interactive `sudo` in GitHub Actions. The
-  script builds the new image while the old container keeps serving, swaps
-  containers only after the new one passes its health check, and otherwise
-  rolls back to the previously tagged image (`psv-website:previous`) and fails
-  the deploy. The systemd unit's `ExecStart` and `ExecReload` use the same
-  script for boot and manual service operations; changes to the unit itself
-  require an administrator to run `systemctl daemon-reload` on the host.
+  script builds the new image while the old container keeps serving, applies
+  pending store migrations when configured, swaps containers only after the new
+  one passes its health check, and otherwise rolls back to the previously
+  tagged image (`psv-website:previous`) and fails the deploy. The systemd unit's
+  `ExecStart` and `ExecReload` use the same script for boot and manual service
+  operations; changes to the unit itself require an administrator to run
+  `systemctl daemon-reload` on the host.
 - A production nginx reverse-proxy configuration and security-header policy are
   versioned under [`deploy/nginx`](deploy/nginx/README.md). Install them on the
   host only after adapting certificate and distribution-specific paths, then

@@ -22,27 +22,37 @@ def store_enabled() -> bool:
     raise ValueError("STORE_ENABLED must be true or false.")
 
 
-def database_url() -> str:
-    """Return the server-side PostgreSQL connection string."""
-    value = os.getenv("DATABASE_URL", "").strip()
+def _postgres_url(name: str) -> str:
+    """Return a validated PostgreSQL connection string from the environment."""
+    value = os.getenv(name, "").strip()
     if not value:
-        raise ValueError("DATABASE_URL is required.")
+        raise ValueError(f"{name} is required.")
     if not value.startswith(("postgresql://", "postgres://")):
-        raise ValueError("DATABASE_URL must be a PostgreSQL connection string.")
+        raise ValueError(f"{name} must be a PostgreSQL connection string.")
     try:
         parameters = conninfo_to_dict(value)
     except ProgrammingError as exc:
         raise ValueError(
-            "DATABASE_URL is not a valid PostgreSQL connection string."
+            f"{name} is not a valid PostgreSQL connection string."
         ) from exc
     if os.getenv("APP_ENV", "development").lower() == "production" and parameters.get(
         "sslmode"
     ) not in {"require", "verify-ca", "verify-full"}:
         raise ValueError(
-            "Production DATABASE_URL must use sslmode=require, verify-ca, "
+            f"Production {name} must use sslmode=require, verify-ca, "
             "or verify-full."
         )
     return value
+
+
+def database_url() -> str:
+    """Return the server-side PostgreSQL connection string."""
+    return _postgres_url("DATABASE_URL")
+
+
+def migration_database_url() -> str:
+    """Return the owner PostgreSQL connection string used for migrations."""
+    return _postgres_url("MIGRATION_DATABASE_URL")
 
 
 def _integer(name: str, default: int) -> int:
