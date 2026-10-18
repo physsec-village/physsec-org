@@ -21,8 +21,10 @@ This repository contains the FastAPI-based website for Physical Security Village
 - `templates/`: page templates, navbar, footer, base layout, 404 page
 - `static/`: global and page-specific CSS, logos, SVG assets
 - `Dockerfile`: container image definition
-- `docker-compose.yml`: single-service app deployment
-- `psv-website.service`: example `systemd` unit for running Docker Compose on a host
+- `docker-compose.yml`: blue/green app deployment, with per-checkout Compose
+  interpolation so production and dev share a host
+- `psv-website.service`: the production `systemd` unit the deployment role installs
+- `deploy/`: deploy script, nginx virtual hosts, and the [deploy runbook](deploy/README.md)
 
 ## Routes
 
@@ -61,10 +63,12 @@ If you are not using `uv`, install from `pyproject.toml` with your preferred Pyt
 The containerized path is:
 
 ```bash
-docker compose up --build
+docker compose --profile blue up --build
 ```
 
-The compose file publishes the app on `127.0.0.1:8080`.
+The compose file defines identical `blue` and `green` services for blue/green
+deployment; run one colour locally. Blue publishes on `127.0.0.1:8080` (green
+on `127.0.0.1:8082`).
 
 ## Environment Variables
 
@@ -184,27 +188,29 @@ production database.
 - The `Dockerfile` installs the exact dependency versions in `uv.lock` with a
   pinned uv release and pinned Python base-image digest, then starts the site
   with `fastapi run src/main.py --proxy-headers --port 8080`.
-- Production runs on the OCI app host alongside Odoo. The host is provisioned
-  by the `physsec-village/physsec-oci` `ansible/roles/website` role: the
-  `psv-deploy` deployment account, the `/opt/psv-website` checkout and `.env`,
-  the systemd unit, and nginx. That host shares a private network with the
-  store PostgreSQL VM; other hosts cannot reach the database.
-- `psv-website.service` documents the unit the role installs and expects the
-  repository to live at `/opt/psv-website`.
+- Production (`https://physsec.org`, `/opt/psv-website`) and dev
+  (`https://dev.physsec.org`, `/opt/psv-website-dev`) run on the OCI app host
+  alongside Odoo. The host is provisioned by the `physsec-village/physsec-oci`
+  `ansible/roles/website` role: the `psv-deploy` deployment account, both
+  checkouts and their `.env` files, the systemd units, the nginx upstream
+  includes and the `sudo` rule for reloading nginx. That host shares a private
+  network with the store PostgreSQL VM; other hosts cannot reach the database.
+- `psv-website.service` documents the production unit the role installs; the
+  dev unit (`psv-website-dev`) differs only in its path.
 - The app serves `/healthz` for liveness and `/readyz` for store database
   readiness. The compose file uses the liveness endpoint.
-- Deploys invoke [`deploy/deploy.sh`](deploy/deploy.sh) directly as the
-  deployment account, avoiding interactive `sudo` in GitHub Actions. The
-  script builds the new image while the old container keeps serving, applies
-  pending store migrations when configured, swaps containers only after the new
-  one passes its health check, and otherwise rolls back to the previously
-  tagged image (`psv-website:previous`) and fails the deploy. The systemd unit's
-  `ExecStart` and `ExecReload` use the same script for boot and manual service
-  operations; changes to the unit itself require an administrator to run
-  `systemctl daemon-reload` on the host.
-- A production nginx reverse-proxy configuration and security-header policy are
-  versioned under [`deploy/nginx`](deploy/nginx/README.md). Deploys do not
-  install them; the `website` role copies them from the checkout, so re-run the
+- Pushes to `main` deploy production; pushes to the branch in the `DEV_BRANCH`
+  repository variable deploy dev, and manual dispatch can deploy any branch to
+  dev. See [`deploy/README.md`](deploy/README.md) for how a deploy works and
+  the GitHub setup.
+- Deploys are zero-downtime blue/green: [`deploy/deploy.sh`](deploy/deploy.sh)
+  builds and starts the idle colour while the active one keeps serving, applies
+  pending store migrations when configured, and switches nginx only after the
+  new container passes its health check. The systemd units' `ExecStart` and
+  `ExecReload` use the same script for boot and manual service operations.
+- The nginx virtual hosts and security-header policy are versioned under
+  [`deploy/nginx`](deploy/nginx/README.md). Deploys do not install them; the
+  `website` role copies them from the production checkout, so re-run the
   playbook after changing them.
 
 ## Placeholders To Replace
@@ -218,6 +224,7 @@ The repository still contains several stubbed or provisional values that should 
 | `pyproject.toml` | `description = "Add your description here"` | Real package/project description |
 | `.env` inputs consumed by `src/forms/email.py` and `src/forms/router.py` | `MAIL_USERNAME`, `MAIL_PASSWORD`, `RECEIVER_EMAIL` are expected but not documented in-repo beyond code | Real SMTP credentials and destination inbox |
 | `psv-website.service` | `WorkingDirectory=/opt/psv-website` | Actual deployment path if this unit is used |
+| `.github/workflows/deploy.yml` | Repository variable `DEV_BRANCH` | Branch the dev environment should track |
 
 ### Disabled or "coming soon" site sections
 
