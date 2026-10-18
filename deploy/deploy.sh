@@ -23,6 +23,9 @@
 #   PSV_DRAIN_TIMEOUT   max seconds to wait for old nginx workers to finish
 #                       in-flight requests before stopping the old colour
 #                       (default: 60; nginx proxy_read_timeout is 30s)
+#   PSV_SWITCH_LOCK     host-wide lock serializing nginx switches across
+#                       environments (default: .switch.lock next to
+#                       PSV_UPSTREAM_FILE)
 set -eu
 
 # Serialize deploys per checkout: two concurrent runs could both pick the same
@@ -45,11 +48,13 @@ DRAIN_TIMEOUT=${PSV_DRAIN_TIMEOUT:-$(env_value PSV_DRAIN_TIMEOUT)}
 : "${NGINX_TEST_CMD:=sudo -n /usr/sbin/nginx -t}"
 : "${NGINX_RELOAD_CMD:=sudo -n /usr/bin/systemctl reload nginx}"
 : "${DRAIN_TIMEOUT:=60}"
+SWITCH_LOCK=${PSV_SWITCH_LOCK:-$(env_value PSV_SWITCH_LOCK)}
 
 if [ -z "$UPSTREAM_FILE" ]; then
     echo "PSV_UPSTREAM_FILE is not set; the physsec-oci website role sets it." >&2
     exit 1
 fi
+: "${SWITCH_LOCK:=$(dirname "$UPSTREAM_FILE")/.switch.lock}"
 
 # Switching the include does nothing unless an enabled vhost reads it. The
 # vhosts are installed by Ansible from a checkout, so a host whose vhost
@@ -103,26 +108,85 @@ reload_nginx() {
 
 # Wait for the workers recorded by reload_nginx to exit, i.e. to finish their
 # in-flight requests. Bounded because a hung client keeps a worker alive
-# indefinitely.
+# indefinitely. Returns 1 if, at the deadline, an old worker has not even
+# started shutting down: the reload signal returns before nginx parses the
+# config, so that is how a rejected reload shows up.
 drain_old_workers() {
     waited=0
     while [ -n "$old_workers" ]; do
         still_running=""
+        not_retired=""
         for pid in $old_workers; do
-            if ps -o args= -p "$pid" 2>/dev/null | grep -q '^nginx: worker process'; then
-                still_running="$still_running $pid"
-            fi
+            title=$(ps -o args= -p "$pid" 2>/dev/null || true)
+            case $title in
+                "nginx: worker process") not_retired=1 ;;
+                "nginx: worker process"*) ;;
+                *) continue ;;
+            esac
+            still_running="$still_running $pid"
         done
         old_workers=${still_running# }
         [ -n "$old_workers" ] || break
         if [ "$waited" -ge "$DRAIN_TIMEOUT" ]; then
-            echo "Old nginx workers still draining after ${DRAIN_TIMEOUT}s; proceeding." >&2
             old_workers=""
-            return
+            if [ -n "$not_retired" ]; then
+                echo "nginx did not apply the reload within ${DRAIN_TIMEOUT}s." >&2
+                return 1
+            fi
+            echo "Old nginx workers still draining after ${DRAIN_TIMEOUT}s; proceeding." >&2
+            return 0
         fi
         sleep 1
         waited=$((waited + 1))
     done
+}
+
+# Replace the include atomically so a concurrent nginx -t or reload never
+# reads a truncated file.
+write_upstream() {
+    printf '%s\n' "$1" > "$UPSTREAM_FILE.tmp.$$" && mv -f "$UPSTREAM_FILE.tmp.$$" "$UPSTREAM_FILE"
+}
+
+# Point nginx at a running colour: rewrite the include, validate, reload, and
+# wait for the old workers to drain. Production and dev share one nginx, so
+# this holds a host-wide lock; otherwise one environment's reload could pick
+# up the other's half-finished switch. On failure the previous include is
+# restored and nothing is stopped.
+switch_to() {
+    sw_port=$(host_port "$1")
+    if [ -z "$sw_port" ]; then
+        echo "Could not determine the published port of $1." >&2
+        return 1
+    fi
+    exec 9>>"$SWITCH_LOCK"
+    if ! flock -w 300 9; then
+        echo "Timed out waiting for $SWITCH_LOCK." >&2
+        exec 9>&-
+        return 1
+    fi
+    sw_previous=$(cat "$UPSTREAM_FILE" 2>/dev/null || true)
+    write_upstream "server 127.0.0.1:$sw_port;"
+    sw_ok=""
+    if ! $NGINX_TEST_CMD; then
+        echo "nginx rejected the upstream for $1." >&2
+    elif ! reload_nginx; then
+        echo "nginx reload failed." >&2
+    elif ! drain_old_workers; then
+        :
+    else
+        sw_ok=1
+    fi
+    if [ -z "$sw_ok" ]; then
+        echo "Restoring the previous upstream." >&2
+        if [ -n "$sw_previous" ]; then
+            write_upstream "$sw_previous"
+        else
+            rm -f "$UPSTREAM_FILE"
+        fi
+    fi
+    exec 9>&-
+    [ -n "$sw_ok" ] || return 1
+    echo "nginx now routes to $1 on 127.0.0.1:$sw_port."
 }
 
 # Determine the active colour. Normally exactly one is running. If neither
@@ -141,34 +205,20 @@ if is_running blue && is_running green; then
     if [ -f "$UPSTREAM_FILE" ] && grep -q ":$(host_port blue);" "$UPSTREAM_FILE"; then
         filed=blue
     fi
-    unfiled=$(other_colour "$filed")
     if is_healthy "$filed"; then
-        # Finish the switch. An nginx failure here means nothing is known
-        # about what nginx serves, so leave both colours running and stop.
-        if ! $NGINX_TEST_CMD || ! reload_nginx; then
-            echo "nginx test or reload failed during recovery; leaving both colours running." >&2
-            exit 1
-        fi
-        drain_old_workers
-        compose stop "$unfiled"
-        active=$filed
+        keep=$filed
     else
-        echo "$filed is unhealthy; reverting the include to $unfiled." >&2
-        recovery_previous=$(cat "$UPSTREAM_FILE" 2>/dev/null || true)
-        printf 'server 127.0.0.1:%s;\n' "$(host_port "$unfiled")" > "$UPSTREAM_FILE"
-        if ! $NGINX_TEST_CMD || ! reload_nginx; then
-            echo "nginx test or reload failed during recovery; restoring the include and leaving both colours running." >&2
-            if [ -n "$recovery_previous" ]; then
-                printf '%s\n' "$recovery_previous" > "$UPSTREAM_FILE"
-            else
-                rm -f "$UPSTREAM_FILE"
-            fi
-            exit 1
-        fi
-        drain_old_workers
-        compose stop "$filed"
-        active=$unfiled
+        echo "$filed is unhealthy; reverting to $(other_colour "$filed")." >&2
+        keep=$(other_colour "$filed")
     fi
+    # An nginx failure here means nothing is known about what nginx serves,
+    # so leave both colours running and stop.
+    if ! switch_to "$keep"; then
+        echo "Recovery failed; leaving both colours running." >&2
+        exit 1
+    fi
+    compose stop "$(other_colour "$keep")"
+    active=$keep
 elif is_running blue; then
     active=blue
 elif is_running green; then
@@ -179,10 +229,32 @@ fi
 # the blue port, so migrate onto green and retire it after the switch.
 project=$(compose config --format json 2>/dev/null | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' | head -n 1)
 legacy=""
+retire_legacy() {
+    echo "Retiring legacy single-service container."
+    # shellcheck disable=SC2086 # one or more container IDs
+    docker stop $legacy >/dev/null
+    # shellcheck disable=SC2086
+    docker rm $legacy >/dev/null
+    legacy=""
+}
 if [ -n "$project" ]; then
     legacy=$(docker ps -q \
         --filter "label=com.docker.compose.project=$project" \
         --filter "label=com.docker.compose.service=app")
+fi
+
+# A colour running beside the legacy container means the first blue/green
+# deploy was interrupted. Finish it before choosing a colour: the legacy
+# container holds the blue port, so deploying blue would fail forever.
+if [ -n "$active" ] && [ -n "$legacy" ]; then
+    echo "Legacy container still running beside $active; finishing the migration." >&2
+    if is_healthy "$active" && switch_to "$active"; then
+        retire_legacy
+    else
+        echo "Could not move traffic to $active; redeploying it." >&2
+        compose stop "$active"
+        active=""
+    fi
 fi
 
 if [ -n "$active" ]; then
@@ -211,57 +283,19 @@ if ! compose up -d --no-build --wait --wait-timeout 120 "$new"; then
     exit 1
 fi
 
-new_port=$(host_port "$new")
-if [ -z "$new_port" ]; then
-    echo "Could not determine the published port of $new." >&2
+# Old nginx workers finish in-flight requests after the reload; switch_to
+# returns once they are gone, so the old colour is stopped only afterwards
+# (uvicorn then drains its own connections within Compose's stop grace
+# period).
+if ! switch_to "$new"; then
+    echo "$new was not put into service; ${active:-the previous container} keeps serving." >&2
     compose stop "$new" >/dev/null 2>&1 || true
     exit 1
 fi
-
-# Switch nginx. Keep the previous include so a rejected config can be undone.
-previous_upstream=""
-if [ -f "$UPSTREAM_FILE" ]; then
-    previous_upstream=$(cat "$UPSTREAM_FILE")
-fi
-printf 'server 127.0.0.1:%s;\n' "$new_port" > "$UPSTREAM_FILE"
-
-restore_upstream() {
-    if [ -n "$previous_upstream" ]; then
-        printf '%s\n' "$previous_upstream" > "$UPSTREAM_FILE"
-    else
-        rm -f "$UPSTREAM_FILE"
-    fi
-}
-
-if ! $NGINX_TEST_CMD; then
-    echo "nginx rejected the new upstream; restoring the previous one." >&2
-    restore_upstream
-    compose stop "$new" >/dev/null 2>&1 || true
-    exit 1
-fi
-
-if ! reload_nginx; then
-    echo "nginx reload failed; restoring the previous upstream." >&2
-    restore_upstream
-    $NGINX_RELOAD_CMD || true
-    compose stop "$new" >/dev/null 2>&1 || true
-    exit 1
-fi
-
-echo "nginx now routes to $new on 127.0.0.1:$new_port."
-
-# Old nginx workers finish in-flight requests after the reload; stop the old
-# colour only once they are gone (uvicorn then drains its own connections
-# within Compose's stop grace period).
-drain_old_workers
 
 if [ -n "$active" ]; then
     compose stop "$active"
 fi
 if [ -n "$legacy" ]; then
-    echo "Retiring legacy single-service container."
-    # shellcheck disable=SC2086 # one or more container IDs
-    docker stop $legacy >/dev/null
-    # shellcheck disable=SC2086
-    docker rm $legacy >/dev/null
+    retire_legacy
 fi

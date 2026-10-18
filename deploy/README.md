@@ -26,16 +26,21 @@ selected branch for dev), and runs `deploy/deploy.sh`, which:
 5. waits for the pre-reload nginx workers to finish their in-flight requests
    (bounded by `PSV_DRAIN_TIMEOUT`, default 60 s), then stops the old colour.
 
-Runs are serialized per checkout with `flock` on `.deploy.lock`. If a run is
+Runs are serialized per checkout with `flock` on `.deploy.lock`, and steps 4
+and 5 are serialized across production and dev, which share nginx, with a
+lock next to the upstream includes. The include is replaced atomically. If an
+old worker has not started shutting down by the drain deadline, nginx rejected
+the reload, so the deploy restores the include and fails. If a run is
 interrupted with both colours running, the next run first converges nginx on
 the colour named in the include (if it is healthy) or reverts to the other.
-If step 3 or 4 fails, the previous include is restored and the active colour
+If step 3, 4 or 5 fails, the previous include is restored and the active colour
 keeps serving. There is no separate rollback step: re-deploying the previous
 commit is itself a zero-downtime switch. Migrations are not rolled back, so
 each must stay compatible with the release that is still serving.
 
 A host still running the pre-blue/green single `app` container is migrated
 by the first deploy: it starts `green`, switches nginx, then retires `app`.
+If that deploy is interrupted, the next one finishes it first.
 
 ## GitHub
 
