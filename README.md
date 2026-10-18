@@ -184,8 +184,13 @@ production database.
 - The `Dockerfile` installs the exact dependency versions in `uv.lock` with a
   pinned uv release and pinned Python base-image digest, then starts the site
   with `fastapi run src/main.py --proxy-headers --port 8080`.
-- `psv-website.service` expects the repository to live at `/opt/psv-website`.
-- The service file is an example deployment artifact, not a portable installer; adjust paths and service management to match the target host.
+- Production runs on the OCI app host alongside Odoo. The host is provisioned
+  by the `physsec-village/physsec-oci` `ansible/roles/website` role: the
+  `psv-deploy` deployment account, the `/opt/psv-website` checkout and `.env`,
+  the systemd unit, and nginx. That host shares a private network with the
+  store PostgreSQL VM; other hosts cannot reach the database.
+- `psv-website.service` documents the unit the role installs and expects the
+  repository to live at `/opt/psv-website`.
 - The app serves `/healthz` for liveness and `/readyz` for store database
   readiness. The compose file uses the liveness endpoint.
 - Deploys invoke [`deploy/deploy.sh`](deploy/deploy.sh) directly as the
@@ -198,9 +203,9 @@ production database.
   operations; changes to the unit itself require an administrator to run
   `systemctl daemon-reload` on the host.
 - A production nginx reverse-proxy configuration and security-header policy are
-  versioned under [`deploy/nginx`](deploy/nginx/README.md). Install them on the
-  host only after adapting certificate and distribution-specific paths, then
-  validate with `nginx -t` before reloading nginx.
+  versioned under [`deploy/nginx`](deploy/nginx/README.md). Deploys do not
+  install them; the `website` role copies them from the checkout, so re-run the
+  playbook after changing them.
 
 ## Placeholders To Replace
 
