@@ -1,7 +1,9 @@
 [Unit]
 Description=PSV Website (Docker Compose)
 Requires=docker.service
-After=docker.service
+# deploy.sh reloads nginx, which must already be running when this starts at boot.
+Wants=nginx.service
+After=docker.service nginx.service
 
 [Service]
 Type=oneshot

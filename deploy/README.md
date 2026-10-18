@@ -45,8 +45,8 @@ If that deploy is interrupted, the next one finishes it first.
 ## GitHub
 
 The workflow runs on pushes to every branch, and a workflow file on a branch
-can be edited by anyone who can push that branch. Two settings keep that from
-becoming production access:
+can be edited by anyone who can push that branch. Two settings stop such an
+edit from deploying to production directly (but see the caveat below):
 
 1. **Environment-scoped secrets.** Create GitHub Environments named
    `production` and `dev`, and put all deployment secrets on them rather than
@@ -68,9 +68,12 @@ To retarget dev, change it, or dispatch the workflow from another branch with
 `environment=dev`; the dev checkout is reset to the fetched branch, so
 rebased branches deploy cleanly.
 
-Both Environments use the same host account, so anyone who can deploy to dev
-can reach the production checkout. That is acceptable only while everyone who
-can deploy to dev is also trusted with production. A separate account is not
+**Caveat: push access to any branch is effectively production access.** The
+`dev` Environment accepts every branch, so anyone who can push a branch can
+edit the workflow there to run arbitrary commands with the dev SSH key. That
+key logs in to the same host account as production, which can reach the
+production checkout and containers. This is acceptable only while everyone
+with push access is also trusted with production. A separate account is not
 enough to change that: the `docker` group is root-equivalent and reaches the
 production containers, so dev-only access needs a separate host or rootless
 Docker.
