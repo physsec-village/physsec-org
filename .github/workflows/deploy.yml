@@ -101,6 +101,10 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          # The default is 10m. deploy.sh can wait up to 15m for the checkout
+          # lock and 5m for the shared nginx switch lock, on top of the build,
+          # migrations, health check and drain.
+          command_timeout: 30m
           envs: BRANCH,TARGET_ENV,DEPLOY_PATH
           script: |
             set -eu
