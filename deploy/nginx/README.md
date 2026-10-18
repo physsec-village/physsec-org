@@ -14,8 +14,13 @@ The supplied virtual host assumes:
 - the distribution uses the conventional `/etc/nginx/sites-available` and
   `/etc/nginx/sites-enabled` layout.
 
-If the host uses different paths, update the installed copy or adapt the paths
-before enabling it. Install and validate it with:
+Production is provisioned by the `physsec-village/physsec-oci`
+`ansible/roles/website` role, which installs these files from the checkout and
+reloads nginx. After changing them, re-run that playbook rather than installing
+them by hand; a later playbook run would overwrite manual edits.
+
+On a host that role does not manage, update the installed copy or adapt the
+paths if the host differs, then install and validate it with:
 
 ```bash
 sudo install -D -m 0644 deploy/nginx/security-headers.conf \
