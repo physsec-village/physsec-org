@@ -11,7 +11,7 @@
 #
 # Configuration comes from the checkout's .env (or the environment):
 #   PSV_UPSTREAM_FILE   nginx include holding the active `server` line; the
-#                       deploy account must own it. On the app host the
+#                       deploy account must be able to write its directory. On the app host the
 #                       physsec-oci Ansible `website` role sets it.
 #   PSV_NGINX_CONF_DIRS directories searched for a config that includes
 #                       PSV_UPSTREAM_FILE (default: /etc/nginx/sites-enabled
@@ -165,7 +165,13 @@ switch_to() {
         return 1
     fi
     sw_previous=$(cat "$UPSTREAM_FILE" 2>/dev/null || true)
-    write_upstream "server 127.0.0.1:$sw_port;"
+    # switch_to always runs in a condition, where set -e does not apply, so
+    # check the write. A failed printf or mv leaves the include untouched.
+    if ! write_upstream "server 127.0.0.1:$sw_port;"; then
+        echo "Could not write $UPSTREAM_FILE; is its directory writable?" >&2
+        exec 9>&-
+        return 1
+    fi
     sw_ok=""
     if ! $NGINX_TEST_CMD; then
         echo "nginx rejected the upstream for $1." >&2
@@ -179,7 +185,7 @@ switch_to() {
     if [ -z "$sw_ok" ]; then
         echo "Restoring the previous upstream." >&2
         if [ -n "$sw_previous" ]; then
-            write_upstream "$sw_previous"
+            write_upstream "$sw_previous" || echo "Could not restore $UPSTREAM_FILE." >&2
         else
             rm -f "$UPSTREAM_FILE"
         fi
