@@ -15,9 +15,6 @@
     50%       { clip-path: inset(75% 0 10% 0); transform: translate(2px, 0);  }
     75%       { clip-path: inset(40% 0 45% 0); transform: translate(-2px, 0); }
 }
-@keyframes blink {
-    0%, 100% { opacity: 1; } 50% { opacity: 0; }
-}
 @keyframes scan {
     0%   { transform: translateY(-100%); }
     100% { transform: translateY(100vh); }
@@ -156,18 +153,6 @@
     justify-content: center;
     gap: 0.75rem;
     flex-wrap: wrap;
-}
-
-/* Blinking cursor on the terminal line */
-.nf-cursor {
-    display: inline-block;
-    width: 8px;
-    height: 1em;
-    background: var(--accent);
-    vertical-align: middle;
-    margin-left: 2px;
-    animation: blink 1s step-end infinite;
-    border-radius: 1px;
 }
 
 /* Status log */
