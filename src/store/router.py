@@ -258,10 +258,13 @@ async def store_webhook(request: Request):
 
     event_id = str(event["id"])
     event_type = str(event["type"])
-    event_object = event["data"]["object"]
-    if hasattr(event_object, "to_dict_recursive"):
-        event_object = event_object.to_dict_recursive()
     try:
+        stripe_created_at = event["created"]
+        event_object = event["data"]["object"]
+        # StripeObject is not a dict in current stripe-python; the db layer
+        # expects plain mappings.
+        if isinstance(event_object, stripe.StripeObject):
+            event_object = event_object.to_dict()
         if event_type in {
             "checkout.session.completed",
             "checkout.session.async_payment_succeeded",
@@ -272,7 +275,7 @@ async def store_webhook(request: Request):
                     event_id,
                     event_type,
                     object_id=str(event_object.get("id") or ""),
-                    stripe_created_at=event.get("created"),
+                    stripe_created_at=stripe_created_at,
                     payload=payload,
                 )
             else:
@@ -281,7 +284,7 @@ async def store_webhook(request: Request):
                     event_id,
                     event_object,
                     event_type=event_type,
-                    stripe_created_at=event.get("created"),
+                    stripe_created_at=stripe_created_at,
                     payload=payload,
                 )
         elif event_type == "checkout.session.expired":
@@ -298,7 +301,7 @@ async def store_webhook(request: Request):
                 event_id,
                 event_type,
                 object_id=str(event_object.get("id") or ""),
-                stripe_created_at=event.get("created"),
+                stripe_created_at=stripe_created_at,
                 payload=payload,
             )
         logger.info(
@@ -325,4 +328,14 @@ async def store_webhook(request: Request):
         return JSONResponse(
             status_code=409,
             content={"detail": "Webhook processing must be retried."},
+        )
+    except Exception:
+        logger.exception(
+            "store_webhook_failed event_id=%s event_type=%s",
+            event_id,
+            event_type,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Webhook processing failed and will be retried."},
         )

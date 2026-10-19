@@ -1,3 +1,7 @@
+import hashlib
+import hmac
+import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -596,3 +600,84 @@ def test_webhook_http_rejects_invalid_and_replays_paid_event_once(
             "SELECT state,attempts FROM stripe_events WHERE event_id='evt_http_paid'"
         ).fetchone()
     assert dict(ledger) == {"state": "processed", "attempts": 1}
+
+
+def _signed_webhook(event, secret="whsec_test"):
+    payload = json.dumps(event).encode()
+    timestamp = int(time.time())
+    digest = hmac.new(
+        secret.encode(), f"{timestamp}.".encode() + payload, hashlib.sha256
+    ).hexdigest()
+    return payload, {"stripe-signature": f"t={timestamp},v1={digest}"}
+
+
+def test_webhook_http_handles_real_signed_stripe_events(tmp_path, monkeypatch):
+    # Real stripe.Event objects (not dicts) must reach the db layer as mappings.
+    _database(tmp_path)
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+    client = TestClient(app)
+    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+    db.attach_stripe_session(checkout["id"], "cs_test_paid")
+    events = {
+        "evt_signed_paid": {
+            "type": "checkout.session.completed",
+            "object": {"object": "checkout.session", **_paid_session(checkout)},
+        },
+        "evt_signed_charge": {
+            "type": "charge.succeeded",
+            "object": {"id": "ch_test", "object": "charge"},
+        },
+    }
+
+    for event_id, event in events.items():
+        payload, headers = _signed_webhook(
+            {
+                "id": event_id,
+                "object": "event",
+                "type": event["type"],
+                "created": 123,
+                "data": {"object": event["object"]},
+            }
+        )
+        response = client.post("/store/webhook", content=payload, headers=headers)
+        assert response.status_code == 200, response.text
+
+    with db.connection() as conn:
+        states = {
+            row["event_id"]: row["state"]
+            for row in conn.execute("SELECT event_id,state FROM stripe_events")
+        }
+        orders = conn.execute("SELECT COUNT(*) AS count FROM orders").fetchone()
+    assert states == {"evt_signed_paid": "processed", "evt_signed_charge": "ignored"}
+    assert orders["count"] == 1
+
+
+def test_webhook_http_logs_unexpected_failures_as_json(
+    tmp_path, monkeypatch, caplog
+):
+    _database(tmp_path)
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    def explode(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(db, "process_ignored_event", explode)
+    payload, headers = _signed_webhook(
+        {
+            "id": "evt_signed_boom",
+            "object": "event",
+            "type": "charge.updated",
+            "created": 123,
+            "data": {"object": {"id": "ch_test", "object": "charge"}},
+        }
+    )
+
+    response = TestClient(app).post(
+        "/store/webhook", content=payload, headers=headers
+    )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": "Webhook processing failed and will be retried."
+    }
+    assert "store_webhook_failed event_id=evt_signed_boom" in caplog.text
