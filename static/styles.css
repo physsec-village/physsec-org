@@ -6,6 +6,12 @@
     padding: 0;
 }
 
+/* Component display rules (grid/flex) would otherwise override the
+   attribute's UA display: none and leave toggled elements visible. */
+[hidden] {
+    display: none !important;
+}
+
 .visually-hidden {
     position: absolute !important;
     width: 1px !important;
