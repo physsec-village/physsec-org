@@ -5,8 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
-from starlette.responses import JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, Response
 
+from .dependencies import templates
 from .forms.email import get_mail_config
 from .forms.router import router as form_router
 from .forms.turnstile import get_turnstile_settings
@@ -26,7 +27,40 @@ def rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONRespons
     )
 
 
-async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
+# Served when the 500 template itself cannot be rendered.
+FALLBACK_ERROR_PAGE = """<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>Something Went Wrong</title></head>
+<body>
+<h1>Something went wrong</h1>
+<p>Please try again in a moment. Reference: {error_id}</p>
+</body>
+</html>
+"""
+
+
+def wants_html(request: Request) -> bool:
+    # Browser navigations ask for text/html; fetch() calls, Stripe webhooks, and
+    # other API clients do not, so they get the JSON body.
+    return "text/html" in request.headers.get("accept", "").lower()
+
+
+def error_page(request: Request, error_id: str) -> Response:
+    try:
+        return templates.TemplateResponse(
+            request=request,
+            name="500.html",
+            context={"error_id": error_id},
+            status_code=500,
+        )
+    except Exception:
+        logger.exception("error_page_render_failed error_id=%s", error_id)
+        return HTMLResponse(
+            FALLBACK_ERROR_PAGE.format(error_id=error_id), status_code=500
+        )
+
+
+async def unhandled_exception(request: Request, exc: Exception) -> Response:
     # Starlette's ServerErrorMiddleware calls this for any exception that
     # escapes the routes, middleware, mounts, or other exception handlers.
     # It re-raises afterwards, so uvicorn still logs its own traceback; this
@@ -40,13 +74,19 @@ async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
         request.url.path,
         exc_info=exc,
     )
+    if wants_html(request):
+        response = error_page(request, error_id)
+    else:
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error.", "error_id": error_id},
+        )
     # This response is built outside all user middleware, so it carries its
     # own no-store headers instead of relying on them.
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error.", "error_id": error_id},
-        headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow"},
-    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    response.headers["Vary"] = "Accept"
+    return response
 
 
 logging.basicConfig(level=logging.INFO)

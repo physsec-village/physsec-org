@@ -1,4 +1,5 @@
 import logging
+import re
 from unittest.mock import patch
 
 import pytest
@@ -8,6 +9,10 @@ from fastapi.testclient import TestClient
 from src.main import app
 
 SECRET = "leaked-internal-detail SELECT * FROM store.checkouts"
+BROWSER_ACCEPT = (
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,*/*;q=0.8"
+)
+STRIPE_ACCEPT = "*/*; q=0.5, application/xml"
 
 
 @pytest.fixture
@@ -21,14 +26,32 @@ def client():
 def assert_json_500(response, records):
     assert response.status_code == 500
     assert response.headers["content-type"] == "application/json"
-    assert response.headers["cache-control"] == "no-store"
     body = response.json()
     assert set(body) == {"detail", "error_id"}
     assert body["detail"] == "Internal server error."
+    return assert_logged_500(response, records, body["error_id"])
+
+
+def assert_html_500(response, records):
+    assert response.status_code == 500
+    assert response.headers["content-type"].startswith("text/html")
+    [record] = [r for r in records if r.getMessage().startswith("unhandled_exception ")]
+    error_id = re.search(r"error_id=([0-9a-f]{32}) ", record.getMessage()).group(1)
+    assert error_id in response.text
+    return assert_logged_500(response, records, error_id)
+
+
+def assert_logged_500(response, records, error_id):
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["vary"] == "Accept"
     assert SECRET not in response.text
     assert "Traceback" not in response.text
 
-    matching = [record for record in records if body["error_id"] in record.getMessage()]
+    matching = [
+        record
+        for record in records
+        if record.getMessage().startswith(f"unhandled_exception error_id={error_id} ")
+    ]
     assert len(matching) == 1
     assert matching[0].levelno == logging.ERROR
     assert matching[0].exc_info is not None
@@ -93,3 +116,32 @@ def test_existing_error_responses_are_unchanged(client):
         unavailable = client.get("/store")
     assert unavailable.status_code == 503
     assert unavailable.json() == {"detail": "Store catalog is unavailable."}
+
+
+def test_stripe_style_client_gets_json(client, caplog):
+    with patch("src.store.router.storefront.products", side_effect=KeyError(SECRET)):
+        response = client.get("/store", headers={"Accept": STRIPE_ACCEPT})
+
+    assert_json_500(response, caplog.records)
+
+
+def test_browser_gets_html_error_page(client, caplog):
+    with patch("src.store.router.storefront.products", side_effect=KeyError(SECRET)):
+        response = client.get("/store", headers={"Accept": BROWSER_ACCEPT})
+
+    assert_html_500(response, caplog.records)
+    assert "Something Went Wrong" in response.text
+    assert 'class="site-nav-shell"' in response.text  # rendered from base.html
+
+
+def test_browser_gets_fallback_page_when_error_template_fails(client, caplog):
+    with patch("src.router.templates.TemplateResponse", side_effect=RuntimeError(SECRET)):
+        response = client.get("/about", headers={"Accept": BROWSER_ACCEPT})
+
+    record = assert_html_500(response, caplog.records)
+    error_id = re.search(r"error_id=(\w+) ", record.getMessage()).group(1)
+    assert f"Reference: {error_id}" in response.text
+    assert any(
+        r.getMessage() == f"error_page_render_failed error_id={error_id}"
+        for r in caplog.records
+    )
