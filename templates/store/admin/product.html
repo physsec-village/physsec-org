@@ -15,6 +15,7 @@
 
     <form method="post" action="{{ url_for('store_admin_update_product', product_id=product.id) }}" class="admin-card">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="version" value="{{ product.updated_at.isoformat() }}" />
         <h2>Details</h2>
         <label class="admin-field">
             <span>Name</span>

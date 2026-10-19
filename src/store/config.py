@@ -7,8 +7,6 @@ import os
 from psycopg.conninfo import conninfo_to_dict
 from psycopg.errors import ProgrammingError
 
-from .admin_auth import admin_credentials
-
 DEFAULT_RESERVATION_MINUTES = 35
 MIN_RESERVATION_MINUTES = 31
 MAX_RESERVATION_MINUTES = 1440
@@ -41,8 +39,7 @@ def _postgres_url(name: str) -> str:
         "sslmode"
     ) not in {"require", "verify-ca", "verify-full"}:
         raise ValueError(
-            f"Production {name} must use sslmode=require, verify-ca, "
-            "or verify-full."
+            f"Production {name} must use sslmode=require, verify-ca, or verify-full."
         )
     return value
 
@@ -89,4 +86,3 @@ def validate_store_config() -> None:
     database_url()
     reservation_minutes()
     bootstrap_stock()
-    admin_credentials()

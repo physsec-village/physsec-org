@@ -862,8 +862,22 @@ ORDER_FULFILLMENT_STATES = ("unfulfilled", "processing", "shipped", "canceled")
 ORDER_REVIEW_STATES = ("clear", "needs_review")
 
 
+STALE_FORM = "This was changed after you loaded the page. Review it and save again."
+
+
 class AdminError(StoreError):
     """A rejected admin change whose message is safe to show the admin."""
+
+
+def _version(value: str) -> datetime:
+    """Parse the `updated_at` an admin form was loaded with."""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        raise AdminError(STALE_FORM) from None
+    if parsed.tzinfo is None:
+        raise AdminError(STALE_FORM)
+    return parsed
 
 
 def admin_products() -> list[dict[str, Any]]:
@@ -905,21 +919,28 @@ def update_product(
     featured: bool,
     published: bool,
     variants: Sequence[VariantUpdate],
+    version: str,
 ) -> None:
     """Update product details and variant price/stock in one transaction.
 
-    A stock edit is applied only when the admin changed the value they were
-    shown, and is rejected if stock moved since the form loaded (a sale or
-    another admin), so concurrent changes are never silently overwritten.
+    `version` is the product's `updated_at` when the form loaded; every admin
+    edit advances it, so a stale form is rejected rather than undoing another
+    edit. Sales change stock without touching it, so a stock edit is applied
+    only when the admin changed the value they were shown, and is rejected if
+    stock moved since the form loaded.
     """
     name = name.strip()
     if not name:
         raise AdminError("Product name is required.")
+    loaded_at = _version(version)
     with connection(write=True) as conn:
-        if not conn.execute(
-            "SELECT 1 FROM products WHERE id=%s FOR UPDATE", (product_id,)
-        ).fetchone():
+        product = conn.execute(
+            "SELECT updated_at FROM products WHERE id=%s FOR UPDATE", (product_id,)
+        ).fetchone()
+        if not product:
             raise AdminError("Product not found.")
+        if product["updated_at"] != loaded_at:
+            raise AdminError(STALE_FORM)
         # Lock first, then read reservations in a later statement so its
         # snapshot includes any reservation committed while waiting.
         conn.execute(
@@ -966,8 +987,8 @@ def update_product(
             )
         conn.execute(
             "UPDATE products SET name=%s,description=%s,featured=%s,published=%s,"
-            "updated_at=%s WHERE id=%s",
-            (name, description.strip(), featured, published, utc_now(), product_id),
+            "updated_at=clock_timestamp() WHERE id=%s",
+            (name, description.strip(), featured, published, product_id),
         )
 
 
@@ -1018,7 +1039,8 @@ def add_variant(product_id: int, variant: VariantInput) -> None:
         except psycopg.errors.UniqueViolation as exc:
             raise AdminError("That SKU is already in use.") from exc
         conn.execute(
-            "UPDATE products SET updated_at=%s WHERE id=%s", (utc_now(), product_id)
+            "UPDATE products SET updated_at=clock_timestamp() WHERE id=%s",
+            (product_id,),
         )
 
 
@@ -1076,17 +1098,26 @@ def update_order(
     fulfillment_state: str,
     review_state: str,
     review_reason: str,
+    version: str,
 ) -> None:
+    """Update admin-owned order state, rejecting a form loaded before the
+    order last changed (another admin's edit or a refund webhook)."""
     if fulfillment_state not in ORDER_FULFILLMENT_STATES:
         raise AdminError("Unknown fulfillment state.")
     if review_state not in ORDER_REVIEW_STATES:
         raise AdminError("Unknown review state.")
     reason = review_reason.strip()[:500] or None
+    loaded_at = _version(version)
     with connection(write=True) as conn:
-        changed = conn.execute(
-            "UPDATE orders SET fulfillment_state=%s,review_state=%s,review_reason=%s,"
-            "updated_at=%s WHERE id=%s",
-            (fulfillment_state, review_state, reason, utc_now(), order_id),
-        ).rowcount
-        if changed != 1:
+        order = conn.execute(
+            "SELECT updated_at FROM orders WHERE id=%s FOR UPDATE", (order_id,)
+        ).fetchone()
+        if not order:
             raise AdminError("Order not found.")
+        if order["updated_at"] != loaded_at:
+            raise AdminError(STALE_FORM)
+        conn.execute(
+            "UPDATE orders SET fulfillment_state=%s,review_state=%s,review_reason=%s,"
+            "updated_at=clock_timestamp() WHERE id=%s",
+            (fulfillment_state, review_state, reason, order_id),
+        )

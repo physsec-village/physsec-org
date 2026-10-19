@@ -12,15 +12,20 @@ from pydantic import AliasChoices, BaseModel, Field, model_validator
 BASE_SKU_RE = re.compile(r"^PSV-[A-Z0-9]{3,8}-\d{3}$")
 VARIANT_SKU_RE = re.compile(r"^PSV-[A-Z0-9]{3,8}-\d{3}(?:-\d{3})?$")
 SLUG_RE = re.compile(r"[^a-z0-9]+")
+# Prices and stock are PostgreSQL integer columns.
+MAX_DB_INT = 2**31 - 1
 
 
 class VariantInput(BaseModel):
     sku: str
     name: str = ""
     upc: str = ""
-    price_cents: int = Field(ge=0)
+    price_cents: int = Field(ge=0, le=MAX_DB_INT)
     stock_on_hand: int = Field(
-        default=0, ge=0, validation_alias=AliasChoices("stock_on_hand", "stock")
+        default=0,
+        ge=0,
+        le=MAX_DB_INT,
+        validation_alias=AliasChoices("stock_on_hand", "stock"),
     )
     position: int = 0
 
@@ -114,9 +119,9 @@ class VariantUpdate(BaseModel):
     id: int
     name: str = ""
     upc: str = ""
-    price_cents: int = Field(ge=0)
-    stock_on_hand: int = Field(ge=0)
-    expected_stock: int = Field(ge=0)
+    price_cents: int = Field(ge=0, le=MAX_DB_INT)
+    stock_on_hand: int = Field(ge=0, le=MAX_DB_INT)
+    expected_stock: int = Field(ge=0, le=MAX_DB_INT)
 
     @model_validator(mode="after")
     def strip_text(self) -> VariantUpdate:

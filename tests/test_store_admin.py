@@ -1,31 +1,35 @@
 import re
 
 import pytest
+
 from fastapi.testclient import TestClient
 
 from src.main import app
-from src.store import admin, db
-from src.store.admin_auth import admin_credentials, hash_password, verify_password
-
-USERNAME = "psv-admin"
-PASSWORD = "correct horse battery staple"
-PASSWORD_HASH = hash_password(PASSWORD)
-AUTH = (USERNAME, PASSWORD)
+from src.store import admin_auth, db
 
 
 @pytest.fixture
-def admin_env(monkeypatch):
-    monkeypatch.setenv("STORE_ADMIN_USERNAME", USERNAME)
-    monkeypatch.setenv("STORE_ADMIN_PASSWORD_HASH", PASSWORD_HASH)
-    admin._failures.clear()
-    yield
-    admin._failures.clear()
-
-
-@pytest.fixture
-def client(admin_env):
+def anonymous():
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def client(anonymous):
+    page = anonymous.get("/store/admin/login")
+    response = anonymous.post(
+        "/store/admin/login",
+        data={"csrf_token": _csrf(page.text), "username": "admin", "password": "admin"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    return anonymous
+
+
+def _version(page: str) -> str:
+    match = re.search(r'name="version" value="([^"]+)"', page)
+    assert match, "form has no version"
+    return match.group(1)
 
 
 def _csrf(page: str) -> str:
@@ -47,6 +51,7 @@ def _variant_form(product: dict, csrf: str, **overrides) -> dict:
         "name": product["name"],
         "description": product["description"],
         "published": "true",
+        "version": product["updated_at"].isoformat(),
         "variant_id": str(variant["id"]),
         "variant_name": variant["name"],
         "variant_upc": variant["upc"],
@@ -91,79 +96,68 @@ def _paid_order() -> str:
     )
 
 
-def test_password_hash_round_trip_and_config_validation(monkeypatch):
-    assert verify_password(PASSWORD, PASSWORD_HASH)
-    assert not verify_password("wrong", PASSWORD_HASH)
-    assert "$" not in PASSWORD_HASH
+def test_admin_requires_sign_in(anonymous):
+    response = anonymous.get("/store/admin", follow_redirects=False)
+    anonymous.cookies.set(admin_auth.SESSION_COOKIE, "0" * 64)
+    forged = anonymous.get("/store/admin", follow_redirects=False)
+    anonymous.cookies.clear()
+    post = anonymous.post("/store/admin/orders/x", follow_redirects=False)
 
-    monkeypatch.delenv("STORE_ADMIN_USERNAME", raising=False)
-    monkeypatch.delenv("STORE_ADMIN_PASSWORD_HASH", raising=False)
-    assert admin_credentials() is None
-
-    monkeypatch.setenv("STORE_ADMIN_USERNAME", USERNAME)
-    with pytest.raises(ValueError, match="set together"):
-        admin_credentials()
-
-    monkeypatch.setenv("STORE_ADMIN_PASSWORD_HASH", "plaintext-password")
-    with pytest.raises(ValueError, match="scrypt"):
-        admin_credentials()
-
-    weak = PASSWORD_HASH.replace(":16384:", ":1024:")
-    monkeypatch.setenv("STORE_ADMIN_PASSWORD_HASH", weak)
-    with pytest.raises(ValueError, match="unsafe"):
-        admin_credentials()
+    for blocked in (response, forged, post):
+        assert blocked.status_code == 303
+        assert blocked.headers["location"].endswith("/store/admin/login")
+        assert blocked.headers["cache-control"] == "no-store"
 
 
-def test_admin_is_hidden_without_credentials(monkeypatch):
-    monkeypatch.delenv("STORE_ADMIN_USERNAME", raising=False)
-    monkeypatch.delenv("STORE_ADMIN_PASSWORD_HASH", raising=False)
-    with TestClient(app) as client:
-        response = client.get("/store/admin", auth=AUTH)
+def test_sign_in_rejects_wrong_credentials_and_bad_tokens(anonymous):
+    csrf = _csrf(anonymous.get("/store/admin/login").text)
+    wrong = anonymous.post(
+        "/store/admin/login",
+        data={"csrf_token": csrf, "username": "admin", "password": "nope"},
+    )
+    no_token = anonymous.post(
+        "/store/admin/login", data={"username": "admin", "password": "admin"}
+    )
+
+    assert wrong.status_code == 401
+    assert "Wrong username or password." in wrong.text
+    assert no_token.status_code == 403
+    assert admin_auth.SESSION_COOKIE not in anonymous.cookies
+
+
+def test_sign_in_and_sign_out(client):
+    page = client.get("/store/admin")
+    assert page.status_code == 200
+    assert page.headers["cache-control"] == "no-store"
+    assert "noindex" in page.headers["x-robots-tag"]
+    assert "PSV-RFID-001" in page.text
+
+    out = client.post(
+        "/store/admin/logout",
+        data={"csrf_token": _csrf(page.text)},
+        follow_redirects=False,
+    )
+
+    assert out.status_code == 303
+    assert client.get("/store/admin", follow_redirects=False).status_code == 303
+
+
+def test_admin_is_hidden_while_store_is_disabled(anonymous):
+    app.state.store_enabled = False
+    try:
+        response = anonymous.get("/store/admin/login")
+    finally:
+        app.state.store_enabled = True
 
     assert response.status_code == 404
-    assert response.headers["cache-control"] == "no-store"
-
-
-def test_admin_is_hidden_while_store_is_disabled(admin_env):
-    with TestClient(app) as client:
-        app.state.store_enabled = False
-        try:
-            response = client.get("/store/admin", auth=AUTH)
-        finally:
-            app.state.store_enabled = True
-
-    assert response.status_code == 404
-
-
-def test_admin_requires_valid_credentials(client):
-    anonymous = client.get("/store/admin")
-    wrong = client.get("/store/admin", auth=(USERNAME, "wrong password"))
-    wrong_user = client.get("/store/admin", auth=("someone", PASSWORD))
-    ok = client.get("/store/admin", auth=AUTH)
-
-    for response in (anonymous, wrong, wrong_user):
-        assert response.status_code == 401
-        assert response.headers["www-authenticate"].startswith("Basic")
-        assert response.headers["cache-control"] == "no-store"
-    assert ok.status_code == 200
-    assert ok.headers["cache-control"] == "no-store"
-    assert "noindex" in ok.headers["x-robots-tag"]
-    assert "PSV-RFID-001" in ok.text
-
-
-def test_repeated_failed_sign_ins_are_throttled(client):
-    for _ in range(admin.MAX_FAILURES):
-        assert client.get("/store/admin", auth=(USERNAME, "nope")).status_code == 401
-
-    assert client.get("/store/admin", auth=AUTH).status_code == 429
 
 
 def test_forms_require_the_csrf_token(client):
     product = _product()
     url = f"/store/admin/products/{product['id']}"
 
-    missing = client.post(url, auth=AUTH, data=_variant_form(product, ""))
-    forged = client.post(url, auth=AUTH, data=_variant_form(product, "0" * 64))
+    missing = client.post(url, data=_variant_form(product, ""))
+    forged = client.post(url, data=_variant_form(product, "0" * 64))
 
     assert missing.status_code == 403
     assert forged.status_code == 403
@@ -175,12 +169,11 @@ def test_forms_require_the_csrf_token(client):
 
 def test_update_product_details_price_and_stock(client):
     product = _product()
-    page = client.get(f"/store/admin/products/{product['id']}", auth=AUTH)
+    page = client.get(f"/store/admin/products/{product['id']}")
     csrf = _csrf(page.text)
 
     response = client.post(
         f"/store/admin/products/{product['id']}",
-        auth=AUTH,
         data=_variant_form(
             product,
             csrf,
@@ -200,19 +193,19 @@ def test_update_product_details_price_and_stock(client):
     assert updated["published"] is True
     assert updated["variants"][0]["price_cents"] == 1234
     assert updated["variants"][0]["stock_on_hand"] == 7
-    saved = client.get(response.headers["location"], auth=AUTH)
+    saved = client.get(response.headers["location"])
     assert "Changes saved." in saved.text
 
     # Unchecked boxes are absent from the form and unpublish the product.
     form = _variant_form(updated, csrf, variant_price="12.34")
     del form["published"]
-    client.post(f"/store/admin/products/{product['id']}", auth=AUTH, data=form)
+    client.post(f"/store/admin/products/{product['id']}", data=form)
     assert _product()["published"] is False
 
 
 def test_stock_edit_rejects_a_stale_value(client):
     product = _product()
-    csrf = _csrf(client.get("/store/admin/products/new", auth=AUTH).text)
+    csrf = _csrf(client.get("/store/admin/products/new").text)
     variant = product["variants"][0]
     with db.connection() as conn:
         conn.execute(
@@ -221,7 +214,6 @@ def test_stock_edit_rejects_a_stale_value(client):
 
     stale = client.post(
         f"/store/admin/products/{product['id']}",
-        auth=AUTH,
         data=_variant_form(
             product, csrf, variant_stock="20", variant_expected_stock="0"
         ),
@@ -229,7 +221,6 @@ def test_stock_edit_rejects_a_stale_value(client):
     # Leaving stock untouched still saves other fields without clobbering it.
     untouched = client.post(
         f"/store/admin/products/{product['id']}",
-        auth=AUTH,
         data=_variant_form(
             product,
             csrf,
@@ -256,12 +247,11 @@ def test_stock_cannot_drop_below_reservations(client):
             "UPDATE variants SET stock_on_hand=3 WHERE id=%s", (variant["id"],)
         )
     db.reserve_checkout([{"sku": variant["sku"], "qty": 2}])
-    page = client.get(f"/store/admin/products/{product['id']}", auth=AUTH)
+    page = client.get(f"/store/admin/products/{product['id']}")
     assert re.search(r">\s*2\s*</td>", page.text)
 
     response = client.post(
         f"/store/admin/products/{product['id']}",
-        auth=AUTH,
         data=_variant_form(
             product,
             _csrf(page.text),
@@ -277,12 +267,11 @@ def test_stock_cannot_drop_below_reservations(client):
 
 def test_invalid_price_is_reported(client):
     product = _product()
-    page = client.get(f"/store/admin/products/{product['id']}", auth=AUTH)
+    page = client.get(f"/store/admin/products/{product['id']}")
     csrf = _csrf(page.text)
 
     response = client.post(
         f"/store/admin/products/{product['id']}",
-        auth=AUTH,
         data=_variant_form(product, csrf, variant_price="-1"),
     )
 
@@ -291,10 +280,9 @@ def test_invalid_price_is_reported(client):
 
 
 def test_create_product_and_add_variant(client):
-    csrf = _csrf(client.get("/store/admin/products/new", auth=AUTH).text)
+    csrf = _csrf(client.get("/store/admin/products/new").text)
     created = client.post(
         "/store/admin/products",
-        auth=AUTH,
         data={
             "csrf_token": csrf,
             "name": "Test Shim",
@@ -307,7 +295,6 @@ def test_create_product_and_add_variant(client):
     )
     duplicate = client.post(
         "/store/admin/products",
-        auth=AUTH,
         data={
             "csrf_token": csrf,
             "name": "Again",
@@ -317,7 +304,6 @@ def test_create_product_and_add_variant(client):
     )
     bad_sku = client.post(
         "/store/admin/products",
-        auth=AUTH,
         data={"csrf_token": csrf, "name": "Bad", "base_sku": "SHIM", "price": "1"},
     )
 
@@ -336,7 +322,6 @@ def test_create_product_and_add_variant(client):
     variant_url = f"/store/admin/products/{product['id']}/variants"
     added = client.post(
         variant_url,
-        auth=AUTH,
         data={
             "csrf_token": csrf,
             "sku": "PSV-BYP-901-002",
@@ -348,7 +333,6 @@ def test_create_product_and_add_variant(client):
     )
     foreign = client.post(
         variant_url,
-        auth=AUTH,
         data={"csrf_token": csrf, "sku": "PSV-BYP-902-001", "price": "1"},
     )
 
@@ -363,9 +347,9 @@ def test_create_product_and_add_variant(client):
 def test_orders_list_detail_and_status_update(client):
     order_id = _paid_order()
 
-    listing = client.get("/store/admin/orders", auth=AUTH)
-    filtered = client.get("/store/admin/orders?fulfillment=shipped", auth=AUTH)
-    detail = client.get(f"/store/admin/orders/{order_id}", auth=AUTH)
+    listing = client.get("/store/admin/orders")
+    filtered = client.get("/store/admin/orders?fulfillment=shipped")
+    detail = client.get(f"/store/admin/orders/{order_id}")
 
     assert listing.status_code == 200
     assert order_id[:8] in listing.text
@@ -376,11 +360,12 @@ def test_orders_list_detail_and_status_update(client):
     assert "Las Vegas" in detail.text
 
     csrf = _csrf(detail.text)
+    version = _version(detail.text)
     updated = client.post(
         f"/store/admin/orders/{order_id}",
-        auth=AUTH,
         data={
             "csrf_token": csrf,
+            "version": version,
             "fulfillment_state": "shipped",
             "review_state": "needs_review",
             "review_reason": "Address check",
@@ -389,7 +374,6 @@ def test_orders_list_detail_and_status_update(client):
     )
     invalid = client.post(
         f"/store/admin/orders/{order_id}",
-        auth=AUTH,
         data={
             "csrf_token": csrf,
             "fulfillment_state": "teleported",
@@ -405,4 +389,82 @@ def test_orders_list_detail_and_status_update(client):
     assert order["payment_state"] == "paid"
     assert invalid.status_code == 400
     assert db.admin_order(order_id)["fulfillment_state"] == "shipped"
-    assert client.get("/store/admin/orders/missing", auth=AUTH).status_code == 404
+    assert client.get("/store/admin/orders/missing").status_code == 404
+
+
+def test_stale_product_form_does_not_undo_a_newer_edit(client):
+    product = _product()
+    page = client.get(f"/store/admin/products/{product['id']}")
+    csrf = _csrf(page.text)
+    first = client.post(
+        f"/store/admin/products/{product['id']}",
+        data=_variant_form(product, csrf, variant_price="50.00"),
+        follow_redirects=False,
+    )
+    stale = client.post(
+        f"/store/admin/products/{product['id']}",
+        data=_variant_form(product, csrf, description="Edited in an old tab"),
+    )
+
+    assert first.status_code == 303
+    assert stale.status_code == 400
+    assert "changed after you loaded the page" in stale.text
+    current = _product()
+    assert current["variants"][0]["price_cents"] == 5000
+    assert current["description"] == product["description"]
+
+
+def test_stale_order_form_does_not_undo_a_newer_edit(client):
+    order_id = _paid_order()
+    detail = client.get(f"/store/admin/orders/{order_id}").text
+    form = {"csrf_token": _csrf(detail), "version": _version(detail)}
+
+    shipped = client.post(
+        f"/store/admin/orders/{order_id}",
+        data={**form, "fulfillment_state": "shipped", "review_state": "clear"},
+        follow_redirects=False,
+    )
+    stale = client.post(
+        f"/store/admin/orders/{order_id}",
+        data={
+            **form,
+            "fulfillment_state": "unfulfilled",
+            "review_state": "clear",
+            "review_reason": "note from an old tab",
+        },
+    )
+
+    assert shipped.status_code == 303
+    assert stale.status_code == 400
+    assert "changed after you loaded the page" in stale.text
+    order = db.admin_order(order_id)
+    assert order["fulfillment_state"] == "shipped"
+    assert order["review_reason"] is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("variant_price", "21474836.48"), ("variant_stock", "2147483648")],
+)
+def test_values_beyond_database_limits_are_rejected(client, field, value):
+    product = _product()
+    csrf = _csrf(client.get(f"/store/admin/products/{product['id']}").text)
+
+    response = client.post(
+        f"/store/admin/products/{product['id']}",
+        data=_variant_form(product, csrf, **{field: value}),
+    )
+    created = client.post(
+        "/store/admin/products",
+        data={
+            "csrf_token": csrf,
+            "name": "Huge",
+            "base_sku": "PSV-BYP-950",
+            "price": "21474836.48",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "less than or equal to 2147483647" in response.text
+    assert created.status_code == 400
+    assert db.get_product_by_id("PSV-BYP-950") is None

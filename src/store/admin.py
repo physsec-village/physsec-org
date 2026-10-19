@@ -1,28 +1,21 @@
 """Basic store administration UI: products, variants, stock, and orders.
 
-The UI is hidden (404) unless the store is enabled and admin credentials are
-configured. Requests authenticate with HTTP Basic; because browsers resend
-Basic credentials on cross-site requests, every form carries a CSRF token
-derived from the configured credentials.
+The UI is hidden (404) while the store is disabled. Sign-in is a placeholder
+with hardcoded credentials; see admin_auth. Every form also carries a CSRF
+token.
 """
 
 from __future__ import annotations
 
-import hmac
 import logging
-import threading
-import time
-from collections import deque
 from typing import Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import ValidationError
 
 from ..dependencies import templates
-from . import db
-from .admin_auth import AdminCredentials, admin_credentials
+from . import admin_auth, db
 from .models import (
     ProductInput,
     VariantInput,
@@ -34,80 +27,77 @@ from .router import require_store_enabled
 
 logger = logging.getLogger(__name__)
 
-MAX_FAILURES = 10
-FAILURE_WINDOW_SECONDS = 300
-_failures: dict[str, deque[float]] = {}
-_failures_lock = threading.Lock()
-_basic = HTTPBasic(auto_error=False, realm="PSV store admin")
-
 NOTICES = {
     "saved": "Changes saved.",
     "created": "Product created.",
     "variant": "Variant added.",
+    "signed_out": "Signed out.",
 }
 
 
-def _client(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
-
-
-def _throttled(client: str, now: float) -> bool:
-    with _failures_lock:
-        attempts = _failures.get(client)
-        if not attempts:
-            return False
-        while attempts and attempts[0] <= now - FAILURE_WINDOW_SECONDS:
-            attempts.popleft()
-        if not attempts:
-            del _failures[client]
-            return False
-        return len(attempts) >= MAX_FAILURES
-
-
-def _record_failure(client: str, now: float) -> None:
-    with _failures_lock:
-        _failures.setdefault(client, deque()).append(now)
-
-
-def require_admin(
-    request: Request,
-    credentials: HTTPBasicCredentials | None = Depends(_basic),
-) -> AdminCredentials:
-    configured = admin_credentials()
-    if configured is None:
-        raise HTTPException(status_code=404)
-    client = _client(request)
-    now = time.monotonic()
-    if _throttled(client, now):
-        raise HTTPException(status_code=429, detail="Too many failed sign-ins.")
-    if credentials is None or not configured.verify(
-        credentials.username, credentials.password
-    ):
-        if credentials is not None:
-            _record_failure(client, now)
-            logger.warning("store_admin_auth_failed client=%s", client)
+def require_admin(request: Request) -> None:
+    if not admin_auth.valid_session(request.cookies.get(admin_auth.SESSION_COOKIE)):
         raise HTTPException(
-            status_code=401,
-            detail="Authentication required.",
-            headers={"WWW-Authenticate": 'Basic realm="PSV store admin"'},
+            status_code=303,
+            headers={"Location": str(request.url_for("store_admin_login"))},
         )
-    request.state.admin_csrf_token = configured.csrf_token()
-    return configured
 
 
-def require_csrf(
-    admin: AdminCredentials = Depends(require_admin),
-    csrf_token: str = Form(""),
-) -> None:
-    if not hmac.compare_digest(csrf_token.encode(), admin.csrf_token().encode()):
+def require_csrf(csrf_token: str = Form("")) -> None:
+    if not admin_auth.valid_csrf(csrf_token):
         raise HTTPException(status_code=403, detail="Invalid form token.")
 
+
+# Sign-in pages, reachable without a session.
+public_router = APIRouter(
+    prefix="/store/admin",
+    include_in_schema=False,
+    dependencies=[Depends(require_store_enabled)],
+)
 
 router = APIRouter(
     prefix="/store/admin",
     include_in_schema=False,
     dependencies=[Depends(require_store_enabled), Depends(require_admin)],
 )
+
+
+@public_router.get("/login", response_class=HTMLResponse, name="store_admin_login")
+def login_form(request: Request):
+    return _render(request, "login.html", error=None)
+
+
+@public_router.post(
+    "/login",
+    dependencies=[Depends(require_csrf)],
+    name="store_admin_login_submit",
+)
+def login(request: Request, username: str = Form(""), password: str = Form("")):
+    if not admin_auth.check_credentials(username, password):
+        return _render(request, "login.html", 401, error="Wrong username or password.")
+    response = _redirect(str(request.url_for("store_admin_dashboard")))
+    response.set_cookie(
+        admin_auth.SESSION_COOKIE,
+        admin_auth.session_token(),
+        path="/store/admin",
+        httponly=True,
+        samesite="strict",
+        secure=request.url.scheme == "https",
+    )
+    return response
+
+
+@public_router.post(
+    "/logout",
+    dependencies=[Depends(require_csrf)],
+    name="store_admin_logout",
+)
+def logout(request: Request):
+    response = _redirect(
+        str(request.url_for("store_admin_login")) + "?notice=signed_out"
+    )
+    response.delete_cookie(admin_auth.SESSION_COOKIE, path="/store/admin")
+    return response
 
 
 def _render(
@@ -119,9 +109,12 @@ def _render(
         name=f"store/admin/{name}",
         status_code=status_code,
         context={
-            "csrf_token": request.state.admin_csrf_token,
+            "csrf_token": admin_auth.csrf_token(),
             "money": dollars_from_cents,
             "notice": notice,
+            "signed_in": admin_auth.valid_session(
+                request.cookies.get(admin_auth.SESSION_COOKIE)
+            ),
             **context,
         },
     )
@@ -266,6 +259,7 @@ def update_product(
     description: str = Form(""),
     featured: bool = Form(False),
     published: bool = Form(False),
+    version: str = Form(""),
     variant_id: list[str] = Form([]),
     variant_name: list[str] = Form([]),
     variant_upc: list[str] = Form([]),
@@ -304,6 +298,7 @@ def update_product(
             featured=featured,
             published=published,
             variants=variants,
+            version=version,
         )
     except ValidationError as exc:
         error = _validation_message(exc)
@@ -394,6 +389,7 @@ def update_order(
     fulfillment_state: str = Form(""),
     review_state: str = Form(""),
     review_reason: str = Form(""),
+    version: str = Form(""),
 ):
     try:
         db.update_order(
@@ -401,6 +397,7 @@ def update_order(
             fulfillment_state=fulfillment_state,
             review_state=review_state,
             review_reason=review_reason,
+            version=version,
         )
     except db.AdminError as exc:
         order = db.admin_order(order_id)

@@ -26,6 +26,7 @@ body.admin::before {
 
 .admin-nav {
     display: flex;
+    align-items: center;
     gap: 1.25rem;
 }
 
@@ -34,8 +35,21 @@ body.admin::before {
     text-decoration: none;
 }
 
-.admin-nav a:hover {
+.admin-nav a:hover,
+.admin-link-button:hover {
     color: var(--text);
+}
+
+.admin-link-button {
+    border: 0;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.admin-login {
+    width: min(380px, 100%);
+    margin: 3rem auto 0;
 }
 
 .admin-main {

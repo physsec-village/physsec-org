@@ -50,7 +50,7 @@ The app currently serves these user-facing routes:
 - `/store/checkout`
 - `/store/confirmed`
 - `/store/webhook` (`POST`, Stripe-signed)
-- `/store/admin` (HTTP Basic; see [Store admin](#store-admin))
+- `/store/admin` (see [Store admin](#store-admin))
 
 ## Local Development
 
@@ -181,22 +181,15 @@ Products cannot be deleted (the application role has no `DELETE`); unpublish
 them instead. Refunds are issued in the Stripe dashboard and recorded from
 Stripe's webhook.
 
-The admin UI returns 404 unless the store is enabled and both
-`STORE_ADMIN_USERNAME` and `STORE_ADMIN_PASSWORD_HASH` are set. Generate the
-hash, which contains no `$` and is safe in `.env`, with:
-
-```sh
-uv run python -m src.store.admin_auth
-```
-
-Requests authenticate with HTTP Basic over the site's HTTPS origin. Ten failed
-sign-ins from one address within five minutes are rejected with 429 for the
-rest of that window (per process). Every form carries a CSRF token derived
-from the configured credentials, and admin responses are sent with
-`Cache-Control: no-store`. Stock edits are rejected if stock changed since the
-form loaded or if the new value is below the units reserved by open
-checkouts. Browsers cache Basic credentials until they are closed, so close
-the browser to sign out.
+The admin UI returns 404 while the store is disabled. Sign-in is a
+**temporary placeholder with hardcoded `admin`/`admin` credentials** in
+`src/store/admin_auth.py`, for exploring the store on the dev deployment; it
+must be replaced with a real login before this reaches `main`. Sessions are
+signed with a per-process secret, so every restart or deploy signs you out.
+Every form carries a CSRF token, the session cookie is `HttpOnly` and
+`SameSite=Strict`, and admin responses are sent with `Cache-Control: no-store`.
+Stock edits are rejected if stock changed since the form loaded or if the new
+value is below the units reserved by open checkouts.
 
 #### Migrating off Supabase
 
