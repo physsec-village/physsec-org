@@ -15,6 +15,7 @@ from .limiter import limiter
 from .router import not_found
 from .router import router as root_router
 from .store import db
+from .store.admin import router as store_admin_router
 from .store.config import store_enabled, validate_store_config
 from .store.router import router as store_router
 from .store.seed import bootstrap_catalog
@@ -173,9 +174,21 @@ app = FastAPI(exception_handlers=exceptions, lifespan=lifespan)
 app.state.limiter = limiter
 app.state.store_enabled = False
 
+
+@app.middleware("http")
+async def private_store_admin(request: Request, call_next):
+    response = await call_next(request)
+    # Includes 401/404 responses, so no admin response is ever cached.
+    if request.url.path.startswith("/store/admin"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/media", StaticFiles(directory=db.MEDIA_DIR, check_dir=False), name="media")
 
 app.include_router(root_router)
 app.include_router(form_router)
 app.include_router(store_router)
+app.include_router(store_admin_router)

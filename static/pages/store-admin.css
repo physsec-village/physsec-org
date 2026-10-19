@@ -1,0 +1,304 @@
+/* Store admin: a plain, dense layout on the site's colour tokens. */
+
+body.admin::before {
+    display: none;
+}
+
+.mono {
+    font-family: "Share Tech Mono", ui-monospace, monospace;
+}
+
+.admin-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem clamp(1rem, 4vw, 2.5rem);
+    border-bottom: 1px solid var(--border-strong);
+    background: var(--bg-elevated);
+}
+
+.admin-brand {
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--accent);
+}
+
+.admin-nav {
+    display: flex;
+    gap: 1.25rem;
+}
+
+.admin-nav a {
+    color: var(--muted);
+    text-decoration: none;
+}
+
+.admin-nav a:hover {
+    color: var(--text);
+}
+
+.admin-main {
+    width: min(1280px, 100%);
+    margin: 0 auto;
+    padding: 1.5rem clamp(1rem, 4vw, 2.5rem) 4rem;
+}
+
+.admin-main h1 {
+    font-size: 1.6rem;
+}
+
+.admin-main h2 {
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+}
+
+.admin-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 1.5rem 0 0.75rem;
+}
+
+.admin-meta,
+.admin-hint {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.admin-notice,
+.admin-error {
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-xs);
+    margin-bottom: 1rem;
+    border: 1px solid var(--accent-strong);
+    background: var(--accent-soft);
+}
+
+.admin-error {
+    border-color: rgba(208, 162, 61, 0.45);
+    background: rgba(208, 162, 61, 0.12);
+}
+
+.admin-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.75rem;
+}
+
+.admin-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    text-decoration: none;
+}
+
+a.admin-stat:hover {
+    border-color: var(--accent);
+}
+
+.admin-stat-value {
+    font-size: 1.6rem;
+    font-weight: 600;
+}
+
+.admin-stat-label {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.admin-card {
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+}
+
+.admin-card h2:not(:first-of-type) {
+    margin-top: 1.5rem;
+}
+
+.admin-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 1.25rem;
+}
+
+@media (max-width: 860px) {
+    .admin-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+.admin-table-wrap {
+    overflow-x: auto;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.admin-table th {
+    color: var(--muted);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.admin-table .num {
+    text-align: right;
+}
+
+.admin-table td.mono {
+    white-space: nowrap;
+}
+
+.admin-table a {
+    color: var(--accent);
+}
+
+.admin-table tbody tr:hover {
+    background: var(--surface-soft);
+}
+
+.warn {
+    color: var(--warning);
+}
+
+.tag {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    margin-right: 0.25rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    color: var(--muted);
+    font-size: 0.78rem;
+}
+
+.tag-ok {
+    color: var(--accent);
+    border-color: var(--accent-strong);
+}
+
+.tag-accent {
+    color: var(--text);
+    border-color: var(--accent);
+}
+
+.tag-warn {
+    color: var(--warning);
+    border-color: var(--warning);
+}
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0 1rem;
+}
+
+.admin-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-bottom: 0.9rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.admin input:not([type="checkbox"]),
+.admin select,
+.admin textarea {
+    width: 100%;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-xs);
+    background: var(--bg);
+    color: var(--text);
+}
+
+.admin input:focus,
+.admin select:focus,
+.admin textarea:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+
+.admin .input-num {
+    min-width: 6rem;
+    font-family: "Share Tech Mono", ui-monospace, monospace;
+}
+
+.admin-checks {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.admin-checks label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.admin-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.admin-filter {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+.admin-filter label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--muted);
+}
+
+.admin-filter .btn {
+    min-height: 38px;
+    padding: 0.4rem 1rem;
+}
+
+.admin-totals {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.3rem 1rem;
+    margin-top: 1rem;
+}
+
+.admin-totals dt {
+    color: var(--muted);
+}
+
+.admin-totals dd {
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.admin-address {
+    font-style: normal;
+    line-height: 1.5;
+    margin: 0.75rem 0;
+}

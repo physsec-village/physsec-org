@@ -102,3 +102,24 @@ def cents_from_dollars(value: str) -> int:
 
 def dollars_from_cents(value: int) -> str:
     return f"{Decimal(value or 0) / Decimal(100):.2f}"
+
+
+class VariantUpdate(BaseModel):
+    """An admin edit to an existing variant.
+
+    `expected_stock` is the stock on hand the admin was shown, so the database
+    can reject an edit made against a stale value.
+    """
+
+    id: int
+    name: str = ""
+    upc: str = ""
+    price_cents: int = Field(ge=0)
+    stock_on_hand: int = Field(ge=0)
+    expected_stock: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def strip_text(self) -> VariantUpdate:
+        self.name = self.name.strip()
+        self.upc = self.upc.strip()
+        return self

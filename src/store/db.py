@@ -21,7 +21,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from .config import database_url
-from .models import ProductInput, slugify
+from .models import ProductInput, VariantInput, VariantUpdate, slugify
 
 MEDIA_DIR = os.getenv("STORE_MEDIA_DIR", "data/media")
 SCHEMA_VERSION = 1
@@ -854,3 +854,239 @@ def create_product(
                 ),
             )
         return product_id
+
+
+# Store admin.  The application role cannot DELETE, so products are retired by
+# unpublishing them rather than removed.
+ORDER_FULFILLMENT_STATES = ("unfulfilled", "processing", "shipped", "canceled")
+ORDER_REVIEW_STATES = ("clear", "needs_review")
+
+
+class AdminError(StoreError):
+    """A rejected admin change whose message is safe to show the admin."""
+
+
+def admin_products() -> list[dict[str, Any]]:
+    """Return every product, published or not, with stock and reservations."""
+    with connection() as conn:
+        rows = conn.execute(
+            "SELECT p.*,COALESCE(c.label,p.category_code) category_label "
+            "FROM products p LEFT JOIN categories c ON c.code=p.category_code "
+            "ORDER BY p.category_code,p.name,p.id"
+        ).fetchall()
+        products = _hydrate_products(conn, rows)
+    for product in products:
+        _add_reserved(product)
+    return products
+
+
+def admin_product(product_id: int) -> dict[str, Any] | None:
+    product = get_product_by_id(product_id)
+    return _add_reserved(product) if product else None
+
+
+def _add_reserved(product: dict[str, Any]) -> dict[str, Any]:
+    for variant in product["variants"]:
+        variant["reserved"] = int(variant["stock_on_hand"]) - int(
+            variant["available_stock"]
+        )
+    product["stock_on_hand"] = sum(
+        int(variant["stock_on_hand"]) for variant in product["variants"]
+    )
+    product["reserved"] = sum(variant["reserved"] for variant in product["variants"])
+    return product
+
+
+def update_product(
+    product_id: int,
+    *,
+    name: str,
+    description: str,
+    featured: bool,
+    published: bool,
+    variants: Sequence[VariantUpdate],
+) -> None:
+    """Update product details and variant price/stock in one transaction.
+
+    A stock edit is applied only when the admin changed the value they were
+    shown, and is rejected if stock moved since the form loaded (a sale or
+    another admin), so concurrent changes are never silently overwritten.
+    """
+    name = name.strip()
+    if not name:
+        raise AdminError("Product name is required.")
+    with connection(write=True) as conn:
+        if not conn.execute(
+            "SELECT 1 FROM products WHERE id=%s FOR UPDATE", (product_id,)
+        ).fetchone():
+            raise AdminError("Product not found.")
+        # Lock first, then read reservations in a later statement so its
+        # snapshot includes any reservation committed while waiting.
+        conn.execute(
+            "SELECT id FROM variants WHERE product_id=%s ORDER BY id FOR UPDATE",
+            (product_id,),
+        ).fetchall()
+        current = {
+            int(row["id"]): row
+            for row in conn.execute(
+                f"SELECT v.id,v.sku,v.stock_on_hand,{_available_sql()} available_stock "
+                "FROM variants v WHERE v.product_id=%s",
+                (product_id,),
+            )
+        }
+        for variant in variants:
+            row = current.get(variant.id)
+            if row is None:
+                raise AdminError("A variant does not belong to this product.")
+            stock = int(row["stock_on_hand"])
+            new_stock = stock
+            if variant.stock_on_hand != variant.expected_stock:
+                if variant.expected_stock != stock:
+                    raise AdminError(
+                        f"Stock for {row['sku']} changed to {stock} while you were "
+                        "editing. Review it and save again."
+                    )
+                reserved = stock - int(row["available_stock"])
+                if variant.stock_on_hand < reserved:
+                    raise AdminError(
+                        f"Stock for {row['sku']} cannot go below the {reserved} "
+                        "units reserved by open checkouts."
+                    )
+                new_stock = variant.stock_on_hand
+            conn.execute(
+                "UPDATE variants SET name=%s,upc=%s,price_cents=%s,stock_on_hand=%s "
+                "WHERE id=%s",
+                (
+                    variant.name,
+                    variant.upc,
+                    variant.price_cents,
+                    new_stock,
+                    variant.id,
+                ),
+            )
+        conn.execute(
+            "UPDATE products SET name=%s,description=%s,featured=%s,published=%s,"
+            "updated_at=%s WHERE id=%s",
+            (name, description.strip(), featured, published, utc_now(), product_id),
+        )
+
+
+def admin_create_product(product: ProductInput) -> int:
+    """Create a product, keeping an existing category's label."""
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT label FROM categories WHERE code=%s", (product.category_code,)
+        ).fetchone()
+    if row:
+        product = product.model_copy(update={"category_label": row["label"]})
+    try:
+        return create_product(product)
+    except psycopg.errors.UniqueViolation as exc:
+        raise AdminError("That SKU is already in use.") from exc
+
+
+def add_variant(product_id: int, variant: VariantInput) -> None:
+    with connection(write=True) as conn:
+        product = conn.execute(
+            "SELECT base_sku FROM products WHERE id=%s FOR UPDATE", (product_id,)
+        ).fetchone()
+        if not product:
+            raise AdminError("Product not found.")
+        base_sku = product["base_sku"]
+        if variant.sku != base_sku and not variant.sku.startswith(f"{base_sku}-"):
+            raise AdminError(f"Variant SKUs must start with {base_sku}.")
+        position = conn.execute(
+            "SELECT COALESCE(MAX(position)+1,0) AS position FROM variants "
+            "WHERE product_id=%s",
+            (product_id,),
+        ).fetchone()["position"]
+        try:
+            with conn.transaction():
+                conn.execute(
+                    "INSERT INTO variants(product_id,sku,upc,name,price_cents,"
+                    "stock_on_hand,position) VALUES(%s,%s,%s,%s,%s,%s,%s)",
+                    (
+                        product_id,
+                        variant.sku,
+                        variant.upc,
+                        variant.name,
+                        variant.price_cents,
+                        variant.stock_on_hand,
+                        position,
+                    ),
+                )
+        except psycopg.errors.UniqueViolation as exc:
+            raise AdminError("That SKU is already in use.") from exc
+        conn.execute(
+            "UPDATE products SET updated_at=%s WHERE id=%s", (utc_now(), product_id)
+        )
+
+
+def admin_orders(
+    *, fulfillment_state: str | None = None, limit: int = 200
+) -> list[dict[str, Any]]:
+    clause, params = "", []
+    if fulfillment_state:
+        clause, params = "WHERE o.fulfillment_state=%s", [fulfillment_state]
+    with connection() as conn:
+        return [
+            dict(row)
+            for row in conn.execute(
+                "SELECT o.id,o.email,o.currency,o.amount_total_cents,o.payment_state,"
+                "o.fulfillment_state,o.review_state,o.refund_state,o.created_at,"
+                "(SELECT COALESCE(SUM(i.quantity),0) FROM order_items i "
+                "WHERE i.order_id=o.id) AS item_count "
+                f"FROM orders o {clause} ORDER BY o.created_at DESC,o.id LIMIT %s",
+                [*params, max(1, min(limit, 1000))],
+            )
+        ]
+
+
+def admin_order_counts() -> dict[str, int]:
+    counts = dict.fromkeys(ORDER_FULFILLMENT_STATES, 0)
+    with connection() as conn:
+        for row in conn.execute(
+            "SELECT fulfillment_state,COUNT(*) AS count FROM orders "
+            "GROUP BY fulfillment_state"
+        ):
+            counts[row["fulfillment_state"]] = int(row["count"])
+    return counts
+
+
+def admin_order(order_id: str) -> dict[str, Any] | None:
+    with connection() as conn:
+        row = conn.execute("SELECT * FROM orders WHERE id=%s", (order_id,)).fetchone()
+        if not row:
+            return None
+        order = dict(row)
+        order["items"] = [
+            dict(item)
+            for item in conn.execute(
+                "SELECT sku,product_name,variant_name,quantity,unit_amount_cents "
+                "FROM order_items WHERE order_id=%s ORDER BY id",
+                (order_id,),
+            )
+        ]
+        return order
+
+
+def update_order(
+    order_id: str,
+    *,
+    fulfillment_state: str,
+    review_state: str,
+    review_reason: str,
+) -> None:
+    if fulfillment_state not in ORDER_FULFILLMENT_STATES:
+        raise AdminError("Unknown fulfillment state.")
+    if review_state not in ORDER_REVIEW_STATES:
+        raise AdminError("Unknown review state.")
+    reason = review_reason.strip()[:500] or None
+    with connection(write=True) as conn:
+        changed = conn.execute(
+            "UPDATE orders SET fulfillment_state=%s,review_state=%s,review_reason=%s,"
+            "updated_at=%s WHERE id=%s",
+            (fulfillment_state, review_state, reason, utc_now(), order_id),
+        ).rowcount
+        if changed != 1:
+            raise AdminError("Order not found.")

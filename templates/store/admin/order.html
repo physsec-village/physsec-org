@@ -1,0 +1,101 @@
+{% extends "store/admin/base.html" %}
+{% block title %}Order {{ order.id[:8] }}{% endblock %}
+
+{% block main %}
+    <div class="admin-head"><h1>Order <span class="mono">{{ order.id[:8] }}</span></h1></div>
+    <p class="admin-meta">
+        <span class="mono">{{ order.id }}</span> · placed {{ order.created_at.strftime("%Y-%m-%d %H:%M UTC") }}
+    </p>
+
+    <div class="admin-columns">
+        <section class="admin-card">
+            <h2>Items</h2>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">SKU</th>
+                            <th scope="col">Item</th>
+                            <th scope="col" class="num">Qty</th>
+                            <th scope="col" class="num">Unit</th>
+                            <th scope="col" class="num">Line</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in order["items"] %}
+                            <tr>
+                                <td class="mono">{{ item.sku }}</td>
+                                <td>{{ item.product_name }}{% if item.variant_name %} — {{ item.variant_name }}{% endif %}</td>
+                                <td class="num">{{ item.quantity }}</td>
+                                <td class="num mono">${{ money(item.unit_amount_cents) }}</td>
+                                <td class="num mono">${{ money(item.unit_amount_cents * item.quantity) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <dl class="admin-totals">
+                <dt>Subtotal</dt><dd class="mono">${{ money(order.amount_subtotal_cents) }}</dd>
+                <dt>Shipping</dt><dd class="mono">${{ money(order.amount_shipping_cents) }}</dd>
+                <dt>Tax</dt><dd class="mono">${{ money(order.amount_tax_cents) }}</dd>
+                <dt>Total</dt><dd class="mono">${{ money(order.amount_total_cents) }} {{ order.currency | upper }}</dd>
+                {% if order.amount_refunded_cents %}
+                    <dt>Refunded</dt><dd class="mono">${{ money(order.amount_refunded_cents) }}</dd>
+                {% endif %}
+            </dl>
+        </section>
+
+        <section class="admin-card">
+            <h2>Customer</h2>
+            <p>{{ order.email or "No email recorded" }}</p>
+            {% if ship_name or address %}
+                <address class="admin-address">
+                    {% if ship_name %}{{ ship_name }}<br />{% endif %}
+                    {% if address.line1 %}{{ address.line1 }}<br />{% endif %}
+                    {% if address.line2 %}{{ address.line2 }}<br />{% endif %}
+                    {{ address.city or "" }}{% if address.state %}, {{ address.state }}{% endif %} {{ address.postal_code or "" }}<br />
+                    {{ address.country or "" }}
+                </address>
+            {% else %}
+                <p>No shipping address recorded.</p>
+            {% endif %}
+            <dl class="admin-totals">
+                <dt>Payment</dt><dd>{{ order.payment_state }}</dd>
+                <dt>Refund</dt><dd>{{ order.refund_state }}</dd>
+                <dt>Payment intent</dt><dd class="mono">{{ order.payment_intent_id or "—" }}</dd>
+            </dl>
+            <p class="admin-hint">Issue refunds in the Stripe dashboard; the refund state updates from Stripe's webhook.</p>
+        </section>
+    </div>
+
+    <form method="post" action="{{ url_for('store_admin_update_order', order_id=order.id) }}" class="admin-card">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <h2>Status</h2>
+        <div class="admin-grid">
+            <label class="admin-field">
+                <span>Fulfillment</span>
+                <select name="fulfillment_state">
+                    {% for state in fulfillment_states %}
+                        <option value="{{ state }}" {% if state == order.fulfillment_state %}selected{% endif %}>{{ state | capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="admin-field">
+                <span>Review</span>
+                <select name="review_state">
+                    {% for state in review_states %}
+                        <option value="{{ state }}" {% if state == order.review_state %}selected{% endif %}>{{ state | replace("_", " ") | capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </div>
+        <label class="admin-field">
+            <span>Review note</span>
+            <textarea name="review_reason" rows="2" maxlength="500">{{ order.review_reason or "" }}</textarea>
+        </label>
+        <div class="admin-actions">
+            <button type="submit" class="btn btn-primary">Save status</button>
+            <a class="btn btn-ghost" href="{{ url_for('store_admin_orders') }}">Back to orders</a>
+        </div>
+    </form>
+{% endblock %}

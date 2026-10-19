@@ -1,0 +1,72 @@
+{% extends "store/admin/base.html" %}
+{% block title %}Products{% endblock %}
+
+{% block main %}
+    <section class="admin-stats" aria-label="Summary">
+        <div class="admin-stat">
+            <span class="admin-stat-value">{{ products | length }}</span>
+            <span class="admin-stat-label">Products</span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat-value">{{ products | selectattr("published") | list | length }}</span>
+            <span class="admin-stat-label">Published</span>
+        </div>
+        <div class="admin-stat">
+            <span class="admin-stat-value">{{ low_stock }}</span>
+            <span class="admin-stat-label">Published with a sold-out variant</span>
+        </div>
+        <a class="admin-stat" href="{{ url_for('store_admin_orders') }}?fulfillment=unfulfilled">
+            <span class="admin-stat-value">{{ order_counts.unfulfilled }}</span>
+            <span class="admin-stat-label">Unfulfilled orders</span>
+        </a>
+        <a class="admin-stat" href="{{ url_for('store_admin_orders') }}?fulfillment=processing">
+            <span class="admin-stat-value">{{ order_counts.processing }}</span>
+            <span class="admin-stat-label">Processing orders</span>
+        </a>
+    </section>
+
+    <div class="admin-head">
+        <h1>Products</h1>
+        <a class="btn btn-primary" href="{{ url_for('store_admin_new_product') }}">New product</a>
+    </div>
+
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th scope="col">Product</th>
+                    <th scope="col">Base SKU</th>
+                    <th scope="col">Category</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="num">Variants</th>
+                    <th scope="col" class="num">Price</th>
+                    <th scope="col" class="num">On hand</th>
+                    <th scope="col" class="num">Reserved</th>
+                    <th scope="col" class="num">Available</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                    <tr>
+                        <td><a href="{{ url_for('store_admin_product', product_id=product.id) }}">{{ product.name }}</a></td>
+                        <td class="mono">{{ product.base_sku }}</td>
+                        <td>{{ product.category_label }}</td>
+                        <td>
+                            {% if product.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag">Hidden</span>{% endif %}
+                            {% if product.featured %}<span class="tag tag-accent">Featured</span>{% endif %}
+                        </td>
+                        <td class="num">{{ product.variant_count }}</td>
+                        <td class="num mono">
+                            ${{ money(product.min_price_cents) }}{% if product.price_varies %}–{{ money(product.max_price_cents) }}{% endif %}
+                        </td>
+                        <td class="num mono">{{ product.stock_on_hand }}</td>
+                        <td class="num mono">{{ product.reserved }}</td>
+                        <td class="num mono{% if product.all_sold_out %} warn{% endif %}">{{ product.total_stock }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="9">No products yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

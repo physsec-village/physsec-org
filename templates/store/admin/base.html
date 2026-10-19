@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="robots" content="noindex,nofollow" />
+        <title>{% block title %}Store admin{% endblock %} | PSV</title>
+        <link rel="icon" type="image/png" href="/static/psv-compact-logo.png" />
+        <link href="/static/styles.css" rel="stylesheet" />
+        <link href="/static/pages/store-admin.css" rel="stylesheet" />
+    </head>
+
+    <body class="admin">
+        <header class="admin-bar">
+            <a class="admin-brand" href="{{ url_for('store_admin_dashboard') }}">PSV store admin</a>
+            <nav class="admin-nav" aria-label="Admin">
+                <a href="{{ url_for('store_admin_dashboard') }}">Products</a>
+                <a href="{{ url_for('store_admin_orders') }}">Orders</a>
+                <a href="{{ url_for('store_page') }}">View store</a>
+            </nav>
+        </header>
+
+        <main class="admin-main">
+            {% if notice %}<p class="admin-notice" role="status">{{ notice }}</p>{% endif %}
+            {% if error %}<p class="admin-error" role="alert">{{ error }}</p>{% endif %}
+            {% block main %}{% endblock %}
+        </main>
+    </body>
+</html>

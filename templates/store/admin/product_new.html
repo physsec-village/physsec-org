@@ -1,0 +1,57 @@
+{% extends "store/admin/base.html" %}
+{% block title %}New product{% endblock %}
+
+{% block main %}
+    <div class="admin-head"><h1>New product</h1></div>
+
+    <form method="post" action="{{ url_for('store_admin_create_product') }}" class="admin-card">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <p class="admin-hint">
+            The base SKU (<span class="mono">PSV-CATEGORY-NNN</span>) sets the
+            category and the product's store URL and cannot be changed later.
+            Add more variants after creating the product.
+        </p>
+        <div class="admin-grid">
+            <label class="admin-field">
+                <span>Name</span>
+                <input name="name" value="{{ form.name }}" required maxlength="200" />
+            </label>
+            <label class="admin-field">
+                <span>Base SKU</span>
+                <input name="base_sku" value="{{ form.base_sku }}" required placeholder="PSV-BYP-099" maxlength="64" />
+            </label>
+            <label class="admin-field">
+                <span>Category label (new categories only)</span>
+                <input name="category_label" value="{{ form.category_label }}" maxlength="100" />
+            </label>
+            <label class="admin-field">
+                <span>Variant label (optional)</span>
+                <input name="variant_name" value="{{ form.variant_name }}" maxlength="200" />
+            </label>
+            <label class="admin-field">
+                <span>UPC</span>
+                <input name="upc" value="{{ form.upc }}" maxlength="32" />
+            </label>
+            <label class="admin-field">
+                <span>Price ($)</span>
+                <input name="price" value="{{ form.price }}" required inputmode="decimal" placeholder="19.99" />
+            </label>
+            <label class="admin-field">
+                <span>Stock on hand</span>
+                <input name="stock" value="{{ form.stock or 0 }}" type="number" min="0" step="1" required />
+            </label>
+        </div>
+        <label class="admin-field">
+            <span>Description</span>
+            <textarea name="description" rows="4" maxlength="5000">{{ form.description }}</textarea>
+        </label>
+        <div class="admin-checks">
+            <label><input type="checkbox" name="published" value="true" {% if form.published %}checked{% endif %} /> Published</label>
+            <label><input type="checkbox" name="featured" value="true" {% if form.featured %}checked{% endif %} /> Featured</label>
+        </div>
+        <div class="admin-actions">
+            <button type="submit" class="btn btn-primary">Create product</button>
+            <a class="btn btn-ghost" href="{{ url_for('store_admin_dashboard') }}">Cancel</a>
+        </div>
+    </form>
+{% endblock %}

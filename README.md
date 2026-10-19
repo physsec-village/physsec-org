@@ -18,6 +18,8 @@ This repository contains the FastAPI-based website for Physical Security Village
 - `src/router.py`: main page routes
 - `src/forms/router.py`: volunteer page, calls page, contact email endpoint
 - `src/forms/email.py`: SMTP configuration from environment variables
+- `src/store/`: store catalog, PostgreSQL persistence, Stripe checkout, and
+  the `/store/admin` UI (`admin.py`, `admin_auth.py`)
 - `templates/`: page templates, navbar, footer, base layout, 404 page
 - `static/`: global and page-specific CSS, logos, SVG assets
 - `Dockerfile`: container image definition
@@ -48,6 +50,7 @@ The app currently serves these user-facing routes:
 - `/store/checkout`
 - `/store/confirmed`
 - `/store/webhook` (`POST`, Stripe-signed)
+- `/store/admin` (HTTP Basic; see [Store admin](#store-admin))
 
 ## Local Development
 
@@ -167,6 +170,34 @@ uv run pytest
 Set `TEST_DATABASE_URL` to override the local test URL. Never point tests at the
 production database.
 
+#### Store admin
+
+`/store/admin` is a small server-rendered admin UI for the store: it lists
+every product with its stock, reservations and availability; edits product
+name, description, published/featured flags, and each variant's label, UPC,
+price and stock; creates products and adds variants; and lists orders, shows
+their items and shipping address, and updates fulfillment and review state.
+Products cannot be deleted (the application role has no `DELETE`); unpublish
+them instead. Refunds are issued in the Stripe dashboard and recorded from
+Stripe's webhook.
+
+The admin UI returns 404 unless the store is enabled and both
+`STORE_ADMIN_USERNAME` and `STORE_ADMIN_PASSWORD_HASH` are set. Generate the
+hash, which contains no `$` and is safe in `.env`, with:
+
+```sh
+uv run python -m src.store.admin_auth
+```
+
+Requests authenticate with HTTP Basic over the site's HTTPS origin. Ten failed
+sign-ins from one address within five minutes are rejected with 429 for the
+rest of that window (per process). Every form carries a CSRF token derived
+from the configured credentials, and admin responses are sent with
+`Cache-Control: no-store`. Stock edits are rejected if stock changed since the
+form loaded or if the new value is below the units reserved by open
+checkouts. Browsers cache Basic credentials until they are closed, so close
+the browser to sign out.
+
 #### Migrating off Supabase
 
 1. Provision roles and the `psv_store` database with the `physsec-oci` playbook.
@@ -262,5 +293,5 @@ The site already has a coherent frontend structure, working contact and
 volunteer email paths, locally managed game thumbnails, and a Stripe-backed
 store commerce foundation. Store inventory and production Stripe configuration
 must be loaded before checkout is enabled. The main remaining areas are
-organizational content, real event/archive data, store administration,
+organizational content, real event/archive data, store media management,
 sponsorship decisions, legacy game routes, and deployment-specific operations.
