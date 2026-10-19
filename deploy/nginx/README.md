@@ -60,6 +60,15 @@ using `$proxy_add_x_forwarded_for`. That difference is intentional: the app
 trusts nginx's forwarded address for rate limiting, so nginx must discard any
 client-supplied forwarding chain.
 
+Both domains are proxied through Cloudflare, so the connecting peer is a
+Cloudflare edge rather than the visitor. Each virtual host uses the
+`ngx_http_realip_module` to restore `$remote_addr` from `CF-Connecting-IP`,
+trusting that header only from Cloudflare's published ranges
+(<https://www.cloudflare.com/ips/>). Without it, every visitor behind the same
+edge would share one rate-limit bucket and Turnstile siteverify would receive
+the edge's address as `remoteip`. Update the `set_real_ip_from` lists when
+Cloudflare changes its ranges.
+
 The dev virtual host redirects HTTP to `https://dev.physsec.org`, proxies to
 the `psv_dev` upstream, sends `X-Robots-Tag: noindex, nofollow`, and serves a
 disallow-all `robots.txt`.
