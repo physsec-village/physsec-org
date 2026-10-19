@@ -114,3 +114,92 @@ def test_migrator_skips_without_migration_url(monkeypatch):
     monkeypatch.setenv("MIGRATION_DATABASE_URL", "")
 
     assert migrate.main() == 0
+
+
+MIGRATION_TEST_APP_ROLE = "psv_migrate_test_app"
+
+
+@pytest.fixture
+def migration_test_app_role(migration_test_database):
+    # Roles are cluster-wide, so drop this one again. Its privileges in the
+    # test database have to go first, and that database still exists here.
+    role = sql.Identifier(MIGRATION_TEST_APP_ROLE)
+    with psycopg.connect(_admin_conninfo("postgres"), autocommit=True) as conn:
+        conn.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(role))
+        conn.execute(sql.SQL("CREATE ROLE {} NOLOGIN").format(role))
+    try:
+        yield MIGRATION_TEST_APP_ROLE
+    finally:
+        with psycopg.connect(migration_test_database, autocommit=True) as conn:
+            conn.execute(sql.SQL("DROP OWNED BY {}").format(role))
+        with psycopg.connect(_admin_conninfo("postgres"), autocommit=True) as conn:
+            conn.execute(sql.SQL("DROP ROLE {}").format(role))
+
+
+def _app_role_url(role: str) -> str:
+    return f"postgresql://{role}@127.0.0.1:55432/{MIGRATION_TEST_DATABASE}"
+
+
+def test_migrator_grants_the_database_url_role(
+    monkeypatch, migration_test_database, migration_test_app_role
+):
+    monkeypatch.setenv("MIGRATION_DATABASE_URL", migration_test_database)
+    monkeypatch.setenv("DATABASE_URL", _app_role_url(migration_test_app_role))
+
+    assert migrate.apply_migrations() == len(_migration_files())
+
+    with psycopg.connect(migration_test_database) as conn:
+        privileges = conn.execute(
+            """
+            SELECT has_schema_privilege(%(role)s, 'store', 'USAGE'),
+                   has_table_privilege(%(role)s, 'store.products', 'SELECT, INSERT, UPDATE'),
+                   has_table_privilege(%(role)s, 'store.products', 'DELETE'),
+                   has_table_privilege(%(role)s, 'store.schema_metadata', 'SELECT'),
+                   has_table_privilege(%(role)s, 'store.schema_metadata', 'INSERT'),
+                   has_table_privilege(%(role)s, 'store.schema_metadata', 'UPDATE')
+            """,
+            {"role": migration_test_app_role},
+        ).fetchone()
+        # Default privileges cover tables later migrations create.
+        conn.execute("CREATE TABLE store.migrate_test_later (id int)")
+        later = conn.execute(
+            "SELECT has_table_privilege(%s, 'store.migrate_test_later', 'SELECT')",
+            (migration_test_app_role,),
+        ).fetchone()[0]
+
+    assert privileges == (True, True, False, True, False, False)
+    assert later
+
+
+def test_migrator_defaults_to_store_app(monkeypatch, migration_test_database):
+    monkeypatch.setenv("MIGRATION_DATABASE_URL", migration_test_database)
+    monkeypatch.delenv("DATABASE_URL")
+
+    assert migrate.app_role() == "store_app"
+    assert migrate.apply_migrations() == len(_migration_files())
+
+
+def test_migrator_rejects_a_missing_app_role(monkeypatch, migration_test_database):
+    monkeypatch.setenv("MIGRATION_DATABASE_URL", migration_test_database)
+    monkeypatch.setenv("DATABASE_URL", _app_role_url("psv_migrate_test_missing"))
+
+    with pytest.raises(psycopg.errors.RaiseException, match="does not exist"):
+        migrate.apply_migrations()
+
+
+def test_app_role_migration_requires_the_runner(migration_test_database):
+    grant_migration = next(
+        f for f in _migration_files() if f.name.endswith("_grant_app_role.sql")
+    )
+    with psycopg.connect(migration_test_database) as conn:
+        conn.execute(_migration_files()[0].read_text())
+        with pytest.raises(psycopg.errors.RaiseException, match="psv.app_role"):
+            conn.execute(grant_migration.read_text())
+
+
+def test_app_role_hides_an_invalid_database_url(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:s3cret@host/db?bogus")
+
+    with pytest.raises(ValueError) as excinfo:
+        migrate.app_role()
+    assert "s3cret" not in str(excinfo.value)

@@ -111,8 +111,9 @@ misconfiguration fails application startup.
 
 The store uses a private PostgreSQL VM managed in the
 `physsec-village/physsec-oci` repository. Production URLs must require TLS
-(`sslmode=require`, `verify-ca`, or `verify-full`). Use the restricted
-`store_app` role in `DATABASE_URL`, and keep the owner role URL in
+(`sslmode=require`, `verify-ca`, or `verify-full`). Use the environment's
+restricted application role in `DATABASE_URL` (`store_app` in production,
+`store_dev_app` on dev), and keep the owner role URL in
 `MIGRATION_DATABASE_URL` for migrations only. Both secrets belong only in the
 deployment `.env`; they must not be committed or sent to the browser.
 
@@ -128,7 +129,9 @@ TLS configuration, and backups are owned by the `physsec-oci`
 `ansible/roles/postgres` role. Backups run on the database VM.
 
 The store tables live in the `store` schema, which `PUBLIC` cannot use; only
-`store_app` is granted access. A fresh
+the application role is granted access. Migrations grant the role named by
+`DATABASE_URL` (or `store_app` when it is unset), so each environment's role
+gets the same privileges without a per-environment migration. A fresh
 database imports the bundled catalog with zero stock, so checkout remains
 unavailable until inventory is explicitly loaded. Prices and inventory are
 always resolved server-side in integer cents and browser carts contain only
