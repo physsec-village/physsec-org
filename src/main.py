@@ -1,4 +1,5 @@
 import logging
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -25,11 +26,36 @@ def rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONRespons
     )
 
 
+async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
+    # Starlette's ServerErrorMiddleware calls this for any exception that
+    # escapes the routes, middleware, mounts, or other exception handlers.
+    # It re-raises afterwards, so uvicorn still logs its own traceback; this
+    # record adds the request context and the error_id the client receives.
+    error_id = uuid.uuid4().hex
+    # The path only: query strings can carry tokens such as Stripe session IDs.
+    logger.exception(
+        "unhandled_exception error_id=%s method=%s path=%r",
+        error_id,
+        request.method,
+        request.url.path,
+        exc_info=exc,
+    )
+    # This response is built outside all user middleware, so it carries its
+    # own no-store headers instead of relying on them.
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error.", "error_id": error_id},
+        headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow"},
+    )
+
+
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 exceptions = {
     404: not_found,
     RateLimitExceeded: rate_limit_exceeded,
+    Exception: unhandled_exception,
 }
 
 
