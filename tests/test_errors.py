@@ -145,3 +145,27 @@ def test_browser_gets_fallback_page_when_error_template_fails(client, caplog):
         r.getMessage() == f"error_page_render_failed error_id={error_id}"
         for r in caplog.records
     )
+
+
+@pytest.mark.parametrize(
+    ("accept", "expected"),
+    [
+        (BROWSER_ACCEPT, "text/html"),
+        ("text/html", "text/html"),
+        ("text/html;q=0.9, application/json;q=0.5", "text/html"),
+        (STRIPE_ACCEPT, "application/json"),
+        ("*/*", "application/json"),
+        ("", "application/json"),
+        ("application/json, text/html;q=0", "application/json"),
+        ("application/json, text/html", "application/json"),
+        ("text/html;q=0.5, application/json", "application/json"),
+        ("text/html;q=0.5, application/*", "application/json"),
+        ("text/html;q=bogus", "application/json"),
+    ],
+)
+def test_error_format_follows_accept_preferences(client, accept, expected):
+    with patch.object(StaticFiles, "get_response", side_effect=OSError(SECRET)):
+        response = client.get("/static/x.css", headers={"Accept": accept})
+
+    assert response.status_code == 500
+    assert response.headers["content-type"].startswith(expected)

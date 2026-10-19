@@ -39,10 +39,38 @@ FALLBACK_ERROR_PAGE = """<!doctype html>
 """
 
 
+def accept_qualities(header: str) -> dict[str, float]:
+    qualities = {}
+    for media_range in header.lower().split(","):
+        media_type, *params = (part.strip() for part in media_range.split(";"))
+        quality = 1.0
+        for param in params:
+            name, _, value = param.partition("=")
+            if name.strip() == "q":
+                try:
+                    quality = min(max(float(value), 0.0), 1.0)
+                except ValueError:
+                    quality = 0.0
+        if media_type:
+            qualities[media_type] = quality
+    return qualities
+
+
 def wants_html(request: Request) -> bool:
-    # Browser navigations ask for text/html; fetch() calls, Stripe webhooks, and
-    # other API clients do not, so they get the JSON body.
-    return "text/html" in request.headers.get("accept", "").lower()
+    # Browser navigations name text/html explicitly; fetch() calls, Stripe
+    # webhooks, and other API clients do not, so they get the JSON body. HTML
+    # must also be acceptable (q > 0) and strictly preferred over JSON.
+    qualities = accept_qualities(request.headers.get("accept", ""))
+    html = qualities.get("text/html", 0.0)
+    json = next(
+        (
+            qualities[media_type]
+            for media_type in ("application/json", "application/*", "*/*")
+            if media_type in qualities
+        ),
+        0.0,
+    )
+    return html > 0 and html > json
 
 
 def error_page(request: Request, error_id: str) -> Response:
