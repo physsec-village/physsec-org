@@ -44,7 +44,7 @@ class StoreRouteTests(unittest.TestCase):
         self.assertIn('id="storeSearch"', cat.text)
 
         self.assertEqual(keys.status_code, 200)
-        self.assertIn("keyed-alike", keys.text)
+        self.assertRegex(keys.text, r'class="filter-btn active"\s+data-cat="KYS"')
 
         self.assertEqual(product.status_code, 200)
         self.assertIn("Cross Key", product.text)

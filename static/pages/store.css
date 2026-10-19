@@ -341,23 +341,6 @@
     font-size: 0.88rem;
 }
 
-.keys-note {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    color: var(--accent);
-    font-family: "Share Tech Mono", monospace;
-    font-size: 0.78rem;
-}
-
-.keys-note svg {
-    width: 0.9rem;
-    height: 0.9rem;
-    fill: none;
-    stroke: currentcolor;
-    stroke-width: 2;
-}
-
 .store-empty {
     justify-items: center;
     padding: 4rem 0;

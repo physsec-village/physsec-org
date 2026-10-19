@@ -358,7 +358,6 @@
                 chip.querySelector(".filter-count").textContent = String(counts[chip.dataset.cat]);
             }
             document.getElementById("resultCount").textContent = visible + " products";
-            document.getElementById("keysNote").hidden = activeCat !== "KYS";
             document.getElementById("storeEmpty").hidden = visible > 0;
             document.getElementById("emptyQuery").textContent = query;
             const active = chips.find((chip) => chip.dataset.cat === activeCat);

@@ -53,14 +53,6 @@
 
         <div class="store-meta" aria-live="polite">
             <span id="resultCount">{{ products | length if initial_cat == "All" else (products | selectattr("cat", "equalto", initial_cat) | list | length) }} products</span>
-            <span class="keys-note" id="keysNote" {% if initial_cat != "KYS" %}hidden{% endif %}>
-                <svg viewBox="0 0 24 24">
-                    <circle cx="7.5" cy="15.5" r="5.5" />
-                    <path d="m21 2-9.6 9.6" />
-                    <path d="m15.5 7.5 3 3L22 7l-3-3" />
-                </svg>
-                All PSV keys are cut keyed-alike
-            </span>
         </div>
 
         <div class="product-grid" id="productGrid">
