@@ -17,13 +17,17 @@ STRIPE_ACCEPT = "*/*; q=0.5, application/xml"
 
 @pytest.fixture
 def client():
-    # Starlette re-raises after sending the 500, so the test client must not
-    # turn the exception back into a test failure.
+    """A test client that returns server errors instead of raising them.
+
+    Starlette re-raises after sending the 500, so the test client must not
+    turn the exception back into a test failure.
+    """
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client
 
 
 def assert_json_500(response, records):
+    """Assert a JSON 500 body and return the matching log record."""
     assert response.status_code == 500
     assert response.headers["content-type"] == "application/json"
     body = response.json()
@@ -33,6 +37,7 @@ def assert_json_500(response, records):
 
 
 def assert_html_500(response, records):
+    """Assert an HTML 500 page showing the logged error_id and return its record."""
     assert response.status_code == 500
     assert response.headers["content-type"].startswith("text/html")
     [record] = [r for r in records if r.getMessage().startswith("unhandled_exception ")]
@@ -42,6 +47,7 @@ def assert_html_500(response, records):
 
 
 def assert_logged_500(response, records, error_id):
+    """Assert no-store headers, no leaked internals, and one logged traceback."""
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["vary"] == "Accept"
     assert SECRET not in response.text
@@ -59,6 +65,7 @@ def assert_logged_500(response, records, error_id):
 
 
 def test_unhandled_route_exception_returns_json_and_logs_error_id(client, caplog):
+    """A route exception logs method, path without query, and traceback."""
     with patch(
         "src.router.templates.TemplateResponse", side_effect=RuntimeError(SECRET)
     ):
@@ -74,6 +81,7 @@ def test_unhandled_route_exception_returns_json_and_logs_error_id(client, caplog
 
 
 def test_unhandled_exception_in_store_route_returns_json(client, caplog):
+    """Store routes are covered by the app-wide handler."""
     with patch("src.store.router.storefront.products", side_effect=KeyError(SECRET)):
         response = client.get("/store")
 
@@ -81,6 +89,7 @@ def test_unhandled_exception_in_store_route_returns_json(client, caplog):
 
 
 def test_unhandled_exception_in_static_mount_returns_json(client, caplog):
+    """Mounted StaticFiles apps are covered by the app-wide handler."""
     with patch.object(StaticFiles, "get_response", side_effect=OSError(SECRET)):
         response = client.get("/static/does-not-matter.css")
 
@@ -88,6 +97,7 @@ def test_unhandled_exception_in_static_mount_returns_json(client, caplog):
 
 
 def test_unhandled_exception_in_404_handler_returns_json(client, caplog):
+    """A failure inside another exception handler still gets a 500."""
     with patch("src.router.templates.TemplateResponse", side_effect=ValueError(SECRET)):
         response = client.get("/definitely-missing")
 
@@ -95,6 +105,7 @@ def test_unhandled_exception_in_404_handler_returns_json(client, caplog):
 
 
 def test_each_error_gets_a_distinct_id(client):
+    """Each failed request gets its own error_id."""
     with patch("src.router.templates.TemplateResponse", side_effect=RuntimeError()):
         first = client.get("/about").json()["error_id"]
         second = client.get("/about").json()["error_id"]
@@ -103,6 +114,7 @@ def test_each_error_gets_a_distinct_id(client):
 
 
 def test_existing_error_responses_are_unchanged(client):
+    """The 404 page, 422 errors, and HTTPException responses keep their format."""
     missing = client.get("/definitely-missing")
     assert missing.status_code == 404
     assert missing.headers["content-type"].startswith("text/html")
@@ -119,6 +131,7 @@ def test_existing_error_responses_are_unchanged(client):
 
 
 def test_stripe_style_client_gets_json(client, caplog):
+    """Stripe's Accept header gets JSON rather than the HTML page."""
     with patch("src.store.router.storefront.products", side_effect=KeyError(SECRET)):
         response = client.get("/store", headers={"Accept": STRIPE_ACCEPT})
 
@@ -126,6 +139,7 @@ def test_stripe_style_client_gets_json(client, caplog):
 
 
 def test_browser_gets_html_error_page(client, caplog):
+    """A browser's Accept header gets the full HTML 500 page."""
     with patch("src.store.router.storefront.products", side_effect=KeyError(SECRET)):
         response = client.get("/store", headers={"Accept": BROWSER_ACCEPT})
 
@@ -135,6 +149,7 @@ def test_browser_gets_html_error_page(client, caplog):
 
 
 def test_browser_gets_fallback_page_when_error_template_fails(client, caplog):
+    """A broken 500 template falls back to the static page and is logged."""
     with patch("src.router.templates.TemplateResponse", side_effect=RuntimeError(SECRET)):
         response = client.get("/about", headers={"Accept": BROWSER_ACCEPT})
 
@@ -164,6 +179,7 @@ def test_browser_gets_fallback_page_when_error_template_fails(client, caplog):
     ],
 )
 def test_error_format_follows_accept_preferences(client, accept, expected):
+    """HTML is chosen only when text/html is strictly preferred over JSON."""
     with patch.object(StaticFiles, "get_response", side_effect=OSError(SECRET)):
         response = client.get("/static/x.css", headers={"Accept": accept})
 

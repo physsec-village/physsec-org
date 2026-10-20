@@ -40,6 +40,11 @@ FALLBACK_ERROR_PAGE = """<!doctype html>
 
 
 def accept_qualities(header: str) -> dict[str, float]:
+    """Map each media range in an Accept header to its quality value.
+
+    Media types are lowercased. A missing q defaults to 1.0, values are clamped
+    to [0, 1], and an unparseable q counts as 0 so the range is ignored.
+    """
     qualities = {}
     for media_range in header.lower().split(","):
         media_type, *params = (part.strip() for part in media_range.split(";"))
@@ -57,9 +62,14 @@ def accept_qualities(header: str) -> dict[str, float]:
 
 
 def wants_html(request: Request) -> bool:
-    # Browser navigations name text/html explicitly; fetch() calls, Stripe
-    # webhooks, and other API clients do not, so they get the JSON body. HTML
-    # must also be acceptable (q > 0) and strictly preferred over JSON.
+    """Return whether the client prefers an HTML error page over JSON.
+
+    Browser navigations name text/html explicitly; fetch() calls, Stripe
+    webhooks, and other API clients do not, so they get the JSON body. HTML
+    must also be acceptable (q > 0) and strictly preferred over JSON, whose
+    quality comes from the most specific of application/json, application/*,
+    and */*.
+    """
     qualities = accept_qualities(request.headers.get("accept", ""))
     html = qualities.get("text/html", 0.0)
     json = next(
@@ -74,6 +84,11 @@ def wants_html(request: Request) -> bool:
 
 
 def error_page(request: Request, error_id: str) -> Response:
+    """Render the HTML 500 page showing error_id as the reference.
+
+    If the template itself fails, log that and return a minimal static page so
+    the browser still gets the reference instead of a second unhandled error.
+    """
     try:
         return templates.TemplateResponse(
             request=request,
@@ -89,10 +104,17 @@ def error_page(request: Request, error_id: str) -> Response:
 
 
 async def unhandled_exception(request: Request, exc: Exception) -> Response:
-    # Starlette's ServerErrorMiddleware calls this for any exception that
-    # escapes the routes, middleware, mounts, or other exception handlers.
-    # It re-raises afterwards, so uvicorn still logs its own traceback; this
-    # record adds the request context and the error_id the client receives.
+    """Log an unhandled exception and return a 500 that reveals no internals.
+
+    Starlette's ServerErrorMiddleware calls this for any exception that
+    escapes the routes, middleware, mounts, or other exception handlers.
+    It re-raises afterwards, so uvicorn still logs its own traceback; this
+    record adds the request context and the error_id the client receives.
+    Browsers get the HTML error page and every other client gets JSON.
+
+    This handler is async on purpose: a sync handler runs in a threadpool
+    where the active exception is no longer set, so exc is passed explicitly.
+    """
     error_id = uuid.uuid4().hex
     # The path only: query strings can carry tokens such as Stripe session IDs.
     logger.exception(
