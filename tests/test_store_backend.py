@@ -608,15 +608,17 @@ def test_reservation_uses_distinct_ids_for_null_skus(catalog_factory):
     assert problems == [{"variant_id": first, "reason": "stock", "available_stock": 0}]
 
 
-@pytest.mark.parametrize("item", [
-    {"variant_id": 0, "qty": 1}, {"variant_id": -1, "qty": 1},
-    {"variant_id": True, "qty": 1}, {"variant_id": "1", "qty": 1},
-    {"variant_id": 1, "qty": 0}, {"variant_id": 1, "qty": 100},
-    {"variant_id": 1, "qty": True}, {"variant_id": 1, "qty": 1.5},
+@pytest.mark.parametrize("make_item", [
+    lambda v: {"variant_id": 0, "qty": 1}, lambda v: {"variant_id": -1, "qty": 1},
+    lambda v: {"variant_id": True, "qty": 1}, lambda v: {"variant_id": str(v), "qty": 1},
+    lambda v: {"variant_id": v, "qty": 0}, lambda v: {"variant_id": v, "qty": 100},
+    lambda v: {"variant_id": v, "qty": True}, lambda v: {"variant_id": v, "qty": 1.5},
 ])
-def test_invalid_cart_items_are_rejected(item):
+def test_invalid_cart_items_are_rejected(catalog_factory, make_item):
+    # Stock covers every quantity so only the item's shape can cause the rejection.
+    variant_id = _database(catalog_factory, stock=200)
     with pytest.raises(db.CartUnavailable):
-        db.reserve_checkout([item])
+        db.reserve_checkout([make_item(variant_id)])
 
 
 def test_cart_http_validates_variant_ids_and_quantities(catalog_factory):
