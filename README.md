@@ -45,8 +45,10 @@ The app currently serves these user-facing routes:
 - `/forms/calls`
 - `/forms/email` (`POST`)
 - `/store`
-- `/store/catalog`
-- `/store/product/{product_id}`
+- `/store/collection/{slug}`
+- `/store/product/{slug}`
+- `/store/search?q=`
+- `/store/catalog` (301 redirect to `/store`)
 - `/store/checkout`
 - `/store/confirmed`
 - `/store/webhook` (`POST`, Stripe-signed)
@@ -134,11 +136,23 @@ TLS configuration, and backups are owned by the `physsec-oci`
 The store tables live in the `store` schema, which `PUBLIC` cannot use; only
 the application role is granted access. Migrations grant the role named by
 `DATABASE_URL` (or `store_app` when it is unset), so each environment's role
-gets the same privileges without a per-environment migration. A fresh
-database imports the bundled catalog with zero stock, so checkout remains
-unavailable until inventory is explicitly loaded. Prices and inventory are
-always resolved server-side in integer cents and browser carts contain only
-SKU/quantity pairs.
+gets the same privileges without a per-environment migration.
+
+The catalog lives in PostgreSQL: products, their variants and images, and
+ordered collections and groups are explicit data. A product can appear in
+several groups or collections. Only published products and collections appear
+in the store. Products, variants, stock and collection membership are edited in
+the [store admin](#store-admin); collections, groups and images are still
+managed with SQL. There is no startup import.
+
+The seed migration inserts the initial catalog with every variant's stock at 0.
+Nothing is purchasable until inventory is counted and stock is set in the admin.
+
+Prices and available inventory are resolved server-side in integer cents. Carts
+contain `variant_id`/quantity pairs. SKUs are optional, opaque inventory identifiers;
+they do not determine product grouping, pricing, or URLs. Image URLs in
+`store.product_images.url` are used directly; seeded images live under
+`/static/images/store/`.
 
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Stripe Checkout.
 - `STORE_PUBLIC_ORIGIN` is the canonical HTTPS origin used for Stripe redirects.
@@ -147,8 +161,6 @@ SKU/quantity pairs.
 - `STORE_AUTOMATIC_TAX=true` enables Stripe Tax.
 - `STORE_RESERVATION_MINUTES` controls reservation lifetime from 31 minutes to
   24 hours (default `35`, leaving a buffer above Stripe's 30-minute minimum).
-- `STORE_BOOTSTRAP_STOCK` controls initial stock during first-time import and
-  defaults to `0` so new deployments fail closed.
 
 Checkout creation atomically reserves inventory before contacting Stripe.
 Provider calls use the durable checkout ID as their idempotency key. Signed
@@ -173,13 +185,14 @@ production database.
 #### Store admin
 
 `/store/admin` is a small server-rendered admin UI for the store: it lists
-every product with its stock, reservations and availability; edits product
-name, description, published/featured flags, and each variant's label, UPC,
-price and stock; creates products and adds variants; and lists orders, shows
-their items and shipping address, and updates fulfillment and review state.
-Products cannot be deleted (the application role has no `DELETE`); unpublish
-them instead. Refunds are issued in the Stripe dashboard and recorded from
-Stripe's webhook.
+every product with its stock, reservations and availability; edits a product's
+name, URL slug, description, features, collections and published/featured
+flags, and each variant's label, SKU, UPC, price and stock; creates products
+and adds variants; and lists orders, shows their items and shipping address,
+and updates fulfillment and review state. Products and variants cannot be
+deleted (the application role's only `DELETE` grant is on collection
+membership); unpublish them instead. Refunds are issued in the Stripe
+dashboard and recorded from Stripe's webhook.
 
 The admin UI returns 404 while the store is disabled. Sign-in is a
 **temporary placeholder with hardcoded `admin`/`admin` credentials** in
@@ -196,16 +209,9 @@ value is below the units reserved by open checkouts.
 1. Provision roles and the `psv_store` database with the `physsec-oci` playbook.
    Put both PostgreSQL URLs in the production `.env`, then deploy once to create
    the schema while the store remains disabled.
-2. Copy data, unless Supabase holds nothing worth keeping (the store has never
-   been enabled in production, so a fresh catalog may be all you need). Use a
-   `postgres:17` client container on the app host. Supabase's direct host is
-   IPv6-only, so use the session-pooler URL from its Connect dialog. Put the old
-   Supabase owner URL and new `MIGRATION_DATABASE_URL` in a temporary `0600`
-   env file and pass it with `--env-file`, not command-line arguments. Pipe
-   `pg_dump --data-only --schema=store --exclude-table=store.schema_metadata --no-owner --no-privileges`
-   from the Supabase URL into
-   `psql -v ON_ERROR_STOP=1 --single-transaction` on `MIGRATION_DATABASE_URL`.
-   Identity sequence values are included in a data-only dump via `setval`.
+2. Do not copy data from Supabase. The store has never taken an order there,
+   and its catalog tables predate the current schema. The deploy's migrations
+   create the schema and seed the catalog on the new database.
 3. Verify `/readyz` and row counts. Only then enable the store if desired.
 4. Pause the Supabase project, keep it for a week, then delete it to stop
    billing.

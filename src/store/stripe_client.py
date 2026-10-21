@@ -35,6 +35,9 @@ def create_checkout_session(checkout: dict[str, Any]) -> stripe.checkout.Session
         name = item["product_name"]
         if item.get("variant_name"):
             name = f"{name} — {item['variant_name']}"
+        metadata = {"variant_id": str(item["variant_id"])}
+        if item.get("sku") is not None:
+            metadata["sku"] = item["sku"]
         line_items.append(
             {
                 "quantity": item["quantity"],
@@ -43,7 +46,7 @@ def create_checkout_session(checkout: dict[str, Any]) -> stripe.checkout.Session
                     "unit_amount": item["unit_amount_cents"],
                     "product_data": {
                         "name": name,
-                        "metadata": {"sku": item["sku"]},
+                        "metadata": metadata,
                     },
                 },
             }

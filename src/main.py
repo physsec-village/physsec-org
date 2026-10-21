@@ -19,7 +19,6 @@ from .store.admin import public_router as store_admin_public_router
 from .store.admin import router as store_admin_router
 from .store.config import store_enabled, validate_store_config
 from .store.router import router as store_router
-from .store.seed import bootstrap_catalog
 
 
 def rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONResponse:
@@ -165,7 +164,6 @@ async def lifespan(app: FastAPI):
     db.open_pool()
     try:
         db.require_schema()
-        bootstrap_catalog()
         yield
     finally:
         db.close_pool()

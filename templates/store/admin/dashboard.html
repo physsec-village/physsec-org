@@ -1,4 +1,5 @@
 {% extends "store/admin/base.html" %}
+{% from "store/admin/macros.html" import group_label %}
 {% block title %}Products{% endblock %}
 
 {% block main %}
@@ -35,8 +36,8 @@
             <thead>
                 <tr>
                     <th scope="col">Product</th>
-                    <th scope="col">Base SKU</th>
-                    <th scope="col">Category</th>
+                    <th scope="col">SKUs</th>
+                    <th scope="col">Collections</th>
                     <th scope="col">Status</th>
                     <th scope="col" class="num">Variants</th>
                     <th scope="col" class="num">Price</th>
@@ -49,8 +50,8 @@
                 {% for product in products %}
                     <tr>
                         <td><a href="{{ url_for('store_admin_product', product_id=product.id) }}">{{ product.name }}</a></td>
-                        <td class="mono">{{ product.base_sku }}</td>
-                        <td>{{ product.category_label }}</td>
+                        <td class="mono">{{ product.variants | map(attribute="sku") | select | join(", ") or "—" }}</td>
+                        <td>{% for group in product.groups %}{{ group_label(group) }}{% if not loop.last %}<br />{% endif %}{% else %}<span class="warn">None</span>{% endfor %}</td>
                         <td>
                             {% if product.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag">Hidden</span>{% endif %}
                             {% if product.featured %}<span class="tag tag-accent">Featured</span>{% endif %}

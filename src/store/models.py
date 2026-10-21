@@ -1,98 +1,83 @@
-"""Validated inputs and small value helpers for the store domain."""
+"""Validated admin inputs and small value helpers for the store domain."""
 
 from __future__ import annotations
 
 import re
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
-from pydantic import AliasChoices, BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator
 
-# Category codes in the real inventory include RFID.  Keep the grammar strict
-# while avoiding the three-character assumption made by the original backend.
-BASE_SKU_RE = re.compile(r"^PSV-[A-Z0-9]{3,8}-\d{3}$")
-VARIANT_SKU_RE = re.compile(r"^PSV-[A-Z0-9]{3,8}-\d{3}(?:-\d{3})?$")
-SLUG_RE = re.compile(r"[^a-z0-9]+")
+# Matches the check constraint on store.products.slug and store.collections.slug.
+SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+_SLUG_SEPARATORS = re.compile(r"[^a-z0-9]+")
 # Prices and stock are PostgreSQL integer columns.
 MAX_DB_INT = 2**31 - 1
 
 
+def _optional(value: str | None) -> str | None:
+    """Store blank SKUs and UPCs as NULL; the schema rejects empty strings."""
+    value = (value or "").strip()
+    return value or None
+
+
 class VariantInput(BaseModel):
-    sku: str
+    """A new variant. SKUs are optional, opaque inventory identifiers."""
+
     name: str = ""
-    upc: str = ""
+    sku: str | None = Field(default=None, max_length=64)
+    upc: str | None = Field(default=None, max_length=32)
     price_cents: int = Field(ge=0, le=MAX_DB_INT)
-    stock_on_hand: int = Field(
-        default=0,
-        ge=0,
-        le=MAX_DB_INT,
-        validation_alias=AliasChoices("stock_on_hand", "stock"),
-    )
-    position: int = 0
+    stock_on_hand: int = Field(default=0, ge=0, le=MAX_DB_INT)
 
     @model_validator(mode="after")
-    def validate_sku(self) -> VariantInput:
-        self.sku = self.sku.strip().upper()
+    def strip_text(self) -> VariantInput:
         self.name = self.name.strip()
-        self.upc = self.upc.strip()
-        if not VARIANT_SKU_RE.fullmatch(self.sku):
-            raise ValueError(
-                "Variant SKU must be PSV-CATEGORY-NNN with an optional -NNN suffix."
-            )
+        self.sku = _optional(self.sku)
+        self.upc = _optional(self.upc)
         return self
 
-    @property
-    def stock(self) -> int:
-        """Compatibility accessor for older form code."""
-        return self.stock_on_hand
+
+class VariantUpdate(VariantInput):
+    """An admin edit to an existing variant.
+
+    `expected_stock` is the stock on hand the admin was shown, so the database
+    can reject an edit made against a stale value.
+    """
+
+    id: int
+    stock_on_hand: int = Field(ge=0, le=MAX_DB_INT)
+    expected_stock: int = Field(ge=0, le=MAX_DB_INT)
 
 
 class ProductInput(BaseModel):
+    """Product details an admin can set. A blank slug is derived from the name."""
+
     name: str
     slug: str = ""
-    base_sku: str
     description: str = ""
-    category_label: str = ""
+    features: list[str] = []
     featured: bool = False
-    published: bool = True
-    variants: list[VariantInput]
+    published: bool = False
+    group_ids: list[int] = []
 
     @model_validator(mode="after")
     def validate_product(self) -> ProductInput:
         self.name = self.name.strip()
-        self.slug = slugify(self.slug or self.name)
-        self.base_sku = self.base_sku.strip().upper()
-        self.category_label = self.category_label.strip()
         if not self.name:
             raise ValueError("Product name is required.")
-        if not BASE_SKU_RE.fullmatch(self.base_sku):
-            raise ValueError("Base SKU must match PSV-CATEGORY-NNN.")
-        if not self.variants:
-            raise ValueError("At least one variant is required.")
-        seen: set[str] = set()
-        for variant in self.variants:
-            if variant.sku in seen:
-                raise ValueError("Variant SKUs must be unique within a product.")
-            seen.add(variant.sku)
-            if variant.sku != self.base_sku and not variant.sku.startswith(
-                f"{self.base_sku}-"
-            ):
-                raise ValueError("All variant SKUs must share the base SKU prefix.")
+        self.slug = self.slug.strip().lower() or slugify(self.name)
+        if not SLUG_RE.fullmatch(self.slug):
+            raise ValueError(
+                "URL slug may only contain lowercase letters, digits and single "
+                "hyphens between them."
+            )
+        self.description = self.description.strip()
+        self.features = [line.strip() for line in self.features if line.strip()]
         return self
-
-    @property
-    def category_code(self) -> str:
-        return category_code_from_sku(self.base_sku)
 
 
 def slugify(value: str) -> str:
-    return SLUG_RE.sub("-", value.lower()).strip("-") or "product"
-
-
-def category_code_from_sku(base_sku: str) -> str:
-    normalized = base_sku.strip().upper()
-    if not BASE_SKU_RE.fullmatch(normalized):
-        raise ValueError("Base SKU must match PSV-CATEGORY-NNN.")
-    return normalized.split("-")[1]
+    return _SLUG_SEPARATORS.sub("-", value.lower()).strip("-") or "product"
 
 
 def cents_from_dollars(value: str) -> int:
@@ -107,24 +92,3 @@ def cents_from_dollars(value: str) -> int:
 
 def dollars_from_cents(value: int) -> str:
     return f"{Decimal(value or 0) / Decimal(100):.2f}"
-
-
-class VariantUpdate(BaseModel):
-    """An admin edit to an existing variant.
-
-    `expected_stock` is the stock on hand the admin was shown, so the database
-    can reject an edit made against a stale value.
-    """
-
-    id: int
-    name: str = ""
-    upc: str = ""
-    price_cents: int = Field(ge=0, le=MAX_DB_INT)
-    stock_on_hand: int = Field(ge=0, le=MAX_DB_INT)
-    expected_stock: int = Field(ge=0, le=MAX_DB_INT)
-
-    @model_validator(mode="after")
-    def strip_text(self) -> VariantUpdate:
-        self.name = self.name.strip()
-        self.upc = self.upc.strip()
-        return self

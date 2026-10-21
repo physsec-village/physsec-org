@@ -73,16 +73,7 @@ def reservation_minutes() -> int:
     return value
 
 
-def bootstrap_stock() -> int:
-    """Return the initial stock assigned during first-time catalog import."""
-    value = _integer("STORE_BOOTSTRAP_STOCK", 0)
-    if value < 0:
-        raise ValueError("STORE_BOOTSTRAP_STOCK must be zero or greater.")
-    return value
-
-
 def validate_store_config() -> None:
     """Fail startup early when enabled store settings are invalid."""
     database_url()
     reservation_minutes()
-    bootstrap_stock()

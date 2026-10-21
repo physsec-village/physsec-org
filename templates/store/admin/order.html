@@ -24,7 +24,7 @@
                     <tbody>
                         {% for item in order["items"] %}
                             <tr>
-                                <td class="mono">{{ item.sku }}</td>
+                                <td class="mono">{{ item.sku or "—" }}</td>
                                 <td>{{ item.product_name }}{% if item.variant_name %} — {{ item.variant_name }}{% endif %}</td>
                                 <td class="num">{{ item.quantity }}</td>
                                 <td class="num mono">${{ money(item.unit_amount_cents) }}</td>

@@ -11,36 +11,22 @@ import stripe
 from fastapi.testclient import TestClient
 
 from src.main import app
-from src.store import db, seed, stripe_client
+from src.store import db, storefront, stripe_client
 from src.store import router as store_router
 from src.store.config import (
-    bootstrap_stock,
     database_url,
     reservation_minutes,
     store_enabled,
 )
-from src.store.models import ProductInput, VariantInput
-from src.store.storefront import ProductView, VariantView
 
 
-def _database(_tmp_path, *, stock: int = 1):
+def _database(catalog_factory, *, stock: int = 1):
     db.require_schema()
-    db.create_product(
-        ProductInput(
-            name="RFID Test Tool",
-            base_sku="PSV-RFID-001",
-            description="Test product",
-            category_label="RFID",
-            variants=[
-                VariantInput(
-                    sku="PSV-RFID-001",
-                    upc="123456789012",
-                    price_cents=2500,
-                    stock_on_hand=stock,
-                )
-            ],
-        ),
+    product = catalog_factory.product(
+        slug="rfid-test-tool", name="RFID Test Tool",
+        variants=[{"sku": "opaque.inventory/001", "price_cents": 2500, "stock": stock}],
     )
+    return product["variants"][0]["id"]
 
 
 def _paid_session(checkout):
@@ -58,12 +44,12 @@ def _paid_session(checkout):
     }
 
 
-def test_schema_and_rfid_catalog(tmp_path):
-    _database(tmp_path)
+def test_schema_and_rfid_catalog(catalog_factory):
+    variant_id = _database(catalog_factory)
 
-    assert db.readiness() == {"ready": True, "schema_version": 1}
+    assert db.readiness() == {"ready": True, "schema_version": 2}
     product = db.get_published_products()[0]
-    assert product["base_sku"] == "PSV-RFID-001"
+    assert product["variants"][0]["id"] == variant_id
     assert product["price_cents"] == 2500
     assert product["variants"][0]["available_stock"] == 1
 
@@ -74,8 +60,6 @@ def test_schema_and_rfid_catalog(tmp_path):
         ("STORE_RESERVATION_MINUTES", "not-a-number", reservation_minutes),
         ("STORE_RESERVATION_MINUTES", "30", reservation_minutes),
         ("STORE_RESERVATION_MINUTES", "1441", reservation_minutes),
-        ("STORE_BOOTSTRAP_STOCK", "not-a-number", bootstrap_stock),
-        ("STORE_BOOTSTRAP_STOCK", "-1", bootstrap_stock),
     ],
 )
 def test_store_numeric_configuration_is_validated(monkeypatch, name, value, reader):
@@ -112,86 +96,37 @@ def test_production_database_requires_tls(monkeypatch):
     assert database_url().endswith("sslmode=verify-full")
 
 
-def test_product_default_variant_prefers_available_stock():
-    variants = (
-        VariantView("001", "Sold out", "PSV-RFID-001-001", "", 1000, 0),
-        VariantView("002", "Available", "PSV-RFID-001-002", "", 1000, 2),
-    )
-    product = ProductView(
-        id="PSV-RFID-001",
-        name="RFID Tool",
-        cat="RFID",
-        cat_label="RFID",
-        sku=variants[0].sku,
-        upc="",
-        desc="",
-        featured=False,
-        price_cents=1000,
-        price_str="$10.00",
-        price_varies=False,
-        variants=variants,
-        available_stock=2,
-    )
-
-    assert product.default_variant.sku == "PSV-RFID-001-002"
+def test_product_default_variant_prefers_available_stock(catalog_factory):
+    product = catalog_factory.product(variants=[
+        {"name": "Sold out", "stock": 0}, {"name": "Available", "stock": 2},
+    ])
+    view = storefront.get_product(product["slug"])
+    assert view.default_variant.id == product["variants"][1]["id"]
+    assert view.purchasable
+    assert not view.sold_out
 
 
-def test_cart_normalization_caps_duplicate_sku_totals(tmp_path):
-    _database(tmp_path, stock=200)
+def test_cart_normalization_caps_duplicate_variant_totals(catalog_factory):
+    variant_id = _database(catalog_factory, stock=200)
     normalized, problems = db.normalize_cart(
         [
-            {"sku": "PSV-RFID-001", "qty": 60},
-            {"sku": "psv-rfid-001", "qty": 60},
+            {"variant_id": variant_id, "qty": 60},
+            {"variant_id": variant_id, "qty": 60},
         ],
     )
 
     assert normalized[0]["qty"] == 60
-    assert problems == [{"sku": "PSV-RFID-001", "reason": "quantity"}]
+    assert problems == [{"variant_id": variant_id, "reason": "quantity"}]
 
 
-def test_catalog_bootstrap_resumes_a_partial_import(tmp_path):
-    _database(tmp_path)
-
-    imported = seed.bootstrap_catalog()
-
-    assert imported > 0
-    assert seed.bootstrap_catalog() == 0
-    assert db.get_product_by_id("PSV-BYP-001") is not None
-
-
-def test_catalog_bootstrap_allows_longer_lock_wait(monkeypatch):
-    statements = []
-
-    class FakeConnection:
-        def execute(self, statement):
-            statements.append(statement)
-
-    class FakeConnectionContext:
-        def __enter__(self):
-            return FakeConnection()
-
-        def __exit__(self, *_args):
-            return False
-
-    monkeypatch.setattr(db, "connection", lambda **_kwargs: FakeConnectionContext())
-
-    with db.catalog_bootstrap_lock():
-        pass
-
-    assert statements == [
-        "SET LOCAL lock_timeout TO '60s'",
-        ("SELECT pg_advisory_xact_lock(hashtext('physsec-store-catalog-bootstrap'))"),
-    ]
-
-
-def test_reservation_prevents_overselling_and_expiry_releases(tmp_path):
-    _database(tmp_path)
+def test_reservation_prevents_overselling_and_expiry_releases(catalog_factory):
+    variant_id = _database(catalog_factory)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         attempts = [
             pool.submit(
                 db.reserve_checkout,
-                [{"sku": "PSV-RFID-001", "qty": 1}],
+                [{"variant_id": variant_id, "qty": 1}],
             )
             for _ in range(2)
         ]
@@ -206,13 +141,13 @@ def test_reservation_prevents_overselling_and_expiry_releases(tmp_path):
     assert (
         db.cleanup_expired_reservations(now=datetime.now(UTC) + timedelta(hours=1)) == 1
     )
-    replacement = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+    replacement = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     assert replacement["status"] == "creating"
 
 
-def test_paid_event_is_atomic_and_idempotent(tmp_path):
-    _database(tmp_path)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+def test_paid_event_is_atomic_and_idempotent(catalog_factory):
+    variant_id = _database(catalog_factory)
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     db.attach_stripe_session(checkout["id"], "cs_test_paid")
     session = _paid_session(checkout)
 
@@ -250,9 +185,9 @@ def test_paid_event_is_atomic_and_idempotent(tmp_path):
         )
 
 
-def test_concurrent_webhook_delivery_creates_one_order(tmp_path):
-    _database(tmp_path)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+def test_concurrent_webhook_delivery_creates_one_order(catalog_factory):
+    variant_id = _database(catalog_factory)
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     db.attach_stripe_session(checkout["id"], "cs_test_paid")
     session = _paid_session(checkout)
 
@@ -274,9 +209,9 @@ def test_concurrent_webhook_delivery_creates_one_order(tmp_path):
         ).fetchone() == {"attempts": 1, "state": "processed"}
 
 
-def test_distinct_paid_events_for_one_checkout_are_idempotent(tmp_path):
-    _database(tmp_path)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+def test_distinct_paid_events_for_one_checkout_are_idempotent(catalog_factory):
+    variant_id = _database(catalog_factory)
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     db.attach_stripe_session(checkout["id"], "cs_test_paid")
     session = _paid_session(checkout)
 
@@ -295,7 +230,7 @@ def test_distinct_paid_events_for_one_checkout_are_idempotent(tmp_path):
         )
         assert (
             conn.execute(
-                "SELECT stock_on_hand FROM variants WHERE sku='PSV-RFID-001'"
+                "SELECT stock_on_hand FROM variants WHERE id=%s", (variant_id,)
             ).fetchone()["stock_on_hand"]
             == 0
         )
@@ -308,9 +243,9 @@ def test_distinct_paid_events_for_one_checkout_are_idempotent(tmp_path):
         } == {"processed"}
 
 
-def test_payment_and_expiry_cleanup_are_serialized(tmp_path):
-    _database(tmp_path)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+def test_payment_and_expiry_cleanup_are_serialized(catalog_factory):
+    variant_id = _database(catalog_factory)
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     db.attach_stripe_session(checkout["id"], "cs_test_paid")
 
     def pay():
@@ -352,8 +287,8 @@ def test_payment_and_expiry_cleanup_are_serialized(tmp_path):
         )
 
 
-def test_failed_paid_event_rolls_back_then_can_be_recorded(tmp_path):
-    _database(tmp_path)
+def test_failed_paid_event_rolls_back_then_can_be_recorded(catalog_factory):
+    variant_id = _database(catalog_factory)
     missing = {
         "id": "cs_missing",
         "client_reference_id": "missing-checkout",
@@ -383,9 +318,9 @@ def test_failed_paid_event_rolls_back_then_can_be_recorded(tmp_path):
     }
 
 
-def test_paid_event_requires_explicit_payment_status(tmp_path):
-    _database(tmp_path)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+def test_paid_event_requires_explicit_payment_status(catalog_factory):
+    variant_id = _database(catalog_factory)
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     db.attach_stripe_session(checkout["id"], "cs_test_paid")
     session = _paid_session(checkout)
     session.pop("payment_status")
@@ -394,9 +329,9 @@ def test_paid_event_requires_explicit_payment_status(tmp_path):
         db.process_paid_event("evt_missing_status", session)
 
 
-def test_refund_state_does_not_overwrite_other_order_states(tmp_path):
-    _database(tmp_path)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+def test_refund_state_does_not_overwrite_other_order_states(catalog_factory):
+    variant_id = _database(catalog_factory)
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     db.attach_stripe_session(checkout["id"], "cs_test_paid")
     db.process_paid_event("evt_paid", _paid_session(checkout))
 
@@ -430,8 +365,8 @@ def test_refund_state_does_not_overwrite_other_order_states(tmp_path):
     assert order["refund_state"] == "full"
 
 
-def test_checkout_http_retry_reuses_reservation(tmp_path, monkeypatch):
-    _database(tmp_path)
+def test_checkout_http_retry_reuses_reservation(catalog_factory, monkeypatch):
+    variant_id = _database(catalog_factory)
     calls = 0
 
     def create_session(checkout):
@@ -446,8 +381,9 @@ def test_checkout_http_retry_reuses_reservation(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr(store_router, "create_checkout_session", create_session)
+    app.state.store_enabled = True
     client = TestClient(app)
-    payload = {"items": [{"sku": "PSV-RFID-001", "qty": 1}]}
+    payload = {"items": [{"variant_id": variant_id, "qty": 1}]}
 
     uncertain = client.post("/store/checkout", json=payload)
     assert uncertain.status_code == 502
@@ -473,9 +409,9 @@ def test_checkout_http_retry_reuses_reservation(tmp_path, monkeypatch):
         )
 
 
-def test_checkout_http_rejects_and_releases_a_stale_retry(tmp_path, monkeypatch):
-    _database(tmp_path)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+def test_checkout_http_rejects_and_releases_a_stale_retry(catalog_factory, monkeypatch):
+    variant_id = _database(catalog_factory)
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     stale_expiry = db._timestamp(datetime.now(UTC) + timedelta(minutes=29))
     with db.connection(write=True) as conn:
         conn.execute(
@@ -487,10 +423,11 @@ def test_checkout_http_rejects_and_releases_a_stale_retry(tmp_path, monkeypatch)
             (stale_expiry, checkout["id"]),
         )
 
+    app.state.store_enabled = True
     response = TestClient(app).post(
         "/store/checkout",
         json={
-            "items": [{"sku": "PSV-RFID-001", "qty": 1}],
+            "items": [{"variant_id": variant_id, "qty": 1}],
             "checkout_id": checkout["id"],
         },
     )
@@ -529,7 +466,8 @@ def test_stripe_client_uses_scoped_client_and_ignores_api_key_for_webhooks(monke
         "expires_at": (datetime.now(UTC) + timedelta(minutes=31)).isoformat(),
         "items": [
             {
-                "sku": "PSV-RFID-001",
+                "sku": "opaque.inventory/001",
+                "variant_id": 42,
                 "product_name": "RFID Tool",
                 "variant_name": "",
                 "unit_amount_cents": 2500,
@@ -542,6 +480,8 @@ def test_stripe_client_uses_scoped_client_and_ignores_api_key_for_webhooks(monke
 
     assert created["api_key"] == "sk_test_scoped"
     assert created["options"] == {"idempotency_key": "checkout:checkout-id"}
+    metadata = created["params"]["line_items"][0]["price_data"]["product_data"]["metadata"]
+    assert metadata == {"variant_id": "42", "sku": "opaque.inventory/001"}
 
     monkeypatch.delenv("STRIPE_SECRET_KEY")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
@@ -558,9 +498,10 @@ def test_stripe_client_uses_scoped_client_and_ignores_api_key_for_webhooks(monke
 
 
 def test_webhook_http_rejects_invalid_and_replays_paid_event_once(
-    tmp_path, monkeypatch
+    catalog_factory, monkeypatch
 ):
-    _database(tmp_path)
+    variant_id = _database(catalog_factory)
+    app.state.store_enabled = True
     client = TestClient(app)
 
     invalid = client.post(
@@ -568,7 +509,7 @@ def test_webhook_http_rejects_invalid_and_replays_paid_event_once(
     )
     assert invalid.status_code == 400
 
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     db.attach_stripe_session(checkout["id"], "cs_test_paid")
     event = {
         "id": "evt_http_paid",
@@ -602,6 +543,127 @@ def test_webhook_http_rejects_invalid_and_replays_paid_event_once(
     assert dict(ledger) == {"state": "processed", "attempts": 1}
 
 
+def test_null_sku_purchase_survives_paid_webhook(catalog_factory, monkeypatch):
+    product = catalog_factory.product(variants=[{"sku": None, "stock": 1}])
+    variant_id = product["variants"][0]["id"]
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
+    assert checkout["items"][0]["sku"] is None
+    assert checkout["items"][0]["variant_id"] == variant_id
+    db.attach_stripe_session(checkout["id"], "cs_test_paid")
+    monkeypatch.setattr(store_router, "construct_webhook_event", lambda *_: {
+        "id": "evt_null_sku", "type": "checkout.session.completed", "created": 123,
+        "data": {"object": _paid_session(checkout)},
+    })
+    with TestClient(app) as client:
+        assert client.post("/store/webhook", content=b"{}").status_code == 200
+    with db.connection() as conn:
+        assert conn.execute(
+            "SELECT variant_id,sku,quantity,unit_amount_cents FROM order_items"
+        ).fetchone() == {
+            "variant_id": variant_id, "sku": None, "quantity": 1, "unit_amount_cents": 2500,
+        }
+        assert conn.execute("SELECT stock_on_hand FROM variants").fetchone()["stock_on_hand"] == 0
+        assert conn.execute("SELECT state FROM inventory_reservations").fetchone()["state"] == "consumed"
+
+
+def test_stripe_omits_null_sku_metadata(monkeypatch):
+    created = {}
+
+    class Sessions:
+        def create(self, params, options):
+            created.update(params)
+            return SimpleNamespace(id="cs_null_sku")
+
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test")
+    monkeypatch.setenv("STORE_PUBLIC_ORIGIN", "https://example.test")
+    monkeypatch.setattr(stripe, "StripeClient", lambda _: SimpleNamespace(
+        v1=SimpleNamespace(checkout=SimpleNamespace(sessions=Sessions())),
+    ))
+    stripe_client.create_checkout_session({
+        "id": "checkout-null", "currency": "usd",
+        "expires_at": (datetime.now(UTC) + timedelta(minutes=35)).isoformat(),
+        "items": [{"variant_id": 7, "sku": None, "product_name": "Tool",
+                   "variant_name": "Blue", "unit_amount_cents": 500, "quantity": 1}],
+    })
+    product_data = created["line_items"][0]["price_data"]["product_data"]
+    assert product_data["metadata"] == {"variant_id": "7"}
+    assert product_data["name"] == "Tool — Blue"
+
+
+def test_reservation_uses_distinct_ids_for_null_skus(catalog_factory):
+    product = catalog_factory.product(variants=[
+        {"name": "Blue", "price_cents": 500, "stock": 2},
+        {"name": "Black", "price_cents": 1250, "stock": 3},
+    ])
+    first, second = [v["id"] for v in product["variants"]]
+    checkout = db.reserve_checkout([
+        {"variant_id": second, "qty": 2}, {"variant_id": first, "qty": 1},
+        {"variant_id": first, "qty": 1},
+    ])
+    assert checkout["subtotal_cents"] == 3500
+    assert [(i["variant_id"], i["quantity"]) for i in checkout["items"]] == [(first, 2), (second, 2)]
+    assert all(i["sku"] is None for i in checkout["items"])
+    normalized, problems = db.normalize_cart([{"variant_id": first, "qty": 1}])
+    assert normalized[0]["available_stock"] == 0
+    assert problems == [{"variant_id": first, "reason": "stock", "available_stock": 0}]
+
+
+@pytest.mark.parametrize("make_item", [
+    lambda v: {"variant_id": 0, "qty": 1}, lambda v: {"variant_id": -1, "qty": 1},
+    lambda v: {"variant_id": True, "qty": 1}, lambda v: {"variant_id": str(v), "qty": 1},
+    lambda v: {"variant_id": v, "qty": 0}, lambda v: {"variant_id": v, "qty": 100},
+    lambda v: {"variant_id": v, "qty": True}, lambda v: {"variant_id": v, "qty": 1.5},
+])
+def test_invalid_cart_items_are_rejected(catalog_factory, make_item):
+    # Stock covers every quantity so only the item's shape can cause the rejection.
+    variant_id = _database(catalog_factory, stock=200)
+    with pytest.raises(db.CartUnavailable):
+        db.reserve_checkout([make_item(variant_id)])
+
+
+def test_cart_http_validates_variant_ids_and_quantities(catalog_factory):
+    with TestClient(app) as client:
+        for item in ({"sku": "obsolete", "qty": 1}, {"variant_id": 0, "qty": 1},
+                     {"variant_id": 1, "qty": 100}):
+            assert client.post("/store/api/cart-info", json={"items": [item]}).status_code == 422
+            assert client.post("/store/checkout", json={"items": [item]}).status_code == 422
+
+
+def test_unavailable_item_rolls_back_entire_reservation(catalog_factory):
+    variant_id = _database(catalog_factory)
+    with pytest.raises(db.CartUnavailable):
+        db.reserve_checkout([{"variant_id": variant_id, "qty": 1}, {"variant_id": 9999, "qty": 1}])
+    with db.connection() as conn:
+        assert conn.execute("SELECT count(*) AS count FROM checkouts").fetchone()["count"] == 0
+        assert conn.execute("SELECT count(*) AS count FROM inventory_reservations").fetchone()["count"] == 0
+
+
+def test_paid_event_uses_checkout_snapshot_after_catalog_edits(catalog_factory):
+    variant_id = _database(catalog_factory)
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
+    with db.connection() as conn:
+        conn.execute("UPDATE variants SET sku=NULL,price_cents=9999 WHERE id=%s", (variant_id,))
+        conn.execute("UPDATE products SET name='New name',published=false")
+    db.process_paid_event("evt_snapshot", _paid_session(checkout))
+    with db.connection() as conn:
+        assert conn.execute(
+            "SELECT variant_id,sku,product_name,unit_amount_cents FROM order_items"
+        ).fetchone() == {
+            "variant_id": variant_id, "sku": "opaque.inventory/001",
+            "product_name": "RFID Test Tool", "unit_amount_cents": 2500,
+        }
+
+
+def test_expired_webhook_releases_once_and_does_not_restock(catalog_factory):
+    variant_id = _database(catalog_factory)
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
+    session = {"id": "cs_expired", "metadata": {"checkout_id": checkout["id"]}}
+    db.attach_stripe_session(checkout["id"], session["id"])
+    assert db.process_expired_event("evt_expired", session) == "expired"
+    assert db.process_expired_event("evt_expired", session) == "duplicate"
+    assert db.get_product_by_slug("rfid-test-tool")["variants"][0]["available_stock"] == 1
+    with pytest.raises(db.CheckoutConflict):
+        db.process_paid_event("evt_too_late", _paid_session(checkout))
 def _signed_webhook(event, secret="whsec_test"):
     payload = json.dumps(event).encode()
     timestamp = int(time.time())
@@ -611,12 +673,12 @@ def _signed_webhook(event, secret="whsec_test"):
     return payload, {"stripe-signature": f"t={timestamp},v1={digest}"}
 
 
-def test_webhook_http_handles_real_signed_stripe_events(tmp_path, monkeypatch):
+def test_webhook_http_handles_real_signed_stripe_events(catalog_factory, monkeypatch):
     # Real stripe.Event objects (not dicts) must reach the db layer as mappings.
-    _database(tmp_path)
+    variant_id = _database(catalog_factory)
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
     client = TestClient(app)
-    checkout = db.reserve_checkout([{"sku": "PSV-RFID-001", "qty": 1}])
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     db.attach_stripe_session(checkout["id"], "cs_test_paid")
     events = {
         "evt_signed_paid": {
@@ -653,9 +715,9 @@ def test_webhook_http_handles_real_signed_stripe_events(tmp_path, monkeypatch):
 
 
 def test_webhook_http_logs_unexpected_failures_as_json(
-    tmp_path, monkeypatch, caplog
+    catalog_factory, monkeypatch, caplog
 ):
-    _database(tmp_path)
+    _database(catalog_factory)
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
 
     def explode(*_args, **_kwargs):

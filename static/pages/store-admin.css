@@ -259,6 +259,27 @@ a.admin-stat:hover {
     font-family: "Share Tech Mono", ui-monospace, monospace;
 }
 
+.admin-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.4rem 1rem;
+    margin: 0 0 0.9rem;
+    padding: 0;
+    border: 0;
+    font-size: 0.9rem;
+}
+
+.admin-groups legend {
+    margin-bottom: 0.4rem;
+    color: var(--muted);
+}
+
+.admin-groups label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
 .admin-checks {
     display: flex;
     gap: 1.5rem;
