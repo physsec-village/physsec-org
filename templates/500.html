@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Something Went Wrong | Physical Security Village{% endblock %}
+{% block description %}The Physical Security Village site hit an unexpected error.{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
+{% block canonical %}{% endblock %}
+{% block styles %}
+<link href="/static/404.css" rel="stylesheet" />
+{% endblock %} {% block main %}
+    <div class="not-found-body">
+        <div class="not-found-inner">
+            <div class="nf-terminal">// System Fault</div>
+            <div class="nf-code" data-code="500">500</div>
+            <h1 class="nf-title">Something Went Wrong</h1>
+            <p class="nf-desc">
+                An unexpected error stopped this page from loading. Please try
+                again in a moment. If it keeps happening, let us know and
+                include reference <span class="nf-path">{{ error_id }}</span>.
+            </p>
+            <div class="nf-actions">
+                <a href="{{ url_for('home_page') }}" class="btn btn-primary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                    Return Home
+                </a>
+                <a href="{{ url_for('contact_us_page') }}" class="btn btn-outline">Report Issue</a>
+            </div>
+            <div class="nf-log">
+                <div class="nf-log-line"><span class="ok">[ OK ]</span> &nbsp;Navigation subsystem nominal</div>
+                <div class="nf-log-line"><span class="warn">[ WARN ]</span> Request handler raised an exception</div>
+                <div class="nf-log-line"><span class="err">[ ERR ]</span> &nbsp;HTTP 500 — internal server error</div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

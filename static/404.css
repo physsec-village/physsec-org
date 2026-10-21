@@ -76,7 +76,7 @@
 }
 .nf-code::before,
 .nf-code::after {
-    content: "404";
+    content: attr(data-code);
     position: absolute;
     inset: 0;
     font-family: inherit;
