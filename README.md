@@ -136,19 +136,17 @@ TLS configuration, and backups are owned by the `physsec-oci`
 The store tables live in the `store` schema, which `PUBLIC` cannot use; only
 the application role is granted access. Migrations grant the role named by
 `DATABASE_URL` (or `store_app` when it is unset), so each environment's role
-gets the same privileges without a per-environment migration. The catalog
-lives in PostgreSQL and is managed with SQL: products, their variants and
-images, and ordered collections and groups are explicit data. A product can appear in several groups or
-collections. Only published products and collections appear in the store.
-There is no catalog admin UI or startup import.
+gets the same privileges without a per-environment migration.
+
+The catalog lives in PostgreSQL: products, their variants and images, and
+ordered collections and groups are explicit data. A product can appear in
+several groups or collections. Only published products and collections appear
+in the store. Products, variants, stock and collection membership are edited in
+the [store admin](#store-admin); collections, groups and images are still
+managed with SQL. There is no startup import.
 
 The seed migration inserts the initial catalog with every variant's stock at 0.
-Nothing is purchasable until inventory is counted and `store.variants.stock_on_hand`
-is set. For example, after verifying the variant ID and inventory count:
-
-```sql
-UPDATE store.variants SET stock_on_hand = 10 WHERE id = 1;
-```
+Nothing is purchasable until inventory is counted and stock is set in the admin.
 
 Prices and available inventory are resolved server-side in integer cents. Carts
 contain `variant_id`/quantity pairs. SKUs are optional, opaque inventory identifiers;
@@ -187,13 +185,14 @@ production database.
 #### Store admin
 
 `/store/admin` is a small server-rendered admin UI for the store: it lists
-every product with its stock, reservations and availability; edits product
-name, description, published/featured flags, and each variant's label, UPC,
-price and stock; creates products and adds variants; and lists orders, shows
-their items and shipping address, and updates fulfillment and review state.
-Products cannot be deleted (the application role has no `DELETE`); unpublish
-them instead. Refunds are issued in the Stripe dashboard and recorded from
-Stripe's webhook.
+every product with its stock, reservations and availability; edits a product's
+name, URL slug, description, features, collections and published/featured
+flags, and each variant's label, SKU, UPC, price and stock; creates products
+and adds variants; and lists orders, shows their items and shipping address,
+and updates fulfillment and review state. Products and variants cannot be
+deleted (the application role's only `DELETE` grant is on collection
+membership); unpublish them instead. Refunds are issued in the Stripe
+dashboard and recorded from Stripe's webhook.
 
 The admin UI returns 404 while the store is disabled. Sign-in is a
 **temporary placeholder with hardcoded `admin`/`admin` credentials** in

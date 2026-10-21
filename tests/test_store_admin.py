@@ -14,6 +14,18 @@ def anonymous():
         yield test_client
 
 
+@pytest.fixture(autouse=True)
+def catalog(catalog_factory):
+    collection = catalog_factory.collection("rfid", "RFID")
+    group = catalog_factory.group(collection)
+    product = catalog_factory.product(
+        slug="proxmark", name="Proxmark",
+        variants=[{"sku": "PSV-RFID-001", "price_cents": 2500, "stock": 0}],
+    )
+    catalog_factory.add(group, product)
+    return {"product": product, "collection": collection, "group": group}
+
+
 @pytest.fixture
 def client(anonymous):
     page = anonymous.get("/store/admin/login")
@@ -38,10 +50,11 @@ def _csrf(page: str) -> str:
     return match.group(1)
 
 
-def _product(base_sku: str = "PSV-RFID-001") -> dict:
-    product = db.get_product_by_id(base_sku)
-    assert product is not None
-    return product
+def _product(slug: str = "proxmark") -> dict:
+    with db.connection() as conn:
+        row = conn.execute("SELECT id FROM products WHERE slug=%s", (slug,)).fetchone()
+    assert row is not None
+    return db.admin_product(row["id"])
 
 
 def _variant_form(product: dict, csrf: str, **overrides) -> dict:
@@ -49,12 +62,16 @@ def _variant_form(product: dict, csrf: str, **overrides) -> dict:
     form = {
         "csrf_token": csrf,
         "name": product["name"],
+        "slug": product["slug"],
         "description": product["description"],
+        "features": "\n".join(product["features"]),
+        "group_id": [str(group_id) for group_id in product["group_ids"]],
         "published": "true",
         "version": product["updated_at"].isoformat(),
         "variant_id": str(variant["id"]),
         "variant_name": variant["name"],
-        "variant_upc": variant["upc"],
+        "variant_sku": variant["sku"] or "",
+        "variant_upc": variant["upc"] or "",
         "variant_price": "10.00",
         "variant_stock": str(variant["stock_on_hand"]),
         "variant_expected_stock": str(variant["stock_on_hand"]),
@@ -64,11 +81,10 @@ def _variant_form(product: dict, csrf: str, **overrides) -> dict:
 
 
 def _paid_order() -> str:
-    product = _product()
-    sku = product["variants"][0]["sku"]
+    variant_id = _product()["variants"][0]["id"]
     with db.connection() as conn:
-        conn.execute("UPDATE variants SET stock_on_hand=1 WHERE sku=%s", (sku,))
-    checkout = db.reserve_checkout([{"sku": sku, "qty": 1}])
+        conn.execute("UPDATE variants SET stock_on_hand=1 WHERE id=%s", (variant_id,))
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     return db.process_paid_event(
         "evt_admin_paid",
         {
@@ -130,6 +146,7 @@ def test_sign_in_and_sign_out(client):
     assert page.status_code == 200
     assert page.headers["cache-control"] == "no-store"
     assert "noindex" in page.headers["x-robots-tag"]
+    assert "Proxmark" in page.text
     assert "PSV-RFID-001" in page.text
 
     out = client.post(
@@ -232,7 +249,7 @@ def test_stock_edit_rejects_a_stale_value(client):
     )
 
     assert stale.status_code == 400
-    assert "changed to 5 while you were editing" in stale.text
+    assert "Stock for Proxmark changed to 5 while you were editing" in stale.text
     assert untouched.status_code == 303
     variant = _product()["variants"][0]
     assert variant["stock_on_hand"] == 5
@@ -246,7 +263,7 @@ def test_stock_cannot_drop_below_reservations(client):
         conn.execute(
             "UPDATE variants SET stock_on_hand=3 WHERE id=%s", (variant["id"],)
         )
-    db.reserve_checkout([{"sku": variant["sku"], "qty": 2}])
+    db.reserve_checkout([{"variant_id": variant["id"], "qty": 2}])
     page = client.get(f"/store/admin/products/{product['id']}")
     assert re.search(r">\s*2\s*</td>", page.text)
 
@@ -279,69 +296,131 @@ def test_invalid_price_is_reported(client):
     assert "dollar amount" in response.text
 
 
-def test_create_product_and_add_variant(client):
+def test_create_product_and_add_variant(client, catalog):
     csrf = _csrf(client.get("/store/admin/products/new").text)
+    group_id = str(catalog["group"]["id"])
     created = client.post(
         "/store/admin/products",
         data={
             "csrf_token": csrf,
             "name": "Test Shim",
-            "base_sku": "psv-byp-901",
+            "features": "Spring steel\n\n  Pack of 5  ",
+            "group_id": [group_id],
             "price": "9.50",
             "stock": "4",
             "published": "true",
         },
         follow_redirects=False,
     )
-    duplicate = client.post(
+    duplicate_slug = client.post(
         "/store/admin/products",
-        data={
-            "csrf_token": csrf,
-            "name": "Again",
-            "base_sku": "PSV-BYP-901",
-            "price": "1",
-        },
+        data={"csrf_token": csrf, "name": "Test Shim", "price": "1"},
     )
-    bad_sku = client.post(
+    duplicate_sku = client.post(
         "/store/admin/products",
-        data={"csrf_token": csrf, "name": "Bad", "base_sku": "SHIM", "price": "1"},
+        data={"csrf_token": csrf, "name": "Again", "sku": "PSV-RFID-001", "price": "1"},
+    )
+    bad_slug = client.post(
+        "/store/admin/products",
+        data={"csrf_token": csrf, "name": "Bad", "slug": "Bad Slug", "price": "1"},
     )
 
     assert created.status_code == 303
-    product = _product("PSV-BYP-901")
-    assert product["slug"] == "psv-byp-901"
-    assert product["category_label"] == "Bypass Tools"
+    product = _product("test-shim")
+    assert product["features"] == ["Spring steel", "Pack of 5"]
+    assert product["group_ids"] == {catalog["group"]["id"]}
+    assert product["variants"][0]["sku"] is None
+    assert product["variants"][0]["upc"] is None
     assert product["variants"][0]["price_cents"] == 950
     assert product["variants"][0]["stock_on_hand"] == 4
-    assert duplicate.status_code == 400
-    assert "already in use" in duplicate.text
-    assert bad_sku.status_code == 400
-    assert "PSV-CATEGORY-NNN" in bad_sku.text
-    assert client.get("/store/product/PSV-BYP-901").status_code == 200
+    assert duplicate_slug.status_code == 400
+    assert "URL slug is already in use" in duplicate_slug.text
+    assert duplicate_sku.status_code == 400
+    assert "SKU is already in use" in duplicate_sku.text
+    assert bad_slug.status_code == 400
+    assert "lowercase letters" in bad_slug.text
+    assert client.get("/store/product/test-shim").status_code == 200
+    assert "Test Shim" in client.get("/store/collection/rfid").text
 
     variant_url = f"/store/admin/products/{product['id']}/variants"
     added = client.post(
         variant_url,
         data={
             "csrf_token": csrf,
-            "sku": "PSV-BYP-901-002",
+            "sku": "any format/1",
             "name": "Wide",
             "price": "11",
             "stock": "2",
         },
         follow_redirects=False,
     )
-    foreign = client.post(
+    taken = client.post(
         variant_url,
-        data={"csrf_token": csrf, "sku": "PSV-BYP-902-001", "price": "1"},
+        data={"csrf_token": csrf, "sku": "PSV-RFID-001", "price": "1"},
     )
 
     assert added.status_code == 303
-    variants = _product("PSV-BYP-901")["variants"]
-    assert [v["sku"] for v in variants] == ["PSV-BYP-901", "PSV-BYP-901-002"]
+    variants = _product("test-shim")["variants"]
+    assert [v["sku"] for v in variants] == [None, "any format/1"]
     assert variants[1]["position"] == 1
-    assert foreign.status_code == 400
-    assert "must start with PSV-BYP-901" in foreign.text
+    assert taken.status_code == 400
+    assert "SKU is already in use" in taken.text
+
+
+def test_update_slug_sku_features_and_collections(client, catalog, catalog_factory):
+    other = catalog_factory.group(
+        catalog_factory.collection("hidden", "Hidden", published=False), "Drafts"
+    )
+    product = _product()
+    csrf = _csrf(client.get(f"/store/admin/products/{product['id']}").text)
+
+    response = client.post(
+        f"/store/admin/products/{product['id']}",
+        data=_variant_form(
+            product,
+            csrf,
+            slug="proxmark-3",
+            features="Dual band\nUSB-C",
+            group_id=[str(other["id"])],
+            variant_sku="",
+            variant_upc="012345678905",
+        ),
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    updated = _product("proxmark-3")
+    assert updated["features"] == ["Dual band", "USB-C"]
+    assert updated["group_ids"] == {other["id"]}
+    assert updated["memberships"] == []
+    assert updated["variants"][0]["sku"] is None
+    assert updated["variants"][0]["upc"] == "012345678905"
+    assert client.get("/store/product/proxmark").status_code == 404
+    assert client.get("/store/product/proxmark-3").status_code == 200
+    assert db.get_collection_by_slug("rfid")["item_count"] == 0
+    dashboard = client.get("/store/admin").text
+    assert "Hidden › Drafts (hidden)" in dashboard
+
+
+def test_slug_and_sku_conflicts_are_reported(client, catalog_factory):
+    catalog_factory.product(
+        slug="taken", name="Taken", variants=[{"sku": "TAKEN-1", "stock": 0}]
+    )
+    product = _product()
+    csrf = _csrf(client.get(f"/store/admin/products/{product['id']}").text)
+    url = f"/store/admin/products/{product['id']}"
+
+    slug = client.post(url, data=_variant_form(product, csrf, slug="taken"))
+    sku = client.post(url, data=_variant_form(product, csrf, variant_sku="TAKEN-1"))
+    missing = client.post(url, data=_variant_form(product, csrf, group_id=["999999"]))
+
+    assert slug.status_code == 400
+    assert "URL slug is already in use" in slug.text
+    assert sku.status_code == 400
+    assert "SKU is already in use" in sku.text
+    assert missing.status_code == 400
+    assert "no longer exists" in missing.text
+    assert _product()["variants"][0]["sku"] == "PSV-RFID-001"
 
 
 def test_orders_list_detail_and_status_update(client):
@@ -459,7 +538,6 @@ def test_values_beyond_database_limits_are_rejected(client, field, value):
         data={
             "csrf_token": csrf,
             "name": "Huge",
-            "base_sku": "PSV-BYP-950",
             "price": "21474836.48",
         },
     )
@@ -467,4 +545,5 @@ def test_values_beyond_database_limits_are_rejected(client, field, value):
     assert response.status_code == 400
     assert "less than or equal to 2147483647" in response.text
     assert created.status_code == 400
-    assert db.get_product_by_id("PSV-BYP-950") is None
+    with db.connection() as conn:
+        assert conn.execute("SELECT 1 FROM products WHERE slug='huge'").fetchone() is None

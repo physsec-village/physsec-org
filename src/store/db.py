@@ -21,6 +21,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from .config import database_url
+from .models import ProductInput, VariantInput, VariantUpdate
 
 MEDIA_DIR = os.getenv("STORE_MEDIA_DIR", "data/media")
 SCHEMA_VERSION = 2
@@ -843,3 +844,371 @@ def _shipping(session: Mapping[str, Any]) -> Any:
     if isinstance(collected, Mapping) and collected.get("shipping_details"):
         return collected["shipping_details"]
     return session.get("shipping_details")
+
+
+# Store admin.  The application role cannot DELETE, so products and variants
+# are retired by unpublishing them rather than removed. The one exception is
+# collection membership, which has no history worth keeping.
+ORDER_FULFILLMENT_STATES = ("unfulfilled", "processing", "shipped", "canceled")
+ORDER_REVIEW_STATES = ("clear", "needs_review")
+
+
+STALE_FORM = "This was changed after you loaded the page. Review it and save again."
+
+
+class AdminError(StoreError):
+    """A rejected admin change whose message is safe to show the admin."""
+
+
+def _version(value: str) -> datetime:
+    """Parse the `updated_at` an admin form was loaded with."""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        raise AdminError(STALE_FORM) from None
+    if parsed.tzinfo is None:
+        raise AdminError(STALE_FORM)
+    return parsed
+
+
+def _unique_violation(exc: psycopg.errors.UniqueViolation) -> AdminError:
+    constraint = exc.diag.constraint_name or ""
+    if constraint == "products_slug_key":
+        return AdminError("That URL slug is already in use.")
+    if constraint == "variants_sku_key":
+        return AdminError("That SKU is already in use.")
+    return AdminError("That value is already in use.")
+
+
+def admin_products() -> list[dict[str, Any]]:
+    """Return every product, published or not, with stock and reservations."""
+    with connection() as conn:
+        rows = conn.execute("SELECT * FROM products ORDER BY name,id").fetchall()
+        products = _hydrate_products(conn, rows)
+        _add_groups(conn, products)
+    for product in products:
+        _add_reserved(product)
+    return products
+
+
+def admin_product(product_id: int) -> dict[str, Any] | None:
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM products WHERE id=%s", (product_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        product = _hydrate_products(conn, [row])[0]
+        _add_groups(conn, [product])
+    return _add_reserved(product)
+
+
+def _add_groups(conn: psycopg.Connection, products: Sequence[dict[str, Any]]) -> None:
+    """Attach every collection group a product is in, published or not.
+
+    `memberships` from `_hydrate_products` only covers published collections,
+    which is what shoppers see; the admin manages hidden collections too.
+    """
+    by_product: dict[int, list[dict[str, Any]]] = {p["id"]: [] for p in products}
+    if not by_product:
+        return
+    for row in conn.execute(
+        "SELECT i.product_id,g.id,c.title collection_title,g.title group_title,"
+        "c.published FROM collection_items i "
+        "JOIN collection_groups g ON g.id=i.group_id "
+        "JOIN collections c ON c.id=g.collection_id "
+        "WHERE i.product_id = ANY(%s) ORDER BY c.position,c.id,g.position,g.id",
+        (list(by_product),),
+    ):
+        group = dict(row)
+        by_product[int(group.pop("product_id"))].append(group)
+    for product in products:
+        product["groups"] = by_product[product["id"]]
+        product["group_ids"] = {group["id"] for group in product["groups"]}
+
+
+def admin_collection_groups() -> list[dict[str, Any]]:
+    """Return every collection group, for choosing where a product appears."""
+    with connection() as conn:
+        return [
+            dict(row)
+            for row in conn.execute(
+                "SELECT g.id,c.title collection_title,g.title group_title,c.published "
+                "FROM collection_groups g "
+                "JOIN collections c ON c.id=g.collection_id "
+                "ORDER BY c.position,c.id,g.position,g.id"
+            )
+        ]
+
+
+def _add_reserved(product: dict[str, Any]) -> dict[str, Any]:
+    for variant in product["variants"]:
+        variant["reserved"] = int(variant["stock_on_hand"]) - int(
+            variant["available_stock"]
+        )
+    product["stock_on_hand"] = sum(
+        int(variant["stock_on_hand"]) for variant in product["variants"]
+    )
+    product["reserved"] = sum(variant["reserved"] for variant in product["variants"])
+    return product
+
+
+def _set_groups(
+    conn: psycopg.Connection, product_id: int, group_ids: Sequence[int]
+) -> None:
+    """Make the product a member of exactly `group_ids`, appending new ones."""
+    wanted = sorted(set(group_ids))
+    if wanted:
+        found = conn.execute(
+            "SELECT COUNT(*) AS count FROM collection_groups WHERE id = ANY(%s)",
+            (wanted,),
+        ).fetchone()["count"]
+        if found != len(wanted):
+            raise AdminError("A selected collection no longer exists.")
+    conn.execute(
+        "DELETE FROM collection_items WHERE product_id=%s AND NOT group_id = ANY(%s)",
+        (product_id, wanted),
+    )
+    for group_id in wanted:
+        conn.execute(
+            "INSERT INTO collection_items(group_id,product_id,position) "
+            "SELECT %s,%s,COALESCE(MAX(position)+1,0) FROM collection_items "
+            "WHERE group_id=%s ON CONFLICT DO NOTHING",
+            (group_id, product_id, group_id),
+        )
+
+
+def update_product(
+    product_id: int,
+    product: ProductInput,
+    *,
+    variants: Sequence[VariantUpdate],
+    version: str,
+) -> None:
+    """Update product details, collections and variants in one transaction.
+
+    `version` is the product's `updated_at` when the form loaded; every admin
+    edit advances it, so a stale form is rejected rather than undoing another
+    edit. Sales change stock without touching it, so a stock edit is applied
+    only when the admin changed the value they were shown, and is rejected if
+    stock moved since the form loaded.
+    """
+    loaded_at = _version(version)
+    try:
+        with connection(write=True) as conn:
+            row = conn.execute(
+                "SELECT updated_at FROM products WHERE id=%s FOR UPDATE",
+                (product_id,),
+            ).fetchone()
+            if not row:
+                raise AdminError("Product not found.")
+            if row["updated_at"] != loaded_at:
+                raise AdminError(STALE_FORM)
+            # Lock first, then read reservations in a later statement so its
+            # snapshot includes any reservation committed while waiting.
+            conn.execute(
+                "SELECT id FROM variants WHERE product_id=%s ORDER BY id FOR UPDATE",
+                (product_id,),
+            ).fetchall()
+            current = {
+                int(row["id"]): row
+                for row in conn.execute(
+                    "SELECT v.id,v.stock_on_hand,"
+                    f"{_available_sql()} available_stock "
+                    "FROM variants v WHERE v.product_id=%s",
+                    (product_id,),
+                )
+            }
+            for variant in variants:
+                row = current.get(variant.id)
+                if row is None:
+                    raise AdminError("A variant does not belong to this product.")
+                label = variant.name or product.name
+                stock = int(row["stock_on_hand"])
+                new_stock = stock
+                if variant.stock_on_hand != variant.expected_stock:
+                    if variant.expected_stock != stock:
+                        raise AdminError(
+                            f"Stock for {label} changed to {stock} while you were "
+                            "editing. Review it and save again."
+                        )
+                    reserved = stock - int(row["available_stock"])
+                    if variant.stock_on_hand < reserved:
+                        raise AdminError(
+                            f"Stock for {label} cannot go below the {reserved} "
+                            "units reserved by open checkouts."
+                        )
+                    new_stock = variant.stock_on_hand
+                conn.execute(
+                    "UPDATE variants SET name=%s,sku=%s,upc=%s,price_cents=%s,"
+                    "stock_on_hand=%s WHERE id=%s",
+                    (
+                        variant.name,
+                        variant.sku,
+                        variant.upc,
+                        variant.price_cents,
+                        new_stock,
+                        variant.id,
+                    ),
+                )
+            _set_groups(conn, product_id, product.group_ids)
+            conn.execute(
+                "UPDATE products SET slug=%s,name=%s,description=%s,features=%s,"
+                "featured=%s,published=%s,updated_at=clock_timestamp() WHERE id=%s",
+                (
+                    product.slug,
+                    product.name,
+                    product.description,
+                    product.features,
+                    product.featured,
+                    product.published,
+                    product_id,
+                ),
+            )
+    except psycopg.errors.UniqueViolation as exc:
+        raise _unique_violation(exc) from exc
+
+
+def admin_create_product(product: ProductInput, variant: VariantInput) -> int:
+    """Create a product with its first variant and collection memberships."""
+    try:
+        with connection(write=True) as conn:
+            product_id = int(
+                conn.execute(
+                    "INSERT INTO products(slug,name,description,features,featured,"
+                    "published) VALUES(%s,%s,%s,%s,%s,%s) RETURNING id",
+                    (
+                        product.slug,
+                        product.name,
+                        product.description,
+                        product.features,
+                        product.featured,
+                        product.published,
+                    ),
+                ).fetchone()["id"]
+            )
+            conn.execute(
+                "INSERT INTO variants(product_id,name,sku,upc,price_cents,"
+                "stock_on_hand,position) VALUES(%s,%s,%s,%s,%s,%s,0)",
+                (
+                    product_id,
+                    variant.name,
+                    variant.sku,
+                    variant.upc,
+                    variant.price_cents,
+                    variant.stock_on_hand,
+                ),
+            )
+            _set_groups(conn, product_id, product.group_ids)
+            return product_id
+    except psycopg.errors.UniqueViolation as exc:
+        raise _unique_violation(exc) from exc
+
+
+def add_variant(product_id: int, variant: VariantInput) -> None:
+    try:
+        with connection(write=True) as conn:
+            product = conn.execute(
+                "SELECT id FROM products WHERE id=%s FOR UPDATE", (product_id,)
+            ).fetchone()
+            if not product:
+                raise AdminError("Product not found.")
+            conn.execute(
+                "INSERT INTO variants(product_id,name,sku,upc,price_cents,"
+                "stock_on_hand,position) SELECT %s,%s,%s,%s,%s,%s,"
+                "COALESCE(MAX(position)+1,0) FROM variants WHERE product_id=%s",
+                (
+                    product_id,
+                    variant.name,
+                    variant.sku,
+                    variant.upc,
+                    variant.price_cents,
+                    variant.stock_on_hand,
+                    product_id,
+                ),
+            )
+            conn.execute(
+                "UPDATE products SET updated_at=clock_timestamp() WHERE id=%s",
+                (product_id,),
+            )
+    except psycopg.errors.UniqueViolation as exc:
+        raise _unique_violation(exc) from exc
+
+
+def admin_orders(
+    *, fulfillment_state: str | None = None, limit: int = 200
+) -> list[dict[str, Any]]:
+    clause, params = "", []
+    if fulfillment_state:
+        clause, params = "WHERE o.fulfillment_state=%s", [fulfillment_state]
+    with connection() as conn:
+        return [
+            dict(row)
+            for row in conn.execute(
+                "SELECT o.id,o.email,o.currency,o.amount_total_cents,o.payment_state,"
+                "o.fulfillment_state,o.review_state,o.refund_state,o.created_at,"
+                "(SELECT COALESCE(SUM(i.quantity),0) FROM order_items i "
+                "WHERE i.order_id=o.id) AS item_count "
+                f"FROM orders o {clause} ORDER BY o.created_at DESC,o.id LIMIT %s",
+                [*params, max(1, min(limit, 1000))],
+            )
+        ]
+
+
+def admin_order_counts() -> dict[str, int]:
+    counts = dict.fromkeys(ORDER_FULFILLMENT_STATES, 0)
+    with connection() as conn:
+        for row in conn.execute(
+            "SELECT fulfillment_state,COUNT(*) AS count FROM orders "
+            "GROUP BY fulfillment_state"
+        ):
+            counts[row["fulfillment_state"]] = int(row["count"])
+    return counts
+
+
+def admin_order(order_id: str) -> dict[str, Any] | None:
+    with connection() as conn:
+        row = conn.execute("SELECT * FROM orders WHERE id=%s", (order_id,)).fetchone()
+        if not row:
+            return None
+        order = dict(row)
+        order["items"] = [
+            dict(item)
+            for item in conn.execute(
+                "SELECT sku,product_name,variant_name,quantity,unit_amount_cents "
+                "FROM order_items WHERE order_id=%s ORDER BY id",
+                (order_id,),
+            )
+        ]
+        return order
+
+
+def update_order(
+    order_id: str,
+    *,
+    fulfillment_state: str,
+    review_state: str,
+    review_reason: str,
+    version: str,
+) -> None:
+    """Update admin-owned order state, rejecting a form loaded before the
+    order last changed (another admin's edit or a refund webhook)."""
+    if fulfillment_state not in ORDER_FULFILLMENT_STATES:
+        raise AdminError("Unknown fulfillment state.")
+    if review_state not in ORDER_REVIEW_STATES:
+        raise AdminError("Unknown review state.")
+    reason = review_reason.strip()[:500] or None
+    loaded_at = _version(version)
+    with connection(write=True) as conn:
+        order = conn.execute(
+            "SELECT updated_at FROM orders WHERE id=%s FOR UPDATE", (order_id,)
+        ).fetchone()
+        if not order:
+            raise AdminError("Order not found.")
+        if order["updated_at"] != loaded_at:
+            raise AdminError(STALE_FORM)
+        conn.execute(
+            "UPDATE orders SET fulfillment_state=%s,review_state=%s,review_reason=%s,"
+            "updated_at=clock_timestamp() WHERE id=%s",
+            (fulfillment_state, review_state, reason, order_id),
+        )

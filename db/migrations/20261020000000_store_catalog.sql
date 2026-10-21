@@ -2,19 +2,14 @@
 -- variants. A SKU is now only an optional inventory identifier: nothing about a
 -- product's grouping or collection is read from it.
 --
--- The store has never taken an order, so the old catalog tables are dropped
--- rather than converted. Refuse to run if that is no longer true.
-do $$
-begin
-    if exists (select 1 from store.orders) then
-        raise exception 'store.orders is not empty; write a data-preserving migration instead';
-    end if;
-end
-$$;
-
+-- The old catalog tables are dropped rather than converted. Orders are kept:
+-- order_items snapshot the SKU, names and prices, so they do not need the old
+-- variants, and their variant_id stays NULL. Unpaid checkouts and their
+-- reservations are discarded; paid ones stay because orders reference them.
 drop table store.inventory_reservations;
 drop table store.checkout_items;
-delete from store.checkouts;
+delete from store.checkouts c
+where not exists (select 1 from store.orders o where o.checkout_id = c.id);
 drop table store.product_images;
 drop table store.variants;
 drop table store.products;
@@ -122,6 +117,19 @@ create index idx_reservations_active
     on store.inventory_reservations(variant_id, expires_at)
     where state = 'active';
 
-grant select, insert, update on all tables in schema store to store_app;
-revoke insert, update on store.schema_metadata from store_app;
-grant usage, select on all sequences in schema store to store_app;
+-- 20261019000000 set default privileges, so the application role named by
+-- psv.app_role already has select, insert and update on the new tables. The
+-- admin UI also removes products from collections.
+do $$
+declare
+    app_role text := current_setting('psv.app_role', true);
+begin
+    if app_role is null or app_role = '' then
+        raise exception 'psv.app_role is not set; apply migrations with python -m src.store.migrate';
+    end if;
+    if app_role = current_user then
+        return;
+    end if;
+    execute format('grant delete on store.collection_items to %I', app_role);
+end
+$$;

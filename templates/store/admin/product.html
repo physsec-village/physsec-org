@@ -1,15 +1,16 @@
 {% extends "store/admin/base.html" %}
+{% from "store/admin/macros.html" import collection_picker %}
 {% block title %}{{ product.name }}{% endblock %}
 
 {% block main %}
     <div class="admin-head">
         <h1>{{ product.name }}</h1>
         {% if product.published %}
-            <a class="btn btn-outline" href="{{ url_for('store_product_page', product_id=product.slug | upper) }}">View in store</a>
+            <a class="btn btn-outline" href="{{ url_for('store_product_page', slug=product.slug) }}">View in store</a>
         {% endif %}
     </div>
     <p class="admin-meta">
-        <span class="mono">{{ product.base_sku }}</span> · {{ product.category_label }} ·
+        <span class="mono">/store/product/{{ product.slug }}</span> ·
         updated {{ product.updated_at.strftime("%Y-%m-%d %H:%M UTC") }}
     </p>
 
@@ -17,14 +18,25 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <input type="hidden" name="version" value="{{ product.updated_at.isoformat() }}" />
         <h2>Details</h2>
-        <label class="admin-field">
-            <span>Name</span>
-            <input name="name" value="{{ product.name }}" required maxlength="200" />
-        </label>
+        <div class="admin-grid">
+            <label class="admin-field">
+                <span>Name</span>
+                <input name="name" value="{{ product.name }}" required maxlength="200" />
+            </label>
+            <label class="admin-field">
+                <span>URL slug</span>
+                <input name="slug" value="{{ product.slug }}" required maxlength="200" />
+            </label>
+        </div>
         <label class="admin-field">
             <span>Description</span>
             <textarea name="description" rows="4" maxlength="5000">{{ product.description }}</textarea>
         </label>
+        <label class="admin-field">
+            <span>Features (one per line)</span>
+            <textarea name="features" rows="3" maxlength="5000">{{ product.features | join("\n") }}</textarea>
+        </label>
+        {{ collection_picker(groups, product.group_ids) }}
         <div class="admin-checks">
             <label><input type="checkbox" name="published" value="true" {% if product.published %}checked{% endif %} /> Published</label>
             <label><input type="checkbox" name="featured" value="true" {% if product.featured %}checked{% endif %} /> Featured</label>
@@ -34,14 +46,15 @@
         <p class="admin-hint">
             Reserved units belong to open checkouts and are released when they
             expire. Stock cannot be set below the reserved count. Price changes
-            apply to new checkouts only.
+            apply to new checkouts only. The label is the option buyers pick;
+            leave it blank on a product with one variant.
         </p>
         <div class="admin-table-wrap">
             <table class="admin-table">
                 <thead>
                     <tr>
-                        <th scope="col">SKU</th>
                         <th scope="col">Label</th>
+                        <th scope="col">SKU</th>
                         <th scope="col">UPC</th>
                         <th scope="col">Price ($)</th>
                         <th scope="col">On hand</th>
@@ -51,16 +64,17 @@
                 </thead>
                 <tbody>
                     {% for variant in product.variants %}
+                        {% set label = variant.name or ("variant " ~ loop.index) %}
                         <tr>
-                            <td class="mono">
-                                {{ variant.sku }}
+                            <td>
                                 <input type="hidden" name="variant_id" value="{{ variant.id }}" />
                                 <input type="hidden" name="variant_expected_stock" value="{{ variant.stock_on_hand }}" />
+                                <input name="variant_name" value="{{ variant.name }}" maxlength="200" aria-label="Label for {{ label }}" />
                             </td>
-                            <td><input name="variant_name" value="{{ variant.name }}" maxlength="200" aria-label="Label for {{ variant.sku }}" /></td>
-                            <td><input name="variant_upc" value="{{ variant.upc }}" maxlength="32" aria-label="UPC for {{ variant.sku }}" /></td>
-                            <td><input name="variant_price" value="{{ money(variant.price_cents) }}" inputmode="decimal" required class="input-num" aria-label="Price for {{ variant.sku }}" /></td>
-                            <td><input name="variant_stock" value="{{ variant.stock_on_hand }}" type="number" min="{{ variant.reserved }}" step="1" required class="input-num" aria-label="Stock on hand for {{ variant.sku }}" /></td>
+                            <td><input name="variant_sku" value="{{ variant.sku or '' }}" maxlength="64" class="mono" aria-label="SKU for {{ label }}" /></td>
+                            <td><input name="variant_upc" value="{{ variant.upc or '' }}" maxlength="32" aria-label="UPC for {{ label }}" /></td>
+                            <td><input name="variant_price" value="{{ money(variant.price_cents) }}" inputmode="decimal" required class="input-num" aria-label="Price for {{ label }}" /></td>
+                            <td><input name="variant_stock" value="{{ variant.stock_on_hand }}" type="number" min="{{ variant.reserved }}" step="1" required class="input-num" aria-label="Stock on hand for {{ label }}" /></td>
                             <td class="num mono">{{ variant.reserved }}</td>
                             <td class="num mono{% if variant.available_stock <= 0 %} warn{% endif %}">{{ variant.available_stock }}</td>
                         </tr>
@@ -79,12 +93,12 @@
         <h2>Add a variant</h2>
         <div class="admin-grid">
             <label class="admin-field">
-                <span>SKU</span>
-                <input name="sku" required placeholder="{{ product.base_sku }}-001" maxlength="64" />
-            </label>
-            <label class="admin-field">
                 <span>Label</span>
                 <input name="name" maxlength="200" placeholder="Blue" />
+            </label>
+            <label class="admin-field">
+                <span>SKU (optional)</span>
+                <input name="sku" maxlength="64" />
             </label>
             <label class="admin-field">
                 <span>UPC</span>

@@ -86,7 +86,7 @@ def apply_migrations() -> int:
     with psycopg.connect(migration_database_url(), autocommit=False) as conn:
         for migration_file in migration_files:
             version = _version(migration_file.name)
-            sql = migration_file.read_text()
+            sql = migration_file.read_text(encoding="utf-8")
             with conn.transaction():
                 _ensure_schema_migrations(conn)
                 recorded = conn.execute(
