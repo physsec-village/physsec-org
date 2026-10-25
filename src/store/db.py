@@ -24,7 +24,7 @@ from .config import database_url
 from .models import ProductInput, VariantInput, VariantUpdate
 
 MEDIA_DIR = os.getenv("STORE_MEDIA_DIR", "data/media")
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 _pool: ConnectionPool | None = None
 
 
@@ -128,8 +128,17 @@ def _available_sql(alias: str = "v") -> str:
 
 
 def _hydrate_products(
-    conn: psycopg.Connection, rows: Sequence[Mapping[str, Any]]
+    conn: psycopg.Connection,
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    unpublished_variants: bool = False,
 ) -> list[dict[str, Any]]:
+    """Attach variants, images and memberships to product rows.
+
+    Shoppers only see published variants. The admin passes
+    `unpublished_variants` to manage retired ones too; prices and stock totals
+    still count only the published variants a shopper could buy.
+    """
     products = [dict(row) for row in rows]
     if not products:
         return products
@@ -140,6 +149,7 @@ def _hydrate_products(
     for row in conn.execute(
         f"SELECT v.*, {_available_sql()} AS available_stock "
         "FROM variants v WHERE product_id = ANY(%s) "
+        f"{'' if unpublished_variants else 'AND v.published '}"
         "ORDER BY product_id,position,id",
         (product_ids,),
     ):
@@ -171,16 +181,17 @@ def _hydrate_products(
 
     for product in products:
         variants = variants_by_product[product["id"]]
+        live = [v for v in variants if v["published"]]
         images = images_by_product[product["id"]]
-        prices = [int(v["price_cents"]) for v in variants]
+        prices = [int(v["price_cents"]) for v in live]
         product.update(
             variants=variants,
             images=images,
             memberships=memberships_by_product[product["id"]],
             primary_image=images[0] if images else None,
             variant_count=len(variants),
-            total_stock=sum(max(0, int(v["available_stock"])) for v in variants),
-            all_sold_out=not any(int(v["available_stock"]) > 0 for v in variants),
+            total_stock=sum(max(0, int(v["available_stock"])) for v in live),
+            all_sold_out=not any(int(v["available_stock"]) > 0 for v in live),
             min_price_cents=min(prices, default=0),
             max_price_cents=max(prices, default=0),
             price_cents=prices[0] if prices else 0,
@@ -284,7 +295,7 @@ def search_products(query: str) -> list[dict[str, Any]]:
         rows = conn.execute(
             "SELECT p.* FROM products p WHERE p.published AND ("
             "p.name ILIKE %s OR p.description ILIKE %s OR EXISTS("
-            "SELECT 1 FROM variants v WHERE v.product_id=p.id "
+            "SELECT 1 FROM variants v WHERE v.product_id=p.id AND v.published "
             "AND (v.name ILIKE %s OR v.sku ILIKE %s))) ORDER BY p.name,p.id",
             (pattern, pattern, pattern, pattern),
         ).fetchall()
@@ -372,7 +383,7 @@ def _cart_rows(
         "(SELECT im.url FROM product_images im WHERE im.product_id=p.id "
         "ORDER BY im.position,im.id LIMIT 1) image_url "
         "FROM variants v JOIN products p ON p.id=v.product_id "
-        "WHERE p.published AND v.id = ANY(%s) ORDER BY v.id",
+        "WHERE p.published AND v.published AND v.id = ANY(%s) ORDER BY v.id",
         (list(requested),),
     ).fetchall()
 
@@ -884,7 +895,7 @@ def admin_products() -> list[dict[str, Any]]:
     """Return every product, published or not, with stock and reservations."""
     with connection() as conn:
         rows = conn.execute("SELECT * FROM products ORDER BY name,id").fetchall()
-        products = _hydrate_products(conn, rows)
+        products = _hydrate_products(conn, rows, unpublished_variants=True)
         _add_groups(conn, products)
     for product in products:
         _add_reserved(product)
@@ -898,7 +909,7 @@ def admin_product(product_id: int) -> dict[str, Any] | None:
         ).fetchone()
         if row is None:
             return None
-        product = _hydrate_products(conn, [row])[0]
+        product = _hydrate_products(conn, [row], unpublished_variants=True)[0]
         _add_groups(conn, [product])
     return _add_reserved(product)
 
@@ -1041,15 +1052,24 @@ def update_product(
                     new_stock = variant.stock_on_hand
                 conn.execute(
                     "UPDATE variants SET name=%s,sku=%s,upc=%s,price_cents=%s,"
-                    "stock_on_hand=%s WHERE id=%s",
+                    "stock_on_hand=%s,published=%s WHERE id=%s",
                     (
                         variant.name,
                         variant.sku,
                         variant.upc,
                         variant.price_cents,
                         new_stock,
+                        variant.published,
                         variant.id,
                     ),
+                )
+            if product.published and not conn.execute(
+                "SELECT EXISTS(SELECT 1 FROM variants WHERE product_id=%s "
+                "AND published) AS live",
+                (product_id,),
+            ).fetchone()["live"]:
+                raise AdminError(
+                    "A published product needs at least one published variant."
                 )
             _set_groups(conn, product_id, product.group_ids)
             conn.execute(

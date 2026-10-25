@@ -47,7 +47,9 @@
             Reserved units belong to open checkouts and are released when they
             expire. Stock cannot be set below the reserved count. Price changes
             apply to new checkouts only. The label is the option buyers pick;
-            leave it blank on a product with one variant.
+            leave it blank on a product with one variant. Variants cannot be
+            deleted: unpublish one to retire it. It is hidden from the store
+            but stays on past orders.
         </p>
         <div class="admin-table-wrap">
             <table class="admin-table">
@@ -60,12 +62,13 @@
                         <th scope="col">On hand</th>
                         <th scope="col" class="num">Reserved</th>
                         <th scope="col" class="num">Available</th>
+                        <th scope="col">Published</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for variant in product.variants %}
                         {% set label = variant.name or ("variant " ~ loop.index) %}
-                        <tr>
+                        <tr{% if not variant.published %} class="admin-row-retired"{% endif %}>
                             <td>
                                 <input type="hidden" name="variant_id" value="{{ variant.id }}" />
                                 <input type="hidden" name="variant_expected_stock" value="{{ variant.stock_on_hand }}" />
@@ -77,6 +80,7 @@
                             <td><input name="variant_stock" value="{{ variant.stock_on_hand }}" type="number" min="{{ variant.reserved }}" step="1" required class="input-num" aria-label="Stock on hand for {{ label }}" /></td>
                             <td class="num mono">{{ variant.reserved }}</td>
                             <td class="num mono{% if variant.available_stock <= 0 %} warn{% endif %}">{{ variant.available_stock }}</td>
+                            <td><input type="checkbox" name="variant_published" value="{{ variant.id }}"{% if variant.published %} checked{% endif %} aria-label="Publish {{ label }}" /></td>
                         </tr>
                     {% endfor %}
                 </tbody>

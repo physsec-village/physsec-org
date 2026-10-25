@@ -308,6 +308,8 @@ def update_product(
     variant_price: list[str] = Form([]),
     variant_stock: list[str] = Form([]),
     variant_expected_stock: list[str] = Form([]),
+    # Checkboxes: only the IDs of variants left published are submitted.
+    variant_published: list[str] = Form([]),
 ):
     try:
         fields = (
@@ -330,6 +332,7 @@ def update_product(
                 price_cents=_cents(row_price, "Price"),
                 stock_on_hand=_int(row_stock, "Stock"),
                 expected_stock=_int(row_expected, "Stock"),
+                published=row_id in variant_published,
             )
             for (
                 row_id,

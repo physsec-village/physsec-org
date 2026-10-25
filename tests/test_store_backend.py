@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import psycopg
 import pytest
 import stripe
 from fastapi.testclient import TestClient
@@ -47,7 +48,7 @@ def _paid_session(checkout):
 def test_schema_and_rfid_catalog(catalog_factory):
     variant_id = _database(catalog_factory)
 
-    assert db.readiness() == {"ready": True, "schema_version": 2}
+    assert db.readiness() == {"ready": True, "schema_version": 3}
     product = db.get_published_products()[0]
     assert product["variants"][0]["id"] == variant_id
     assert product["price_cents"] == 2500
@@ -642,7 +643,10 @@ def test_paid_event_uses_checkout_snapshot_after_catalog_edits(catalog_factory):
     variant_id = _database(catalog_factory)
     checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
     with db.connection() as conn:
-        conn.execute("UPDATE variants SET sku=NULL,price_cents=9999 WHERE id=%s", (variant_id,))
+        conn.execute(
+            "UPDATE variants SET sku=NULL,price_cents=9999,published=false WHERE id=%s",
+            (variant_id,),
+        )
         conn.execute("UPDATE products SET name='New name',published=false")
     db.process_paid_event("evt_snapshot", _paid_session(checkout))
     with db.connection() as conn:
@@ -652,6 +656,17 @@ def test_paid_event_uses_checkout_snapshot_after_catalog_edits(catalog_factory):
             "variant_id": variant_id, "sku": "opaque.inventory/001",
             "product_name": "RFID Test Tool", "unit_amount_cents": 2500,
         }
+
+
+def test_order_items_must_name_an_existing_variant(catalog_factory):
+    variant_id = _database(catalog_factory)
+    checkout = db.reserve_checkout([{"variant_id": variant_id, "qty": 1}])
+    db.process_paid_event("evt_fk", _paid_session(checkout))
+    with pytest.raises(psycopg.errors.ForeignKeyViolation), db.connection() as conn:
+        conn.execute("UPDATE order_items SET variant_id=%s", (variant_id + 1000,))
+    with db.connection() as conn:
+        # Items from before the database catalog have no variant.
+        conn.execute("UPDATE order_items SET variant_id=NULL")
 
 
 def test_expired_webhook_releases_once_and_does_not_restock(catalog_factory):

@@ -187,11 +187,13 @@ production database.
 `/store/admin` is a small server-rendered admin UI for the store: it lists
 every product with its stock, reservations and availability; edits a product's
 name, URL slug, description, features, collections and published/featured
-flags, and each variant's label, SKU, UPC, price and stock; creates products
-and adds variants; and lists orders, shows their items and shipping address,
-and updates fulfillment and review state. Products and variants cannot be
-deleted (the application role's only `DELETE` grant is on collection
-membership); unpublish them instead. Refunds are issued in the Stripe
+flags, and each variant's label, SKU, UPC, price, stock and published flag;
+creates products and adds variants; and lists orders, shows their items and
+shipping address, and updates fulfillment and review state. Products and
+variants cannot be deleted (the application role's only `DELETE` grant is on
+collection membership); unpublish them instead. An unpublished variant is
+hidden from the store and cannot be bought, but stays on past orders, and a
+published product must keep at least one published variant. Refunds are issued in the Stripe
 dashboard and recorded from Stripe's webhook.
 
 The admin UI returns 404 while the store is disabled. Sign-in is a

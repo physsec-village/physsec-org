@@ -75,6 +75,7 @@ def _variant_form(product: dict, csrf: str, **overrides) -> dict:
         "variant_price": "10.00",
         "variant_stock": str(variant["stock_on_hand"]),
         "variant_expected_stock": str(variant["stock_on_hand"]),
+        "variant_published": [str(variant["id"])] if variant["published"] else [],
     }
     form.update(overrides)
     return form
@@ -401,6 +402,62 @@ def test_update_slug_sku_features_and_collections(client, catalog, catalog_facto
     dashboard = client.get("/store/admin").text
     assert "Hidden › Drafts (hidden)" in dashboard
 
+
+
+def test_unpublished_variant_is_retired_from_the_store(client, catalog_factory):
+    catalog_factory.product(
+        slug="shim-set", name="Shim Set",
+        variants=[
+            {"name": "Wide", "sku": "SHIM-W", "stock": 2},
+            {"name": "Narrow", "sku": "SHIM-N", "stock": 2},
+        ],
+    )
+    product = _product("shim-set")
+    wide, narrow = product["variants"]
+    csrf = _csrf(client.get(f"/store/admin/products/{product['id']}").text)
+
+    def form(published, version):
+        return _variant_form(
+            product, csrf,
+            version=version,
+            variant_id=[str(wide["id"]), str(narrow["id"])],
+            variant_name=["Wide", "Narrow"],
+            variant_sku=["SHIM-W", "SHIM-N"],
+            variant_upc=["", ""],
+            variant_price=["25.00", "25.00"],
+            variant_stock=["2", "2"],
+            variant_expected_stock=["2", "2"],
+            variant_published=[str(v["id"]) for v in published],
+        )
+
+    response = client.post(
+        f"/store/admin/products/{product['id']}",
+        data=form([wide], product["updated_at"].isoformat()),
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    retired = _product("shim-set")
+    assert [v["published"] for v in retired["variants"]] == [True, False]
+    assert retired["total_stock"] == 2
+    admin_page = client.get(f"/store/admin/products/{product['id']}").text
+    assert "admin-row-retired" in admin_page and "SHIM-N" in admin_page
+    store_page = client.get("/store/product/shim-set").text
+    assert "Wide" in store_page and "Narrow" not in store_page
+    assert db.search_products("SHIM-N") == []
+    _, problems = db.normalize_cart([{"variant_id": narrow["id"], "qty": 1}])
+    assert problems == [{"variant_id": narrow["id"], "reason": "unavailable"}]
+    with pytest.raises(db.CartUnavailable):
+        db.reserve_checkout([{"variant_id": narrow["id"], "qty": 1}])
+
+    # A published product must keep something a shopper can buy.
+    last = client.post(
+        f"/store/admin/products/{product['id']}",
+        data=form([], retired["updated_at"].isoformat()),
+    )
+    assert last.status_code == 400
+    assert "at least one published variant" in last.text
+    assert [v["published"] for v in _product("shim-set")["variants"]] == [True, False]
 
 def test_slug_and_sku_conflicts_are_reported(client, catalog_factory):
     catalog_factory.product(

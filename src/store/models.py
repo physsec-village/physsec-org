@@ -41,12 +41,14 @@ class VariantUpdate(VariantInput):
     """An admin edit to an existing variant.
 
     `expected_stock` is the stock on hand the admin was shown, so the database
-    can reject an edit made against a stale value.
+    can reject an edit made against a stale value. Unpublishing a variant
+    retires it: shoppers no longer see it, but past orders keep it.
     """
 
     id: int
     stock_on_hand: int = Field(ge=0, le=MAX_DB_INT)
     expected_stock: int = Field(ge=0, le=MAX_DB_INT)
+    published: bool = True
 
 
 class ProductInput(BaseModel):

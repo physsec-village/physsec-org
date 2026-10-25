@@ -79,11 +79,12 @@ def catalog_factory():
                 product["variants"] = []
                 for position, variant in enumerate(variants or [{}]):
                     product["variants"].append(dict(conn.execute(
-                        "INSERT INTO variants(product_id,name,sku,price_cents,stock_on_hand,position) "
-                        "VALUES(%s,%s,%s,%s,%s,%s) RETURNING *",
+                        "INSERT INTO variants(product_id,name,sku,price_cents,stock_on_hand,"
+                        "position,published) VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING *",
                         (product["id"], variant.get("name", ""), variant.get("sku"),
                          variant.get("price_cents", 2500), variant.get("stock", 3),
-                         variant.get("position", position)),
+                         variant.get("position", position),
+                         variant.get("published", True)),
                     ).fetchone()))
                 for position, url in enumerate(images):
                     conn.execute(
