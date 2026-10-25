@@ -17,7 +17,7 @@ SITEMAP_PATHS = (
     "/forms/calls",
     "/forms/volunteer",
 )
-STORE_SITEMAP_PATHS = ("/store", "/store/catalog")
+STORE_SITEMAP_PATHS = ("/store",)
 
 
 @router.get("/", response_class=HTMLResponse)

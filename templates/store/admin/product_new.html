@@ -1,4 +1,5 @@
 {% extends "store/admin/base.html" %}
+{% from "store/admin/macros.html" import collection_picker %}
 {% block title %}New product{% endblock %}
 
 {% block main %}
@@ -7,9 +8,9 @@
     <form method="post" action="{{ url_for('store_admin_create_product') }}" class="admin-card">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <p class="admin-hint">
-            The base SKU (<span class="mono">PSV-CATEGORY-NNN</span>) sets the
-            category and the product's store URL and cannot be changed later.
-            Add more variants after creating the product.
+            The URL slug sets the product's store address and is derived from
+            the name when left blank. SKUs are optional. Add more variants
+            after creating the product.
         </p>
         <div class="admin-grid">
             <label class="admin-field">
@@ -17,16 +18,16 @@
                 <input name="name" value="{{ form.name }}" required maxlength="200" />
             </label>
             <label class="admin-field">
-                <span>Base SKU</span>
-                <input name="base_sku" value="{{ form.base_sku }}" required placeholder="PSV-BYP-099" maxlength="64" />
-            </label>
-            <label class="admin-field">
-                <span>Category label (new categories only)</span>
-                <input name="category_label" value="{{ form.category_label }}" maxlength="100" />
+                <span>URL slug (optional)</span>
+                <input name="slug" value="{{ form.slug }}" maxlength="200" placeholder="cross-key" />
             </label>
             <label class="admin-field">
                 <span>Variant label (optional)</span>
                 <input name="variant_name" value="{{ form.variant_name }}" maxlength="200" />
+            </label>
+            <label class="admin-field">
+                <span>SKU (optional)</span>
+                <input name="sku" value="{{ form.sku }}" maxlength="64" />
             </label>
             <label class="admin-field">
                 <span>UPC</span>
@@ -45,6 +46,11 @@
             <span>Description</span>
             <textarea name="description" rows="4" maxlength="5000">{{ form.description }}</textarea>
         </label>
+        <label class="admin-field">
+            <span>Features (one per line)</span>
+            <textarea name="features" rows="3" maxlength="5000">{{ form.features }}</textarea>
+        </label>
+        {{ collection_picker(groups, form.group_ids) }}
         <div class="admin-checks">
             <label><input type="checkbox" name="published" value="true" {% if form.published %}checked{% endif %} /> Published</label>
             <label><input type="checkbox" name="featured" value="true" {% if form.featured %}checked{% endif %} /> Featured</label>

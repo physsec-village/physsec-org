@@ -45,6 +45,8 @@
         {% endif %}
 
         <main>{% block main %} {% endblock %}</main>
+        {# Overlays (cart drawer) render outside <main> so its stacking context cannot trap them under the fixed nav. #}
+        {% block overlays %}{% endblock %}
 
         <footer>{% include 'footer.html' %}</footer>
 

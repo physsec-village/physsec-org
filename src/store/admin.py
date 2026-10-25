@@ -159,16 +159,36 @@ def dashboard(request: Request):
             1
             for product in products
             if product["published"]
-            and any(v["available_stock"] <= 0 for v in product["variants"])
+            and any(
+                v["published"] and v["available_stock"] <= 0
+                for v in product["variants"]
+            )
         ),
     )
+
+
+def _features(value: str) -> list[str]:
+    return value.splitlines()
+
+
+def _group_ids(values: list[str]) -> list[int]:
+    try:
+        return [int(value) for value in values]
+    except ValueError:
+        raise db.AdminError("A selected collection is not valid.") from None
 
 
 @router.get(
     "/products/new", response_class=HTMLResponse, name="store_admin_new_product"
 )
 def new_product_form(request: Request):
-    return _render(request, "product_new.html", form={}, error=None)
+    return _render(
+        request,
+        "product_new.html",
+        form={"group_ids": set()},
+        groups=db.admin_collection_groups(),
+        error=None,
+    )
 
 
 @router.post(
@@ -179,10 +199,12 @@ def new_product_form(request: Request):
 def create_product(
     request: Request,
     name: str = Form(""),
-    base_sku: str = Form(""),
-    category_label: str = Form(""),
+    slug: str = Form(""),
     description: str = Form(""),
+    features: str = Form(""),
+    group_id: list[str] = Form([]),
     variant_name: str = Form(""),
+    sku: str = Form(""),
     upc: str = Form(""),
     price: str = Form(""),
     stock: str = Form("0"),
@@ -191,10 +213,12 @@ def create_product(
 ):
     form = {
         "name": name,
-        "base_sku": base_sku,
-        "category_label": category_label,
+        "slug": slug,
         "description": description,
+        "features": features,
+        "group_ids": {int(value) for value in group_id if value.isdigit()},
         "variant_name": variant_name,
+        "sku": sku,
         "upc": upc,
         "price": price,
         "stock": stock,
@@ -202,26 +226,23 @@ def create_product(
         "published": published,
     }
     try:
-        sku = base_sku.strip().upper()
         product = ProductInput(
             name=name,
-            slug=sku,
-            base_sku=sku,
-            description=description.strip(),
-            category_label=category_label,
+            slug=slug,
+            description=description,
+            features=_features(features),
             featured=featured,
             published=published,
-            variants=[
-                VariantInput(
-                    sku=sku,
-                    name=variant_name,
-                    upc=upc,
-                    price_cents=_cents(price, "Price"),
-                    stock_on_hand=_int(stock, "Stock"),
-                )
-            ],
+            group_ids=_group_ids(group_id),
         )
-        product_id = db.admin_create_product(product)
+        variant = VariantInput(
+            name=variant_name,
+            sku=sku,
+            upc=upc,
+            price_cents=_cents(price, "Price"),
+            stock_on_hand=_int(stock, "Stock"),
+        )
+        product_id = db.admin_create_product(product, variant)
     except ValidationError as exc:
         error = _validation_message(exc)
     except db.AdminError as exc:
@@ -232,7 +253,30 @@ def create_product(
             str(request.url_for("store_admin_product", product_id=product_id))
             + "?notice=created"
         )
-    return _render(request, "product_new.html", 400, form=form, error=error)
+    return _render(
+        request,
+        "product_new.html",
+        400,
+        form=form,
+        groups=db.admin_collection_groups(),
+        error=error,
+    )
+
+
+def _product_page(
+    request: Request, product_id: int, status_code: int = 200, error: str | None = None
+) -> HTMLResponse:
+    product = db.admin_product(product_id)
+    if product is None:
+        raise HTTPException(status_code=404)
+    return _render(
+        request,
+        "product.html",
+        status_code,
+        product=product,
+        groups=db.admin_collection_groups(),
+        error=error,
+    )
 
 
 @router.get(
@@ -241,10 +285,7 @@ def create_product(
     name="store_admin_product",
 )
 def product_form(request: Request, product_id: int):
-    product = db.admin_product(product_id)
-    if product is None:
-        raise HTTPException(status_code=404)
-    return _render(request, "product.html", product=product, error=None)
+    return _product_page(request, product_id)
 
 
 @router.post(
@@ -256,21 +297,28 @@ def update_product(
     request: Request,
     product_id: int,
     name: str = Form(""),
+    slug: str = Form(""),
     description: str = Form(""),
+    features: str = Form(""),
+    group_id: list[str] = Form([]),
     featured: bool = Form(False),
     published: bool = Form(False),
     version: str = Form(""),
     variant_id: list[str] = Form([]),
     variant_name: list[str] = Form([]),
+    variant_sku: list[str] = Form([]),
     variant_upc: list[str] = Form([]),
     variant_price: list[str] = Form([]),
     variant_stock: list[str] = Form([]),
     variant_expected_stock: list[str] = Form([]),
+    # Checkboxes: only the IDs of variants left published are submitted.
+    variant_published: list[str] = Form([]),
 ):
     try:
         fields = (
             variant_id,
             variant_name,
+            variant_sku,
             variant_upc,
             variant_price,
             variant_stock,
@@ -282,24 +330,33 @@ def update_product(
             VariantUpdate(
                 id=_int(row_id, "Variant"),
                 name=row_name,
+                sku=row_sku,
                 upc=row_upc,
                 price_cents=_cents(row_price, "Price"),
                 stock_on_hand=_int(row_stock, "Stock"),
                 expected_stock=_int(row_expected, "Stock"),
+                published=row_id in variant_published,
             )
-            for row_id, row_name, row_upc, row_price, row_stock, row_expected in zip(
-                *fields
-            )
+            for (
+                row_id,
+                row_name,
+                row_sku,
+                row_upc,
+                row_price,
+                row_stock,
+                row_expected,
+            ) in zip(*fields)
         ]
-        db.update_product(
-            product_id,
+        product = ProductInput(
             name=name,
+            slug=slug,
             description=description,
+            features=_features(features),
             featured=featured,
             published=published,
-            variants=variants,
-            version=version,
+            group_ids=_group_ids(group_id),
         )
+        db.update_product(product_id, product, variants=variants, version=version)
     except ValidationError as exc:
         error = _validation_message(exc)
     except db.AdminError as exc:
@@ -310,10 +367,7 @@ def update_product(
             str(request.url_for("store_admin_product", product_id=product_id))
             + "?notice=saved"
         )
-    product = db.admin_product(product_id)
-    if product is None:
-        raise HTTPException(status_code=404)
-    return _render(request, "product.html", 400, product=product, error=error)
+    return _product_page(request, product_id, 400, error)
 
 
 @router.post(
@@ -351,10 +405,7 @@ def add_variant(
             str(request.url_for("store_admin_product", product_id=product_id))
             + "?notice=variant"
         )
-    product = db.admin_product(product_id)
-    if product is None:
-        raise HTTPException(status_code=404)
-    return _render(request, "product.html", 400, product=product, error=error)
+    return _product_page(request, product_id, 400, error)
 
 
 @router.get("/orders", response_class=HTMLResponse, name="store_admin_orders")

@@ -124,10 +124,9 @@ def test_existing_error_responses_are_unchanged(client):
     assert "error_id" not in invalid.json()
     assert isinstance(invalid.json()["detail"], list)
 
-    with patch("src.store.router.storefront.products", return_value=[]):
-        unavailable = client.get("/store")
-    assert unavailable.status_code == 503
-    assert unavailable.json() == {"detail": "Store catalog is unavailable."}
+    forbidden = client.post("/store/admin/login", data={"csrf_token": ""})
+    assert forbidden.status_code == 403
+    assert forbidden.json() == {"detail": "Invalid form token."}
 
 
 def test_stripe_style_client_gets_json(client, caplog):

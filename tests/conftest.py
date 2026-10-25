@@ -48,7 +48,8 @@ def reset_store_database():
     try:
         with psycopg.connect(TEST_DATABASE_URL, autocommit=True) as conn:
             conn.execute(
-                "TRUNCATE store.categories, store.checkouts, store.stripe_events "
+                "TRUNCATE store.products, store.collections, store.checkouts, "
+                "store.stripe_events "
                 "RESTART IDENTITY CASCADE"
             )
     except psycopg.OperationalError:
@@ -58,3 +59,62 @@ def reset_store_database():
         )
     yield
     db.close_pool()
+
+
+@pytest.fixture
+def catalog_factory():
+    from src.store import db
+
+    class CatalogFactory:
+        def product(
+            self, slug="test-tool", name="Test Tool", *, description="Test product",
+            features=(), featured=False, published=True, variants=None, images=(),
+        ):
+            with db.connection() as conn:
+                product = dict(conn.execute(
+                    "INSERT INTO products(slug,name,description,features,featured,published) "
+                    "VALUES(%s,%s,%s,%s,%s,%s) RETURNING *",
+                    (slug, name, description, list(features), featured, published),
+                ).fetchone())
+                product["variants"] = []
+                for position, variant in enumerate(variants or [{}]):
+                    product["variants"].append(dict(conn.execute(
+                        "INSERT INTO variants(product_id,name,sku,price_cents,stock_on_hand,"
+                        "position,published) VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING *",
+                        (product["id"], variant.get("name", ""), variant.get("sku"),
+                         variant.get("price_cents", 2500), variant.get("stock", 3),
+                         variant.get("position", position),
+                         variant.get("published", True)),
+                    ).fetchone()))
+                for position, url in enumerate(images):
+                    conn.execute(
+                        "INSERT INTO product_images(product_id,url,alt,position) VALUES(%s,%s,%s,%s)",
+                        (product["id"], url, name, position),
+                    )
+            return product
+
+        def collection(self, slug="tools", title="Tools", *, published=True,
+                       position=0, description="", tag="", blurb=""):
+            with db.connection() as conn:
+                return dict(conn.execute(
+                    "INSERT INTO collections(slug,title,published,position,description,tag,blurb) "
+                    "VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING *",
+                    (slug, title, published, position, description, tag, blurb),
+                ).fetchone())
+
+        def group(self, collection, title="", *, position=0, tag="", lede=""):
+            with db.connection() as conn:
+                return dict(conn.execute(
+                    "INSERT INTO collection_groups(collection_id,title,position,tag,lede) "
+                    "VALUES(%s,%s,%s,%s,%s) RETURNING *",
+                    (collection["id"], title, position, tag, lede),
+                ).fetchone())
+
+        def add(self, group, product, *, position=0):
+            with db.connection() as conn:
+                conn.execute(
+                    "INSERT INTO collection_items(group_id,product_id,position) VALUES(%s,%s,%s)",
+                    (group["id"], product["id"], position),
+                )
+
+    return CatalogFactory()
