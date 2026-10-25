@@ -404,6 +404,32 @@ def test_update_slug_sku_features_and_collections(client, catalog, catalog_facto
 
 
 
+def _low_stock(client):
+    page = client.get("/store/admin").text
+    return int(re.search(
+        r'admin-stat-value">(\d+)</span>\s*<span class="admin-stat-label">'
+        r"Published with a sold-out variant",
+        page,
+    ).group(1))
+
+
+def test_retired_sold_out_variant_is_not_low_stock(client, catalog_factory):
+    before = _low_stock(client)
+    catalog_factory.product(
+        slug="shim-set", name="Shim Set",
+        variants=[
+            {"name": "Wide", "sku": "SHIM-W", "stock": 2},
+            {"name": "Narrow", "sku": "SHIM-N", "stock": 0, "published": False},
+        ],
+    )
+    assert _low_stock(client) == before
+    catalog_factory.product(
+        slug="spare-shim", name="Spare Shim",
+        variants=[{"sku": "SHIM-S", "stock": 0}],
+    )
+    assert _low_stock(client) == before + 1
+
+
 def test_unpublished_variant_is_retired_from_the_store(client, catalog_factory):
     catalog_factory.product(
         slug="shim-set", name="Shim Set",

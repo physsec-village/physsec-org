@@ -159,7 +159,10 @@ def dashboard(request: Request):
             1
             for product in products
             if product["published"]
-            and any(v["available_stock"] <= 0 for v in product["variants"])
+            and any(
+                v["published"] and v["available_stock"] <= 0
+                for v in product["variants"]
+            )
         ),
     )
 
