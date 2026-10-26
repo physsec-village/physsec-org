@@ -78,6 +78,64 @@ class ProductInput(BaseModel):
         return self
 
 
+class ImageUpdate(BaseModel):
+    """An admin edit to a product image's alt text."""
+
+    id: int
+    alt: str = Field(default="", max_length=300)
+
+    @model_validator(mode="after")
+    def strip_text(self) -> ImageUpdate:
+        self.alt = " ".join(self.alt.split())
+        return self
+
+
+class CollectionInput(BaseModel):
+    """Collection details an admin can set. A blank slug is derived from the title."""
+
+    title: str
+    slug: str = ""
+    tag: str = Field(default="", max_length=100)
+    blurb: str = Field(default="", max_length=1000)
+    description: str = Field(default="", max_length=10000)
+    published: bool = False
+
+    @model_validator(mode="after")
+    def validate_collection(self) -> CollectionInput:
+        self.title = self.title.strip()
+        if not self.title:
+            raise ValueError("Collection title is required.")
+        self.slug = self.slug.strip().lower() or slugify(self.title)
+        if not SLUG_RE.fullmatch(self.slug):
+            raise ValueError(
+                "URL slug may only contain lowercase letters, digits and single "
+                "hyphens between them."
+            )
+        self.tag = self.tag.strip()
+        self.blurb = self.blurb.strip()
+        self.description = self.description.strip()
+        return self
+
+
+class GroupInput(BaseModel):
+    """A headed run of products within a collection. The title may be blank."""
+
+    title: str = Field(default="", max_length=200)
+    tag: str = Field(default="", max_length=100)
+    lede: str = Field(default="", max_length=1000)
+
+    @model_validator(mode="after")
+    def strip_text(self) -> GroupInput:
+        self.title = self.title.strip()
+        self.tag = self.tag.strip()
+        self.lede = self.lede.strip()
+        return self
+
+
+class GroupUpdate(GroupInput):
+    id: int
+
+
 def slugify(value: str) -> str:
     return _SLUG_SEPARATORS.sub("-", value.lower()).strip("-") or "product"
 

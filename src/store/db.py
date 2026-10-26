@@ -21,10 +21,18 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from .config import database_url
-from .models import ProductInput, VariantInput, VariantUpdate
+from .models import (
+    CollectionInput,
+    GroupInput,
+    GroupUpdate,
+    ImageUpdate,
+    ProductInput,
+    VariantInput,
+    VariantUpdate,
+)
 
 MEDIA_DIR = os.getenv("STORE_MEDIA_DIR", "data/media")
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
 _pool: ConnectionPool | None = None
 
 
@@ -831,6 +839,39 @@ def process_refund_event(
         return state
 
 
+def process_dispute_event(
+    event_id: str,
+    dispute: Mapping[str, Any],
+) -> str:
+    """Flag the disputed order for review; the dispute itself is handled in Stripe."""
+    payment_intent = _object_id(dispute.get("payment_intent"))
+    if not payment_intent:
+        raise CheckoutConflict("Dispute lacks payment intent.")
+    with connection(write=True) as conn:
+        if not _event_begin(
+            conn, event_id, "charge.dispute.created", str(dispute.get("id") or "")
+        ):
+            return "duplicate"
+        order = conn.execute(
+            "SELECT id FROM orders WHERE payment_intent_id=%s FOR UPDATE",
+            (payment_intent,),
+        ).fetchone()
+        if not order:
+            raise CheckoutConflict("Dispute arrived before its order.")
+        reason = str(dispute.get("reason") or "no reason given")[:100]
+        conn.execute(
+            "UPDATE orders SET review_state='needs_review',review_reason=%s,"
+            "updated_at=clock_timestamp() WHERE id=%s",
+            (
+                f"Payment disputed in Stripe ({reason}). "
+                "Respond to the dispute in the Stripe dashboard.",
+                order["id"],
+            ),
+        )
+        _event_done(conn, event_id)
+        return "needs_review"
+
+
 def confirmation_lookup(session_id: str) -> dict[str, Any] | None:
     with connection() as conn:
         row = conn.execute(
@@ -857,18 +898,92 @@ def _shipping(session: Mapping[str, Any]) -> Any:
     return session.get("shipping_details")
 
 
-# Store admin.  The application role cannot DELETE, so products and variants
-# are retired by unpublishing them rather than removed. The one exception is
-# collection membership, which has no history worth keeping.
+# Store admin. Checkouts and orders reference variants with ON DELETE RESTRICT,
+# so a variant that was ever reserved or sold, and the product that owns it,
+# cannot be deleted; the admin retires those by unpublishing them. Everything
+# else in the catalog can be deleted outright.
 ORDER_FULFILLMENT_STATES = ("unfulfilled", "processing", "shipped", "canceled")
 ORDER_REVIEW_STATES = ("clear", "needs_review")
+MOVE_DIRECTIONS = ("up", "down")
 
 
 STALE_FORM = "This was changed after you loaded the page. Review it and save again."
+SOLD_VARIANT = (
+    "It has been reserved or sold, so it cannot be deleted. Unpublish it instead."
+)
 
 
 class AdminError(StoreError):
     """A rejected admin change whose message is safe to show the admin."""
+
+
+def _move(
+    conn: psycopg.Connection,
+    table: str,
+    scope_sql: str,
+    scope_params: Sequence[Any],
+    id_column: str,
+    row_id: int,
+    direction: str,
+) -> None:
+    """Swap a row with its neighbour and renumber its siblings from zero.
+
+    `table`, `scope_sql` and `id_column` are fixed strings chosen by the
+    caller, never user input.
+    """
+    if direction not in MOVE_DIRECTIONS:
+        raise AdminError("Unknown direction.")
+    ids = [
+        int(row["id"])
+        for row in conn.execute(
+            f"SELECT {id_column} AS id FROM {table} WHERE {scope_sql} "
+            f"ORDER BY position,{id_column} FOR UPDATE",
+            scope_params,
+        )
+    ]
+    if row_id not in ids:
+        raise AdminError("That item no longer exists.")
+    index = ids.index(row_id)
+    neighbour = index - 1 if direction == "up" else index + 1
+    if 0 <= neighbour < len(ids):
+        ids[index], ids[neighbour] = ids[neighbour], ids[index]
+    for position, each in enumerate(ids):
+        conn.execute(
+            f"UPDATE {table} SET position=%s WHERE {scope_sql} AND {id_column}=%s",
+            (position, *scope_params, each),
+        )
+
+
+def _lock_product(conn: psycopg.Connection, product_id: int) -> Mapping[str, Any]:
+    row = conn.execute(
+        "SELECT id,published FROM products WHERE id=%s FOR UPDATE", (product_id,)
+    ).fetchone()
+    if not row:
+        raise AdminError("Product not found.")
+    return row
+
+
+def _touch_product(conn: psycopg.Connection, product_id: int) -> None:
+    conn.execute(
+        "UPDATE products SET updated_at=clock_timestamp() WHERE id=%s", (product_id,)
+    )
+
+
+def _lock_collection(conn: psycopg.Connection, collection_id: int) -> Mapping[str, Any]:
+    row = conn.execute(
+        "SELECT id,updated_at FROM collections WHERE id=%s FOR UPDATE",
+        (collection_id,),
+    ).fetchone()
+    if not row:
+        raise AdminError("Collection not found.")
+    return row
+
+
+def _touch_collection(conn: psycopg.Connection, collection_id: int) -> None:
+    conn.execute(
+        "UPDATE collections SET updated_at=clock_timestamp() WHERE id=%s",
+        (collection_id,),
+    )
 
 
 def _version(value: str) -> datetime:
@@ -884,7 +999,7 @@ def _version(value: str) -> datetime:
 
 def _unique_violation(exc: psycopg.errors.UniqueViolation) -> AdminError:
     constraint = exc.diag.constraint_name or ""
-    if constraint == "products_slug_key":
+    if constraint in {"products_slug_key", "collections_slug_key"}:
         return AdminError("That URL slug is already in use.")
     if constraint == "variants_sku_key":
         return AdminError("That SKU is already in use.")
@@ -995,8 +1110,13 @@ def update_product(
     *,
     variants: Sequence[VariantUpdate],
     version: str,
+    images: Sequence[ImageUpdate] = (),
+    reviewed: bool | None = None,
 ) -> None:
-    """Update product details, collections and variants in one transaction.
+    """Update product details, collections, variants and image captions at once.
+
+    `reviewed` marks the product as checked for go-live (or clears that mark);
+    None leaves it as it was.
 
     `version` is the product's `updated_at` when the form loaded; every admin
     edit advances it, so a stale form is rejected rather than undoing another
@@ -1071,10 +1191,23 @@ def update_product(
                 raise AdminError(
                     "A published product needs at least one published variant."
                 )
+            for image in images:
+                changed = conn.execute(
+                    "UPDATE product_images SET alt=%s WHERE id=%s AND product_id=%s",
+                    (image.alt, image.id, product_id),
+                ).rowcount
+                if changed != 1:
+                    raise AdminError("An image does not belong to this product.")
             _set_groups(conn, product_id, product.group_ids)
+            review_sql = ""
+            if reviewed is True:
+                review_sql = ",reviewed_at=COALESCE(reviewed_at,clock_timestamp())"
+            elif reviewed is False:
+                review_sql = ",reviewed_at=NULL"
             conn.execute(
                 "UPDATE products SET slug=%s,name=%s,description=%s,features=%s,"
-                "featured=%s,published=%s,updated_at=clock_timestamp() WHERE id=%s",
+                f"featured=%s,published=%s,updated_at=clock_timestamp(){review_sql} "
+                "WHERE id=%s",
                 (
                     product.slug,
                     product.name,
@@ -1087,6 +1220,32 @@ def update_product(
             )
     except psycopg.errors.UniqueViolation as exc:
         raise _unique_violation(exc) from exc
+
+
+def review_queue(after: int | None = None) -> dict[str, Any]:
+    """Return the next product to review and how far the review has got.
+
+    Products are reviewed in the dashboard's order (by name). `after` skips
+    past a product without marking it, continuing from the one that follows
+    it; the queue wraps around so skipped products come back.
+    """
+    products = admin_products()
+    pending = [product for product in products if product["reviewed_at"] is None]
+    current = pending[0] if pending else None
+    if after is not None and pending:
+        # Walk the list in the database's order rather than re-sorting names
+        # in Python, whose ordering can differ from the collation's.
+        ids = [p["id"] for p in products]
+        start = ids.index(after) + 1 if after in ids else 0
+        later = [p for p in products[start:] if p["reviewed_at"] is None]
+        current = later[0] if later else pending[0]
+    return {
+        "product": current,
+        "pending": len(pending),
+        "total": len(products),
+        "reviewed": len(products) - len(pending),
+    }
+
 
 
 def admin_create_product(product: ProductInput, variant: VariantInput) -> int:
@@ -1155,26 +1314,6 @@ def add_variant(product_id: int, variant: VariantInput) -> None:
         raise _unique_violation(exc) from exc
 
 
-def admin_orders(
-    *, fulfillment_state: str | None = None, limit: int = 200
-) -> list[dict[str, Any]]:
-    clause, params = "", []
-    if fulfillment_state:
-        clause, params = "WHERE o.fulfillment_state=%s", [fulfillment_state]
-    with connection() as conn:
-        return [
-            dict(row)
-            for row in conn.execute(
-                "SELECT o.id,o.email,o.currency,o.amount_total_cents,o.payment_state,"
-                "o.fulfillment_state,o.review_state,o.refund_state,o.created_at,"
-                "(SELECT COALESCE(SUM(i.quantity),0) FROM order_items i "
-                "WHERE i.order_id=o.id) AS item_count "
-                f"FROM orders o {clause} ORDER BY o.created_at DESC,o.id LIMIT %s",
-                [*params, max(1, min(limit, 1000))],
-            )
-        ]
-
-
 def admin_order_counts() -> dict[str, int]:
     counts = dict.fromkeys(ORDER_FULFILLMENT_STATES, 0)
     with connection() as conn:
@@ -1232,3 +1371,415 @@ def update_order(
             "updated_at=clock_timestamp() WHERE id=%s",
             (fulfillment_state, review_state, reason, order_id),
         )
+
+
+def admin_orders(
+    *,
+    fulfillment_state: str | None = None,
+    review_state: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    clauses, params = [], []
+    if fulfillment_state:
+        clauses.append("o.fulfillment_state=%s")
+        params.append(fulfillment_state)
+    if review_state:
+        clauses.append("o.review_state=%s")
+        params.append(review_state)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    with connection() as conn:
+        return [
+            dict(row)
+            for row in conn.execute(
+                "SELECT o.id,o.email,o.currency,o.amount_total_cents,o.payment_state,"
+                "o.fulfillment_state,o.review_state,o.refund_state,o.created_at,"
+                "(SELECT COALESCE(SUM(i.quantity),0) FROM order_items i "
+                "WHERE i.order_id=o.id) AS item_count "
+                f"FROM orders o {where} ORDER BY o.created_at DESC,o.id LIMIT %s",
+                [*params, max(1, min(limit, 1000))],
+            )
+        ]
+
+
+def admin_review_count() -> int:
+    with connection() as conn:
+        return int(
+            conn.execute(
+                "SELECT COUNT(*) AS count FROM orders WHERE review_state='needs_review'"
+            ).fetchone()["count"]
+        )
+
+
+# Products: variants, images and deletion.
+def delete_product(product_id: int) -> list[str]:
+    """Delete a product nothing has ever reserved or bought.
+
+    Returns the URLs of images no other product uses, so the caller can remove
+    uploaded files.
+    """
+    try:
+        with connection(write=True) as conn:
+            _lock_product(conn, product_id)
+            urls = [
+                row["url"]
+                for row in conn.execute(
+                    "SELECT url FROM product_images WHERE product_id=%s", (product_id,)
+                )
+            ]
+            conn.execute("DELETE FROM product_images WHERE product_id=%s", (product_id,))
+            conn.execute("DELETE FROM collection_items WHERE product_id=%s", (product_id,))
+            conn.execute("DELETE FROM variants WHERE product_id=%s", (product_id,))
+            conn.execute("DELETE FROM products WHERE id=%s", (product_id,))
+            return [url for url in urls if not _image_url_in_use(conn, url)]
+    except psycopg.errors.ForeignKeyViolation:
+        raise AdminError(f"This product cannot be deleted. {SOLD_VARIANT}") from None
+
+
+def move_variant(product_id: int, variant_id: int, direction: str) -> None:
+    with connection(write=True) as conn:
+        _lock_product(conn, product_id)
+        _move(conn, "variants", "product_id=%s", (product_id,), "id", variant_id, direction)
+        _touch_product(conn, product_id)
+
+
+def delete_variant(product_id: int, variant_id: int) -> None:
+    """Delete a variant nothing has ever reserved or bought."""
+    try:
+        with connection(write=True) as conn:
+            product = _lock_product(conn, product_id)
+            variants = conn.execute(
+                "SELECT id,published FROM variants WHERE product_id=%s ORDER BY id "
+                "FOR UPDATE",
+                (product_id,),
+            ).fetchall()
+            target = next((v for v in variants if int(v["id"]) == variant_id), None)
+            if target is None:
+                raise AdminError("Variant not found.")
+            if len(variants) == 1:
+                raise AdminError(
+                    "A product needs at least one variant. Delete the product instead."
+                )
+            if (
+                product["published"]
+                and target["published"]
+                and not any(
+                    v["published"] for v in variants if int(v["id"]) != variant_id
+                )
+            ):
+                raise AdminError(
+                    "A published product needs at least one published variant."
+                )
+            conn.execute("DELETE FROM variants WHERE id=%s", (variant_id,))
+            _touch_product(conn, product_id)
+    except psycopg.errors.ForeignKeyViolation:
+        raise AdminError(f"This variant cannot be deleted. {SOLD_VARIANT}") from None
+
+
+def _image_url_in_use(conn: psycopg.Connection, url: str) -> bool:
+    return (
+        conn.execute(
+            "SELECT 1 FROM product_images WHERE url=%s LIMIT 1", (url,)
+        ).fetchone()
+        is not None
+    )
+
+
+def add_image(product_id: int, url: str, alt: str) -> None:
+    with connection(write=True) as conn:
+        _lock_product(conn, product_id)
+        conn.execute(
+            "INSERT INTO product_images(product_id,url,alt,position) "
+            "SELECT %s,%s,%s,COALESCE(MAX(position)+1,0) FROM product_images "
+            "WHERE product_id=%s",
+            (product_id, url, alt, product_id),
+        )
+        _touch_product(conn, product_id)
+
+
+def move_image(product_id: int, image_id: int, direction: str) -> None:
+    with connection(write=True) as conn:
+        _lock_product(conn, product_id)
+        _move(
+            conn, "product_images", "product_id=%s", (product_id,), "id", image_id, direction
+        )
+        _touch_product(conn, product_id)
+
+
+def delete_image(product_id: int, image_id: int) -> str | None:
+    """Remove an image; return its URL if no other product image uses it."""
+    with connection(write=True) as conn:
+        _lock_product(conn, product_id)
+        row = conn.execute(
+            "DELETE FROM product_images WHERE id=%s AND product_id=%s RETURNING url",
+            (image_id, product_id),
+        ).fetchone()
+        if row is None:
+            raise AdminError("Image not found.")
+        _touch_product(conn, product_id)
+        return None if _image_url_in_use(conn, row["url"]) else row["url"]
+
+
+def admin_product_options() -> list[dict[str, Any]]:
+    """Every product, for choosing what to add to a collection group."""
+    with connection() as conn:
+        return [
+            dict(row)
+            for row in conn.execute(
+                "SELECT id,name,slug,published FROM products ORDER BY name,id"
+            )
+        ]
+
+
+# Collections, their groups and the products in them.
+def admin_collections() -> list[dict[str, Any]]:
+    with connection() as conn:
+        return [
+            dict(row)
+            for row in conn.execute(
+                "SELECT c.*,(SELECT COUNT(*) FROM collection_groups g "
+                "WHERE g.collection_id=c.id) AS group_count,"
+                "(SELECT COUNT(DISTINCT i.product_id) FROM collection_groups g "
+                "JOIN collection_items i ON i.group_id=g.id "
+                "WHERE g.collection_id=c.id) AS item_count "
+                "FROM collections c ORDER BY c.position,c.id"
+            )
+        ]
+
+
+def admin_collection(collection_id: int) -> dict[str, Any] | None:
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM collections WHERE id=%s", (collection_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        collection = dict(row)
+        groups = [
+            dict(group)
+            for group in conn.execute(
+                "SELECT * FROM collection_groups WHERE collection_id=%s "
+                "ORDER BY position,id",
+                (collection_id,),
+            )
+        ]
+        by_group: dict[int, list[dict[str, Any]]] = {g["id"]: [] for g in groups}
+        if groups:
+            for item in conn.execute(
+                "SELECT i.group_id,p.id,p.name,p.slug,p.published,"
+                "(SELECT im.url FROM product_images im WHERE im.product_id=p.id "
+                "ORDER BY im.position,im.id LIMIT 1) AS image_url "
+                "FROM collection_items i JOIN products p ON p.id=i.product_id "
+                "WHERE i.group_id = ANY(%s) ORDER BY i.group_id,i.position,p.id",
+                (list(by_group),),
+            ):
+                product = dict(item)
+                by_group[int(product.pop("group_id"))].append(product)
+        for group in groups:
+            group["products"] = by_group[group["id"]]
+        collection["groups"] = groups
+        collection["item_count"] = len(
+            {p["id"] for group in groups for p in group["products"]}
+        )
+        return collection
+
+
+def create_collection(collection: CollectionInput) -> int:
+    """Create a collection, placed last, with one untitled group to hold products."""
+    try:
+        with connection(write=True) as conn:
+            collection_id = int(
+                conn.execute(
+                    "INSERT INTO collections(slug,title,tag,blurb,description,published,"
+                    "position) SELECT %s,%s,%s,%s,%s,%s,COALESCE(MAX(position)+1,0) "
+                    "FROM collections RETURNING id",
+                    (
+                        collection.slug,
+                        collection.title,
+                        collection.tag,
+                        collection.blurb,
+                        collection.description,
+                        collection.published,
+                    ),
+                ).fetchone()["id"]
+            )
+            conn.execute(
+                "INSERT INTO collection_groups(collection_id,position) VALUES(%s,0)",
+                (collection_id,),
+            )
+            return collection_id
+    except psycopg.errors.UniqueViolation as exc:
+        raise _unique_violation(exc) from exc
+
+
+def update_collection(
+    collection_id: int,
+    collection: CollectionInput,
+    *,
+    groups: Sequence[GroupUpdate],
+    version: str,
+) -> None:
+    """Update a collection and its group headings, rejecting a stale form."""
+    loaded_at = _version(version)
+    try:
+        with connection(write=True) as conn:
+            row = _lock_collection(conn, collection_id)
+            if row["updated_at"] != loaded_at:
+                raise AdminError(STALE_FORM)
+            for group in groups:
+                changed = conn.execute(
+                    "UPDATE collection_groups SET title=%s,tag=%s,lede=%s "
+                    "WHERE id=%s AND collection_id=%s",
+                    (group.title, group.tag, group.lede, group.id, collection_id),
+                ).rowcount
+                if changed != 1:
+                    raise AdminError("A group does not belong to this collection.")
+            conn.execute(
+                "UPDATE collections SET slug=%s,title=%s,tag=%s,blurb=%s,description=%s,"
+                "published=%s,updated_at=clock_timestamp() WHERE id=%s",
+                (
+                    collection.slug,
+                    collection.title,
+                    collection.tag,
+                    collection.blurb,
+                    collection.description,
+                    collection.published,
+                    collection_id,
+                ),
+            )
+    except psycopg.errors.UniqueViolation as exc:
+        raise _unique_violation(exc) from exc
+
+
+def delete_collection(collection_id: int) -> None:
+    """Delete a collection with its groups and memberships. Products stay."""
+    with connection(write=True) as conn:
+        _lock_collection(conn, collection_id)
+        conn.execute("DELETE FROM collections WHERE id=%s", (collection_id,))
+
+
+def move_collection(collection_id: int, direction: str) -> None:
+    with connection(write=True) as conn:
+        _move(conn, "collections", "TRUE", (), "id", collection_id, direction)
+
+
+def add_group(collection_id: int, group: GroupInput) -> None:
+    with connection(write=True) as conn:
+        _lock_collection(conn, collection_id)
+        conn.execute(
+            "INSERT INTO collection_groups(collection_id,title,tag,lede,position) "
+            "SELECT %s,%s,%s,%s,COALESCE(MAX(position)+1,0) FROM collection_groups "
+            "WHERE collection_id=%s",
+            (collection_id, group.title, group.tag, group.lede, collection_id),
+        )
+        _touch_collection(conn, collection_id)
+
+
+def _lock_group(conn: psycopg.Connection, collection_id: int, group_id: int) -> None:
+    _lock_collection(conn, collection_id)
+    row = conn.execute(
+        "SELECT id FROM collection_groups WHERE id=%s AND collection_id=%s FOR UPDATE",
+        (group_id, collection_id),
+    ).fetchone()
+    if row is None:
+        raise AdminError("Group not found.")
+
+
+def delete_group(collection_id: int, group_id: int) -> None:
+    """Delete a group and its memberships. Products stay in the catalog."""
+    with connection(write=True) as conn:
+        _lock_group(conn, collection_id, group_id)
+        conn.execute("DELETE FROM collection_groups WHERE id=%s", (group_id,))
+        _touch_collection(conn, collection_id)
+
+
+def move_group(collection_id: int, group_id: int, direction: str) -> None:
+    with connection(write=True) as conn:
+        _lock_collection(conn, collection_id)
+        _move(
+            conn,
+            "collection_groups",
+            "collection_id=%s",
+            (collection_id,),
+            "id",
+            group_id,
+            direction,
+        )
+        _touch_collection(conn, collection_id)
+
+
+def add_collection_item(collection_id: int, group_id: int, product_id: int) -> None:
+    with connection(write=True) as conn:
+        _lock_group(conn, collection_id, group_id)
+        if not conn.execute(
+            "SELECT 1 FROM products WHERE id=%s", (product_id,)
+        ).fetchone():
+            raise AdminError("Product not found.")
+        conn.execute(
+            "INSERT INTO collection_items(group_id,product_id,position) "
+            "SELECT %s,%s,COALESCE(MAX(position)+1,0) FROM collection_items "
+            "WHERE group_id=%s ON CONFLICT DO NOTHING",
+            (group_id, product_id, group_id),
+        )
+        _touch_collection(conn, collection_id)
+
+
+def remove_collection_item(collection_id: int, group_id: int, product_id: int) -> None:
+    with connection(write=True) as conn:
+        _lock_group(conn, collection_id, group_id)
+        conn.execute(
+            "DELETE FROM collection_items WHERE group_id=%s AND product_id=%s",
+            (group_id, product_id),
+        )
+        _touch_collection(conn, collection_id)
+
+
+def move_collection_item(
+    collection_id: int, group_id: int, product_id: int, direction: str
+) -> None:
+    with connection(write=True) as conn:
+        _lock_group(conn, collection_id, group_id)
+        _move(
+            conn,
+            "collection_items",
+            "group_id=%s",
+            (group_id,),
+            "product_id",
+            product_id,
+            direction,
+        )
+        _touch_collection(conn, collection_id)
+
+
+# Stripe webhook ledger, for checking that payments reach the store.
+def admin_stripe_events(limit: int = 100) -> list[dict[str, Any]]:
+    with connection() as conn:
+        return [
+            dict(row)
+            for row in conn.execute(
+                "SELECT e.*,o.id AS order_id FROM stripe_events e "
+                "LEFT JOIN orders o ON o.stripe_session_id=e.stripe_object_id "
+                "ORDER BY e.received_at DESC,e.event_id LIMIT %s",
+                (max(1, min(limit, 1000)),),
+            )
+        ]
+
+
+def admin_stripe_summary() -> dict[str, Any]:
+    with connection() as conn:
+        counts = {
+            row["state"]: int(row["count"])
+            for row in conn.execute(
+                "SELECT state,COUNT(*) AS count FROM stripe_events GROUP BY state"
+            )
+        }
+        last = conn.execute(
+            "SELECT MAX(received_at) AS received_at FROM stripe_events"
+        ).fetchone()["received_at"]
+    return {
+        "received": sum(counts.values()),
+        "processed": counts.get("processed", 0),
+        "ignored": counts.get("ignored", 0),
+        "failed": counts.get("failed", 0),
+        "pending": counts.get("received", 0),
+        "last_received_at": last,
+    }

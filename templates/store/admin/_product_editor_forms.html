@@ -1,0 +1,30 @@
+{# Hidden forms behind the editor's row buttons, add row and add tile. #}
+{% from "store/admin/macros.html" import row_forms %}
+{% for variant in product.variants %}
+    {{ row_forms(
+        "variant-" ~ variant.id,
+        url_for("store_admin_move_variant", product_id=product.id, variant_id=variant.id),
+        csrf_token,
+        url_for("store_admin_delete_variant", product_id=product.id, variant_id=variant.id),
+        "Delete the variant " ~ (variant.name or variant.sku or "") ~ "? This cannot be undone.",
+        next_url
+    ) }}
+{% endfor %}
+{% for image in product.images %}
+    {{ row_forms(
+        "image-" ~ image.id,
+        url_for("store_admin_move_image", product_id=product.id, image_id=image.id),
+        csrf_token,
+        url_for("store_admin_delete_image", product_id=product.id, image_id=image.id),
+        "Remove this image from the product?",
+        next_url
+    ) }}
+{% endfor %}
+<form id="add-variant" method="post" action="{{ url_for('store_admin_add_variant', product_id=product.id) }}" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
+</form>
+<form id="add-image" method="post" action="{{ url_for('store_admin_add_image', product_id=product.id) }}" enctype="multipart/form-data" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
+</form>

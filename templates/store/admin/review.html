@@ -1,0 +1,61 @@
+{% extends "store/admin/base.html" %}
+{% from "store/admin/macros.html" import status_tags %}
+{% block title %}Review products{% endblock %}
+
+{% block main %}
+    <div class="admin-head">
+        <div>
+            <h1>Review products</h1>
+            <p class="admin-meta">
+                Go through every product before go-live: fix anything wrong, then
+                mark it reviewed to move on. Skipped products come back around.
+            </p>
+        </div>
+        <div class="admin-head-actions">
+            <a class="btn btn-ghost" href="{{ url_for('store_admin_dashboard') }}?status=unreviewed">Unreviewed list</a>
+        </div>
+    </div>
+
+    <div class="admin-progress" role="progressbar" aria-valuemin="0" aria-valuemax="{{ queue.total }}" aria-valuenow="{{ queue.reviewed }}" aria-label="Products reviewed">
+        <div class="admin-progress-bar" style="width: {{ (100 * queue.reviewed / queue.total) | round | int if queue.total else 100 }}%"></div>
+        <span class="admin-progress-label">{{ queue.reviewed }} of {{ queue.total }} reviewed{% if queue.pending %} · {{ queue.pending }} to go{% endif %}</span>
+    </div>
+
+    {% if product %}
+        <div class="admin-review-bar">
+            <div>
+                <span class="admin-sub">Now reviewing</span>
+                <strong>{{ product.name }}</strong> {{ status_tags(product) }}
+            </div>
+            <div class="admin-head-actions">
+                {% if product.published %}
+                    <a class="btn btn-ghost btn-sm" href="{{ url_for('store_product_page', slug=product.slug) }}" target="_blank" rel="noopener">View in store</a>
+                {% endif %}
+                <a class="btn btn-ghost btn-sm" href="{{ url_for('store_admin_product', product_id=product.id) }}">Open in editor</a>
+                <a class="btn btn-outline btn-sm" href="{{ url_for('store_admin_review') }}?after={{ product.id }}">Skip for now</a>
+            </div>
+        </div>
+
+        <form method="post" action="{{ url_for('store_admin_review_save', product_id=product.id) }}" id="product-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <input type="hidden" name="version" value="{{ product.updated_at.isoformat() }}" />
+            {% include "store/admin/_product_editor.html" %}
+            <div class="admin-actions admin-review-actions">
+                <button type="submit" class="btn btn-primary">Save and mark reviewed</button>
+                <a class="btn btn-ghost" href="{{ url_for('store_admin_review') }}?after={{ product.id }}">Skip for now</a>
+            </div>
+        </form>
+        {% include "store/admin/_product_editor_forms.html" %}
+    {% else %}
+        <section class="admin-card admin-review-done">
+            <h2>Every product has been reviewed</h2>
+            <p class="admin-hint">
+                Nothing is waiting. To look at one again, untick <em>Reviewed</em>
+                on its product page and it returns to this queue.
+            </p>
+            <div class="admin-actions">
+                <a class="btn btn-primary" href="{{ url_for('store_admin_dashboard') }}">Back to products</a>
+            </div>
+        </section>
+    {% endif %}
+{% endblock %}

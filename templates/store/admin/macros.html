@@ -8,10 +8,68 @@
         {% for group in groups %}
             <label>
                 <input type="checkbox" name="group_id" value="{{ group.id }}" {% if group.id in selected %}checked{% endif %} />
-                {{ group_label(group) }}
+                <span>
+                    {% if group.group_title %}<span class="admin-groups-collection">{{ group.collection_title }} ›</span> {{ group.group_title }}{% else %}{{ group.collection_title }}{% endif %}{% if not group.published %} <span class="admin-groups-collection">(hidden)</span>{% endif %}
+                </span>
             </label>
         {% else %}
-            <p class="admin-hint">There are no collections yet.</p>
+            <p class="admin-hint">There are no collections yet. <a href="/store/admin/collections">Create one</a> to list products in the store.</p>
         {% endfor %}
     </fieldset>
+{% endmacro %}
+
+{% macro thumb(url, alt="") %}
+    {% if url %}
+        <img class="admin-thumb" src="{{ url }}" alt="{{ alt }}" loading="lazy" decoding="async" />
+    {% else %}
+        <span class="admin-thumb admin-thumb-blank" aria-hidden="true"></span>
+    {% endif %}
+{% endmacro %}
+
+{#
+  Reorder and delete buttons for a row that sits inside a larger form. They
+  submit the small hidden forms emitted by row_forms() once that form closes,
+  so saving the big form and moving a row stay separate requests.
+#}
+{% macro row_buttons(prefix, first, last, label, delete_label=none) %}
+    <span class="admin-row-actions">
+        <button type="submit" form="{{ prefix }}-up" class="btn-icon" title="Move up" aria-label="Move {{ label }} up"{% if first %} disabled{% endif %}>&uarr;</button>
+        <button type="submit" form="{{ prefix }}-down" class="btn-icon" title="Move down" aria-label="Move {{ label }} down"{% if last %} disabled{% endif %}>&darr;</button>
+        {% if delete_label %}
+            <button type="submit" form="{{ prefix }}-delete" class="btn-icon btn-icon-danger" title="{{ delete_label }}" aria-label="{{ delete_label }} {{ label }}">&times;</button>
+        {% endif %}
+    </span>
+{% endmacro %}
+
+{% macro row_forms(prefix, move_url, csrf, delete_url=none, confirm=none, next_url="") %}
+    <form id="{{ prefix }}-up" method="post" action="{{ move_url }}" hidden>
+        <input type="hidden" name="csrf_token" value="{{ csrf }}" />
+        <input type="hidden" name="direction" value="up" />
+        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
+    </form>
+    <form id="{{ prefix }}-down" method="post" action="{{ move_url }}" hidden>
+        <input type="hidden" name="csrf_token" value="{{ csrf }}" />
+        <input type="hidden" name="direction" value="down" />
+        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
+    </form>
+    {% if delete_url %}
+        <form id="{{ prefix }}-delete" method="post" action="{{ delete_url }}" hidden{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
+            <input type="hidden" name="csrf_token" value="{{ csrf }}" />
+            {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
+        </form>
+    {% endif %}
+{% endmacro %}
+
+{% macro status_tags(item) %}
+    {% if item.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag tag-muted">Hidden</span>{% endif %}
+    {% if item.featured %}<span class="tag tag-accent">Featured</span>{% endif %}
+    {% if item.reviewed_at is defined and item.reviewed_at %}<span class="tag tag-ok">Reviewed</span>{% endif %}
+{% endmacro %}
+
+{% macro toggle(name, label, checked, hint=none) %}
+    <label class="admin-toggle">
+        <input type="checkbox" name="{{ name }}" value="true"{% if checked %} checked{% endif %} />
+        <strong>{{ label }}</strong>
+        {% if hint %}<small>{{ hint }}</small>{% endif %}
+    </label>
 {% endmacro %}

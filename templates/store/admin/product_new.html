@@ -1,63 +1,87 @@
 {% extends "store/admin/base.html" %}
-{% from "store/admin/macros.html" import collection_picker %}
+{% from "store/admin/macros.html" import collection_picker, toggle %}
 {% block title %}New product{% endblock %}
 
 {% block main %}
-    <div class="admin-head"><h1>New product</h1></div>
+    <nav class="admin-crumbs" aria-label="Breadcrumb">
+        <a href="{{ url_for('store_admin_dashboard') }}">Products</a><span>/</span><span>New product</span>
+    </nav>
+    <div class="admin-head">
+        <div>
+            <h1>New product</h1>
+            <p class="admin-meta">Every product has at least one variant. Add more variants and images after creating it.</p>
+        </div>
+    </div>
 
-    <form method="post" action="{{ url_for('store_admin_create_product') }}" class="admin-card">
+    <form method="post" action="{{ url_for('store_admin_create_product') }}" class="admin-editor">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-        <p class="admin-hint">
-            The URL slug sets the product's store address and is derived from
-            the name when left blank. SKUs are optional. Add more variants
-            after creating the product.
-        </p>
-        <div class="admin-grid">
-            <label class="admin-field">
-                <span>Name</span>
-                <input name="name" value="{{ form.name }}" required maxlength="200" />
-            </label>
-            <label class="admin-field">
-                <span>URL slug (optional)</span>
-                <input name="slug" value="{{ form.slug }}" maxlength="200" placeholder="cross-key" />
-            </label>
-            <label class="admin-field">
-                <span>Variant label (optional)</span>
-                <input name="variant_name" value="{{ form.variant_name }}" maxlength="200" />
-            </label>
-            <label class="admin-field">
-                <span>SKU (optional)</span>
-                <input name="sku" value="{{ form.sku }}" maxlength="64" />
-            </label>
-            <label class="admin-field">
-                <span>UPC</span>
-                <input name="upc" value="{{ form.upc }}" maxlength="32" />
-            </label>
-            <label class="admin-field">
-                <span>Price ($)</span>
-                <input name="price" value="{{ form.price }}" required inputmode="decimal" placeholder="19.99" />
-            </label>
-            <label class="admin-field">
-                <span>Stock on hand</span>
-                <input name="stock" value="{{ form.stock or 0 }}" type="number" min="0" step="1" required />
-            </label>
+        <div class="admin-editor-main">
+            <section class="admin-card">
+                <h2>Details</h2>
+                <div class="admin-grid">
+                    <label class="admin-field">
+                        <span>Name</span>
+                        <input name="name" value="{{ form.name }}" required maxlength="200" data-slug-source />
+                    </label>
+                    <label class="admin-field">
+                        <span>URL slug</span>
+                        <input name="slug" value="{{ form.slug }}" maxlength="200" placeholder="derived from the name" class="mono" data-slug-target />
+                    </label>
+                </div>
+                <label class="admin-field">
+                    <span>Description</span>
+                    <textarea name="description" rows="4" maxlength="5000">{{ form.description }}</textarea>
+                </label>
+                <label class="admin-field">
+                    <span>Features</span>
+                    <textarea name="features" rows="3" maxlength="5000" placeholder="One per line">{{ form.features }}</textarea>
+                    <small>Shown as a bulleted list on the product page.</small>
+                </label>
+            </section>
+
+            <section class="admin-card">
+                <h2>First variant</h2>
+                <div class="admin-grid">
+                    <label class="admin-field">
+                        <span>Label</span>
+                        <input name="variant_name" value="{{ form.variant_name }}" maxlength="200" placeholder="Leave blank for a single option" />
+                    </label>
+                    <label class="admin-field">
+                        <span>SKU (optional)</span>
+                        <input name="sku" value="{{ form.sku }}" maxlength="64" class="mono" />
+                    </label>
+                    <label class="admin-field">
+                        <span>UPC (optional)</span>
+                        <input name="upc" value="{{ form.upc }}" maxlength="32" class="mono" />
+                    </label>
+                    <label class="admin-field">
+                        <span>Price ($)</span>
+                        <input name="price" value="{{ form.price }}" required inputmode="decimal" placeholder="19.99" class="input-num" />
+                    </label>
+                    <label class="admin-field">
+                        <span>Stock on hand</span>
+                        <input name="stock" value="{{ form.stock or 0 }}" type="number" min="0" step="1" required class="input-num" />
+                    </label>
+                </div>
+            </section>
         </div>
-        <label class="admin-field">
-            <span>Description</span>
-            <textarea name="description" rows="4" maxlength="5000">{{ form.description }}</textarea>
-        </label>
-        <label class="admin-field">
-            <span>Features (one per line)</span>
-            <textarea name="features" rows="3" maxlength="5000">{{ form.features }}</textarea>
-        </label>
-        {{ collection_picker(groups, form.group_ids) }}
-        <div class="admin-checks">
-            <label><input type="checkbox" name="published" value="true" {% if form.published %}checked{% endif %} /> Published</label>
-            <label><input type="checkbox" name="featured" value="true" {% if form.featured %}checked{% endif %} /> Featured</label>
-        </div>
-        <div class="admin-actions">
-            <button type="submit" class="btn btn-primary">Create product</button>
-            <a class="btn btn-ghost" href="{{ url_for('store_admin_dashboard') }}">Cancel</a>
-        </div>
+
+        <aside class="admin-editor-side">
+            <section class="admin-card">
+                <h2>Visibility</h2>
+                <fieldset class="admin-toggles">
+                    {{ toggle("published", "Published", form.published, "Shown and purchasable in the store") }}
+                    {{ toggle("featured", "Featured", form.featured, "Pinned on the store home page") }}
+                </fieldset>
+                <div class="admin-actions admin-actions-stack">
+                    <button type="submit" class="btn btn-primary">Create product</button>
+                    <a class="btn btn-ghost" href="{{ url_for('store_admin_dashboard') }}">Cancel</a>
+                </div>
+            </section>
+            <section class="admin-card">
+                <h2>Collections</h2>
+                {{ collection_picker(groups, form.group_ids) }}
+            </section>
+        </aside>
     </form>
 {% endblock %}

@@ -1,0 +1,124 @@
+{% extends "store/admin/base.html" %}
+{% block title %}Stripe{% endblock %}
+
+{% block main %}
+    <div class="admin-head">
+        <div>
+            <h1>Stripe</h1>
+            <p class="admin-meta">
+                Payments, refunds, disputes, shipping rates and tax are managed in
+                Stripe. The store only listens: webhooks create orders when a
+                checkout is paid, release stock when one expires, and record refunds
+                and disputes against orders.
+            </p>
+        </div>
+        <div class="admin-head-actions">
+            <a class="btn btn-outline" href="{{ stripe_url('payments') }}" rel="noopener">Open the Stripe dashboard</a>
+        </div>
+    </div>
+
+    <div class="admin-columns">
+        <section class="admin-card">
+            <h2>Configuration</h2>
+            <dl class="admin-kv">
+                <dt>Mode</dt>
+                <dd>
+                    {% if not config.secret_key %}<span class="tag tag-warn">Not configured</span>
+                    {% elif config.test_mode %}<span class="tag tag-accent">Test</span>
+                    {% else %}<span class="tag tag-ok">Live</span>{% endif %}
+                </dd>
+                <dt>Secret key</dt>
+                <dd>{% if config.secret_key %}<span class="tag tag-ok">Set</span>{% else %}<span class="tag tag-warn">Missing</span> Checkout is disabled.{% endif %}</dd>
+                <dt>Webhook secret</dt>
+                <dd>{% if config.webhook_secret %}<span class="tag tag-ok">Set</span>{% else %}<span class="tag tag-warn">Missing</span> Webhooks are rejected.{% endif %}</dd>
+                <dt>Webhook endpoint</dt>
+                <dd class="mono">{{ config.webhook_url or "STORE_PUBLIC_ORIGIN is not set" }}</dd>
+                <dt>Ships to</dt>
+                <dd class="mono">{{ config.ship_countries }}</dd>
+                <dt>Shipping rates</dt>
+                <dd>{% if config.shipping_rates %}From Stripe{% else %}None (free shipping){% endif %}</dd>
+                <dt>Stripe Tax</dt>
+                <dd>{{ "Enabled" if config.automatic_tax else "Off" }}</dd>
+            </dl>
+            <p class="admin-hint">
+                These come from the deployment's environment. In the Stripe
+                dashboard, the webhook endpoint above should receive
+                <span class="mono">checkout.session.completed</span>,
+                <span class="mono">checkout.session.async_payment_succeeded</span>,
+                <span class="mono">checkout.session.expired</span>,
+                <span class="mono">charge.refunded</span> and
+                <span class="mono">charge.dispute.created</span>.
+            </p>
+        </section>
+
+        <section class="admin-card">
+            <h2>Webhook deliveries</h2>
+            <div class="admin-stats admin-stats-tight">
+                <div class="admin-stat">
+                    <span class="admin-stat-value">{{ summary.processed }}</span>
+                    <span class="admin-stat-label">Processed</span>
+                </div>
+                <div class="admin-stat">
+                    <span class="admin-stat-value">{{ summary.ignored }}</span>
+                    <span class="admin-stat-label">Ignored</span>
+                </div>
+                <div class="admin-stat{% if summary.failed %} admin-stat-warn{% endif %}">
+                    <span class="admin-stat-value">{{ summary.failed }}</span>
+                    <span class="admin-stat-label">Failed</span>
+                </div>
+            </div>
+            <dl class="admin-kv">
+                <dt>Last received</dt>
+                <dd class="mono">{{ summary.last_received_at.strftime("%Y-%m-%d %H:%M UTC") if summary.last_received_at else "Never" }}</dd>
+            </dl>
+            <p class="admin-hint">
+                Stripe retries failed deliveries for up to three days. A
+                delivery fails when the event refers to a checkout or order the
+                store does not know; check the event in Stripe if one keeps
+                failing.
+            </p>
+        </section>
+    </div>
+
+    <div class="admin-card-head admin-section-head">
+        <h2>Recent events</h2>
+        <span class="admin-sub">Times are UTC · 100 most recent</span>
+    </div>
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th scope="col">Received</th>
+                    <th scope="col">Event</th>
+                    <th scope="col">Object</th>
+                    <th scope="col">Order</th>
+                    <th scope="col">State</th>
+                    <th scope="col" class="num">Attempts</th>
+                    <th scope="col">Error</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                    <tr>
+                        <td class="mono">{{ event.received_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                        <td>
+                            <span class="mono">{{ event.event_type }}</span>
+                            <span class="admin-sub mono">{{ event.event_id }}</span>
+                        </td>
+                        <td class="mono">{{ event.stripe_object_id or "—" }}</td>
+                        <td class="mono">{% if event.order_id %}<a href="{{ url_for('store_admin_order', order_id=event.order_id) }}">{{ event.order_id[:8] }}</a>{% else %}—{% endif %}</td>
+                        <td>
+                            {% if event.state == 'processed' %}<span class="tag tag-ok">processed</span>
+                            {% elif event.state == 'failed' %}<span class="tag tag-warn">failed</span>
+                            {% else %}<span class="tag tag-muted">{{ event.state }}</span>{% endif %}
+                        </td>
+                        <td class="num">{{ event.attempts }}</td>
+                        <td>{% if event.last_error_code %}<span class="mono">{{ event.last_error_code }}</span> <span class="admin-sub">{{ event.last_error_detail or "" }}</span>{% else %}—{% endif %}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7" class="admin-empty">No webhook events received yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

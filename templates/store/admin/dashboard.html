@@ -1,71 +1,101 @@
 {% extends "store/admin/base.html" %}
-{% from "store/admin/macros.html" import group_label %}
+{% from "store/admin/macros.html" import group_label, thumb, status_tags %}
 {% block title %}Products{% endblock %}
 
 {% block main %}
+    <div class="admin-head">
+        <h1>Products</h1>
+        <div class="admin-head-actions">
+            <a class="btn btn-primary" href="{{ url_for('store_admin_new_product') }}">New product</a>
+        </div>
+    </div>
+
     <section class="admin-stats" aria-label="Summary">
-        <div class="admin-stat">
-            <span class="admin-stat-value">{{ products | length }}</span>
-            <span class="admin-stat-label">Products</span>
-        </div>
-        <div class="admin-stat">
-            <span class="admin-stat-value">{{ products | selectattr("published") | list | length }}</span>
+        <a class="admin-stat" href="{{ url_for('store_admin_dashboard') }}?status=published">
+            <span class="admin-stat-value">{{ published_count }}</span>
             <span class="admin-stat-label">Published</span>
-        </div>
-        <div class="admin-stat">
+        </a>
+        <a class="admin-stat{% if low_stock %} admin-stat-warn{% endif %}" href="{{ url_for('store_admin_dashboard') }}?status=sold_out">
             <span class="admin-stat-value">{{ low_stock }}</span>
-            <span class="admin-stat-label">Published with a sold-out variant</span>
-        </div>
-        <a class="admin-stat" href="{{ url_for('store_admin_orders') }}?fulfillment=unfulfilled">
+            <span class="admin-stat-label">With a sold-out variant</span>
+        </a>
+        <a class="admin-stat{% if order_counts.unfulfilled %} admin-stat-accent{% endif %}" href="{{ url_for('store_admin_orders') }}?fulfillment=unfulfilled">
             <span class="admin-stat-value">{{ order_counts.unfulfilled }}</span>
             <span class="admin-stat-label">Unfulfilled orders</span>
         </a>
         <a class="admin-stat" href="{{ url_for('store_admin_orders') }}?fulfillment=processing">
             <span class="admin-stat-value">{{ order_counts.processing }}</span>
-            <span class="admin-stat-label">Processing orders</span>
+            <span class="admin-stat-label">Processing</span>
+        </a>
+        <a class="admin-stat{% if unreviewed_count %} admin-stat-accent{% endif %}" href="{{ url_for('store_admin_review') }}">
+            <span class="admin-stat-value">{{ unreviewed_count }}</span>
+            <span class="admin-stat-label">To review</span>
+        </a>
+        <a class="admin-stat{% if review_count %} admin-stat-warn{% endif %}" href="{{ url_for('store_admin_orders') }}?review=needs_review">
+            <span class="admin-stat-value">{{ review_count }}</span>
+            <span class="admin-stat-label">Orders to check</span>
         </a>
     </section>
 
-    <div class="admin-head">
-        <h1>Products</h1>
-        <a class="btn btn-primary" href="{{ url_for('store_admin_new_product') }}">New product</a>
-    </div>
+    <form method="get" class="admin-filter" role="search">
+        <label>
+            <span class="visually-hidden">Search products</span>
+            <input type="search" name="q" value="{{ query }}" placeholder="Search name, slug or SKU" maxlength="80" />
+        </label>
+        <label>
+            <span class="visually-hidden">Show</span>
+            <select name="status">
+                {% for value, label in filters.items() %}
+                    <option value="{{ value }}"{% if value == status %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn btn-outline">Filter</button>
+        {% if query or status %}<a class="btn btn-ghost" href="{{ url_for('store_admin_dashboard') }}">Clear</a>{% endif %}
+        <span class="admin-count admin-filter-count">{{ products | length }} of {{ total }}</span>
+    </form>
 
     <div class="admin-table-wrap">
         <table class="admin-table">
             <thead>
                 <tr>
                     <th scope="col">Product</th>
-                    <th scope="col">SKUs</th>
                     <th scope="col">Collections</th>
                     <th scope="col">Status</th>
-                    <th scope="col" class="num">Variants</th>
                     <th scope="col" class="num">Price</th>
-                    <th scope="col" class="num">On hand</th>
-                    <th scope="col" class="num">Reserved</th>
                     <th scope="col" class="num">Available</th>
+                    <th scope="col" class="num">On hand</th>
                 </tr>
             </thead>
             <tbody>
                 {% for product in products %}
-                    <tr>
-                        <td><a href="{{ url_for('store_admin_product', product_id=product.id) }}">{{ product.name }}</a></td>
-                        <td class="mono">{{ product.variants | map(attribute="sku") | select | join(", ") or "—" }}</td>
-                        <td>{% for group in product.groups %}{{ group_label(group) }}{% if not loop.last %}<br />{% endif %}{% else %}<span class="warn">None</span>{% endfor %}</td>
+                    <tr{% if not product.published %} class="admin-row-retired"{% endif %}>
                         <td>
-                            {% if product.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag">Hidden</span>{% endif %}
-                            {% if product.featured %}<span class="tag tag-accent">Featured</span>{% endif %}
+                            <div class="admin-product-cell">
+                                {{ thumb(product.primary_image.url if product.primary_image else "") }}
+                                <div>
+                                    <a href="{{ url_for('store_admin_product', product_id=product.id) }}">{{ product.name }}</a>
+                                    <span class="admin-sub">
+                                        {% set skus = product.variants | map(attribute="sku") | select | list %}
+                                        {% if product.variant_count > 1 %}{{ product.variant_count }} variants{% elif skus %}<span class="mono">{{ skus[0] }}</span>{% else %}/{{ product.slug }}{% endif %}
+                                    </span>
+                                </div>
+                            </div>
                         </td>
-                        <td class="num">{{ product.variant_count }}</td>
-                        <td class="num mono">
-                            ${{ money(product.min_price_cents) }}{% if product.price_varies %}–{{ money(product.max_price_cents) }}{% endif %}
+                        <td>
+                            <div class="admin-chips">
+                                {% for group in product.groups[:2] %}<span class="tag tag-muted">{{ group_label(group) }}</span>{% endfor %}
+                                {% if product.groups | length > 2 %}<span class="tag tag-muted">+{{ product.groups | length - 2 }}</span>{% endif %}
+                                {% if not product.groups %}<span class="tag tag-warn">Not listed</span>{% endif %}
+                            </div>
                         </td>
-                        <td class="num mono">{{ product.stock_on_hand }}</td>
-                        <td class="num mono">{{ product.reserved }}</td>
-                        <td class="num mono{% if product.all_sold_out %} warn{% endif %}">{{ product.total_stock }}</td>
+                        <td>{{ status_tags(product) }}</td>
+                        <td class="num mono">${{ money(product.min_price_cents) }}{% if product.price_varies %}–{{ money(product.max_price_cents) }}{% endif %}</td>
+                        <td class="num mono{% if product.published and product.all_sold_out %} warn{% endif %}">{{ product.total_stock }}</td>
+                        <td class="num mono">{{ product.stock_on_hand }}{% if product.reserved %} <span class="admin-sub">{{ product.reserved }} reserved</span>{% endif %}</td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="9">No products yet.</td></tr>
+                    <tr><td colspan="6" class="admin-empty">{% if query or status %}No products match.{% else %}No products yet.{% endif %}</td></tr>
                 {% endfor %}
             </tbody>
         </table>

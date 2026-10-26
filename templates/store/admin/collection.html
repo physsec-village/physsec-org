@@ -1,0 +1,200 @@
+{% extends "store/admin/base.html" %}
+{% from "store/admin/macros.html" import row_buttons, row_forms, thumb, toggle %}
+{% block title %}{{ collection.title }}{% endblock %}
+
+{% block main %}
+    <nav class="admin-crumbs" aria-label="Breadcrumb">
+        <a href="{{ url_for('store_admin_collections') }}">Collections</a><span>/</span><span>{{ collection.title }}</span>
+    </nav>
+    <div class="admin-head">
+        <div>
+            <h1>
+                {{ collection.title }}
+                {% if collection.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag tag-muted">Hidden</span>{% endif %}
+            </h1>
+            <p class="admin-meta">
+                <span class="mono">/store/collection/{{ collection.slug }}</span> ·
+                {{ collection.item_count }} product{{ "" if collection.item_count == 1 else "s" }} ·
+                updated {{ collection.updated_at.strftime("%Y-%m-%d %H:%M UTC") }}
+            </p>
+        </div>
+        {% if collection.published %}
+            <div class="admin-head-actions">
+                <a class="btn btn-outline" href="{{ url_for('store_collection_page', slug=collection.slug) }}">View in store</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <form method="post" action="{{ url_for('store_admin_update_collection', collection_id=collection.id) }}" class="admin-editor" id="collection-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="version" value="{{ collection.updated_at.isoformat() }}" />
+        <div class="admin-editor-main">
+            <section class="admin-card">
+                <h2>Details</h2>
+                <div class="admin-grid">
+                    <label class="admin-field">
+                        <span>Title</span>
+                        <input name="title" value="{{ collection.title }}" required maxlength="200" />
+                    </label>
+                    <label class="admin-field">
+                        <span>URL slug</span>
+                        <input name="slug" value="{{ collection.slug }}" required maxlength="200" class="mono" />
+                    </label>
+                    <label class="admin-field">
+                        <span>Tag</span>
+                        <input name="tag" value="{{ collection.tag }}" maxlength="100" placeholder="Short label above the title" />
+                    </label>
+                </div>
+                <label class="admin-field">
+                    <span>Blurb</span>
+                    <input name="blurb" value="{{ collection.blurb }}" maxlength="1000" placeholder="One sentence shown on the store home page" />
+                </label>
+                <label class="admin-field">
+                    <span>Description</span>
+                    <textarea name="description" rows="4" maxlength="10000" placeholder="Shown above the products; separate paragraphs with a blank line">{{ collection.description }}</textarea>
+                </label>
+            </section>
+
+            <section class="admin-card">
+                <div class="admin-card-head">
+                    <h2>Groups</h2>
+                    <span class="admin-count">{{ collection.groups | length }}</span>
+                </div>
+                <p class="admin-hint">
+                    Products are listed in headed groups, in this order. A collection
+                    with one untitled group shows its products as a plain list.
+                    Deleting a group only removes its products from this collection.
+                </p>
+                {% for group in collection.groups %}
+                    {% set group_label = group.title or ("group " ~ loop.index) %}
+                    <section class="admin-group" aria-label="{{ group_label }}">
+                        <div class="admin-group-head">
+                            <h3>{{ group.title or "Untitled group" }} <span class="admin-count">{{ group.products | length }}</span></h3>
+                            {{ row_buttons("group-" ~ group.id, loop.first, loop.last, group_label, delete_label="Delete group") }}
+                        </div>
+                        <div class="admin-group-body">
+                            <input type="hidden" name="group_row_id" value="{{ group.id }}" />
+                            <div class="admin-grid">
+                                <label class="admin-field">
+                                    <span>Heading</span>
+                                    <input name="group_title" value="{{ group.title }}" maxlength="200" placeholder="No heading" />
+                                </label>
+                                <label class="admin-field">
+                                    <span>Tag</span>
+                                    <input name="group_tag" value="{{ group.tag }}" maxlength="100" />
+                                </label>
+                                <label class="admin-field">
+                                    <span>Lede</span>
+                                    <input name="group_lede" value="{{ group.lede }}" maxlength="1000" placeholder="A sentence under the heading" />
+                                </label>
+                            </div>
+                        </div>
+                        <div class="admin-table-wrap">
+                            <table class="admin-table admin-table-compact">
+                                <tbody>
+                                    {% for product in group.products %}
+                                        <tr{% if not product.published %} class="admin-row-retired"{% endif %}>
+                                            <td>
+                                                <div class="admin-product-cell">
+                                                    {{ thumb(product.image_url) }}
+                                                    <div>
+                                                        <a href="{{ url_for('store_admin_product', product_id=product.id) }}">{{ product.name }}</a>
+                                                        <span class="admin-sub mono">/{{ product.slug }}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>{% if product.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag tag-muted">Hidden</span>{% endif %}</td>
+                                            <td class="num">{{ row_buttons("item-" ~ group.id ~ "-" ~ product.id, loop.first, loop.last, product.name, delete_label="Remove from group") }}</td>
+                                        </tr>
+                                    {% else %}
+                                        <tr><td colspan="3" class="admin-empty">No products in this group yet.</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="admin-add-row">
+                            {% set listed = group.products | map(attribute="id") | list %}
+                            <label for="add-item-select-{{ group.id }}"><span>Add a product</span></label>
+                            <select id="add-item-select-{{ group.id }}" name="product_id" form="add-item-{{ group.id }}" required>
+                                <option value="">Choose a product…</option>
+                                {% for option in products if option.id not in listed %}
+                                    <option value="{{ option.id }}">{{ option.name }}{% if not option.published %} (hidden){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" form="add-item-{{ group.id }}" class="btn btn-outline btn-sm">Add</button>
+                        </div>
+                    </section>
+                {% else %}
+                    <p class="admin-empty">This collection has no groups, so it cannot list products. Add one below.</p>
+                {% endfor %}
+            </section>
+        </div>
+
+        <aside class="admin-editor-side">
+            <section class="admin-card">
+                <h2>Visibility</h2>
+                <fieldset class="admin-toggles">
+                    {{ toggle("published", "Published", collection.published, "Shown in the store navigation and home page") }}
+                </fieldset>
+                <div class="admin-actions admin-actions-stack">
+                    <button type="submit" class="btn btn-primary">Save changes</button>
+                    <a class="btn btn-ghost" href="{{ url_for('store_admin_collections') }}">Back to collections</a>
+                </div>
+            </section>
+        </aside>
+    </form>
+
+    {% for group in collection.groups %}
+        {{ row_forms(
+            "group-" ~ group.id,
+            url_for("store_admin_move_group", collection_id=collection.id, group_id=group.id),
+            csrf_token,
+            url_for("store_admin_delete_group", collection_id=collection.id, group_id=group.id),
+            "Delete this group? Its products stay in the catalog but leave this collection."
+        ) }}
+        <form id="add-item-{{ group.id }}" method="post" action="{{ url_for('store_admin_add_item', collection_id=collection.id, group_id=group.id) }}" hidden>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        </form>
+        {% for product in group.products %}
+            {{ row_forms(
+                "item-" ~ group.id ~ "-" ~ product.id,
+                url_for("store_admin_move_item", collection_id=collection.id, group_id=group.id, product_id=product.id),
+                csrf_token,
+                url_for("store_admin_remove_item", collection_id=collection.id, group_id=group.id, product_id=product.id)
+            ) }}
+        {% endfor %}
+    {% endfor %}
+
+    <div class="admin-columns">
+        <form method="post" action="{{ url_for('store_admin_add_group', collection_id=collection.id) }}" class="admin-card">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <h2>Add a group</h2>
+            <div class="admin-grid">
+                <label class="admin-field">
+                    <span>Heading</span>
+                    <input name="title" maxlength="200" placeholder="Entry tools" />
+                </label>
+                <label class="admin-field">
+                    <span>Tag</span>
+                    <input name="tag" maxlength="100" />
+                </label>
+            </div>
+            <label class="admin-field">
+                <span>Lede</span>
+                <input name="lede" maxlength="1000" placeholder="A sentence under the heading" />
+            </label>
+            <div class="admin-actions">
+                <button type="submit" class="btn btn-outline">Add group</button>
+            </div>
+        </form>
+
+        <form method="post" action="{{ url_for('store_admin_delete_collection', collection_id=collection.id) }}" class="admin-card admin-danger" data-confirm="Delete the collection {{ collection.title }}? Its products stay in the catalog.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <div class="admin-card-head">
+                <h2>Delete collection</h2>
+                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </div>
+            <p class="admin-hint">Removes the collection page and its groups. Products stay in the catalog and in other collections.</p>
+        </form>
+    </div>
+{% endblock %}

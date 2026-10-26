@@ -304,6 +304,10 @@ async def store_webhook(request: Request):
             result = await run_in_threadpool(
                 db.process_refund_event, event_id, event_object
             )
+        elif event_type == "charge.dispute.created":
+            result = await run_in_threadpool(
+                db.process_dispute_event, event_id, event_object
+            )
         else:
             result = await run_in_threadpool(
                 db.process_ignored_event,
