@@ -1,6 +1,6 @@
 /* PSV store: collection pages, product pages, cart drawer, and checkout.
-   Product photos are shot on white, so photo tiles stay white in both
-   themes and the image blends into the tile. */
+   Product photos have transparent backgrounds (see
+   tools/knockout_backgrounds.py), so photo tiles use the page surface. */
 
 .mono {
     font-family: "Share Tech Mono", monospace;
@@ -74,7 +74,7 @@
     position: relative;
     aspect-ratio: 4 / 3;
     border-radius: var(--radius-sm);
-    background: #ffffff;
+    background: linear-gradient(160deg, var(--surface-raised), var(--bg-elevated));
     border: 1px solid var(--border);
     overflow: hidden;
     display: flex;
@@ -87,10 +87,6 @@
     width: 100%;
     height: 100%;
     object-fit: contain;
-}
-
-.photo-blank {
-    background: linear-gradient(160deg, var(--surface-raised), var(--bg-elevated));
 }
 
 .photo-tag {
@@ -301,7 +297,7 @@
 
 .collection-card-photo {
     aspect-ratio: 16 / 9;
-    background: #ffffff;
+    background: linear-gradient(160deg, var(--surface-raised), var(--bg-elevated));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -891,7 +887,7 @@
 .summary-item-thumb,
 .cart-item-thumb {
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -1477,7 +1473,8 @@
 
 .product-gallery img {
     width: 100%;
-    background: white;
+    background: linear-gradient(160deg, var(--surface-raised), var(--bg-elevated));
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
 }
 
