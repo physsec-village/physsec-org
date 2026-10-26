@@ -1048,3 +1048,112 @@ a.admin-stat:hover {
 .admin-variants td:last-child {
     white-space: nowrap;
 }
+
+/* Image gallery: tiles and the add tile live in one tray. */
+.admin-gallery {
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+}
+
+.admin-gallery .admin-image {
+    position: relative;
+    border-color: var(--border);
+    background: var(--surface-raised);
+}
+
+.admin-gallery .admin-image:first-child {
+    border-color: var(--accent-strong);
+}
+
+.admin-image-badge {
+    position: absolute;
+    top: 0.9rem;
+    left: 0.9rem;
+    z-index: 1;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(11, 15, 17, 0.8);
+    color: var(--text);
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.admin-image:first-child .admin-image-badge {
+    background: var(--accent);
+    color: #09100c;
+}
+
+.admin-image-add {
+    border-style: dashed;
+}
+
+.admin-gallery .admin-image-add {
+    background: transparent;
+}
+
+.admin-image-add .admin-image-badge {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--muted);
+}
+
+.admin-image-drop {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    aspect-ratio: 1;
+    padding: 1rem;
+    border: 1px dashed var(--border-strong);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 0.88rem;
+    text-align: center;
+    cursor: pointer;
+}
+
+.admin-image-drop:hover,
+.admin-image-drop:focus-within {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.admin-image-drop small {
+    font-size: 0.72rem;
+}
+
+.admin .admin-image-drop input[type="file"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.admin-image-add .btn {
+    align-self: stretch;
+}
+
+/* The add row at the bottom of the variants table. */
+.admin-add-variant td {
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--border-strong);
+    border-bottom: 0;
+}
+
+.admin-add-variant input {
+    background: transparent;
+}
+
+.admin-add-variant input:focus {
+    background: var(--bg);
+}

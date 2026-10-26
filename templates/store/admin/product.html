@@ -54,10 +54,11 @@
                         <h2>Images</h2>
                         <span class="admin-count">{{ product.images | length }}</span>
                     </div>
-                    {% if product.images %}
+                    <div class="admin-gallery">
                         <ul class="admin-images">
                             {% for image in product.images %}
                                 <li class="admin-image">
+                                    <span class="admin-image-badge">{% if loop.first %}Cover{% else %}{{ loop.index }}{% endif %}</span>
                                     <img src="{{ image.url }}" alt="{{ image.alt }}" loading="lazy" decoding="async" />
                                     <input type="hidden" name="image_id" value="{{ image.id }}" />
                                     <input name="image_alt" value="{{ image.alt }}" maxlength="300" placeholder="Describe the image" aria-label="Description of image {{ loop.index }}" />
@@ -67,11 +68,20 @@
                                     </div>
                                 </li>
                             {% endfor %}
+                            <li class="admin-image admin-image-add">
+                                <span class="admin-image-badge">Add</span>
+                                <label class="admin-image-drop">
+                                    <input type="file" name="image" form="add-image" accept="image/webp,image/png,image/jpeg,image/gif" aria-label="Upload an image" />
+                                    <span>Choose a file</span>
+                                    <small>WebP, PNG, JPEG or GIF, up to 5 MB</small>
+                                </label>
+                                <input name="url" form="add-image" maxlength="2000" placeholder="or an image address" class="mono" aria-label="Image address" />
+                                <input name="alt" form="add-image" maxlength="300" placeholder="Describe the image" aria-label="Description of the new image" />
+                                <button type="submit" form="add-image" class="btn btn-outline btn-sm">Add image</button>
+                            </li>
                         </ul>
-                        <p class="admin-hint admin-hint-after">The first image is the product's photo in listings and the cart; the rest form the gallery on the product page.</p>
-                    {% else %}
-                        <p class="admin-empty">No images yet, so the store shows a placeholder. Add one below.</p>
-                    {% endif %}
+                    </div>
+                    <p class="admin-hint admin-hint-after">The cover is the product's photo in listings and the cart; the rest form the gallery on the product page. Captions describe each image for screen readers.</p>
                 </section>
             </div>
 
@@ -135,6 +145,15 @@
                                 <td>{{ row_buttons("variant-" ~ variant.id, loop.first, loop.last, label, delete_label="Delete") }}</td>
                             </tr>
                         {% endfor %}
+                        <tr class="admin-add-variant">
+                            <td><input name="name" form="add-variant" maxlength="200" placeholder="New variant" aria-label="Label for the new variant" /></td>
+                            <td><input name="sku" form="add-variant" maxlength="64" class="mono" placeholder="SKU" aria-label="SKU for the new variant" /></td>
+                            <td><input name="upc" form="add-variant" maxlength="32" class="mono" placeholder="UPC" aria-label="UPC for the new variant" /></td>
+                            <td><input name="price" form="add-variant" required inputmode="decimal" placeholder="19.99" class="input-num" aria-label="Price for the new variant" /></td>
+                            <td><input name="stock" form="add-variant" type="number" min="0" step="1" value="0" required class="input-num" aria-label="Stock on hand for the new variant" /></td>
+                            <td colspan="3"></td>
+                            <td><button type="submit" form="add-variant" class="btn btn-outline btn-sm">Add</button></td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -171,58 +190,12 @@
         ) }}
     {% endfor %}
 
-    <div class="admin-columns">
-        <form method="post" action="{{ url_for('store_admin_add_variant', product_id=product.id) }}" class="admin-card">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-            <h2>Add a variant</h2>
-            <div class="admin-grid">
-                <label class="admin-field">
-                    <span>Label</span>
-                    <input name="name" maxlength="200" placeholder="Blue" />
-                </label>
-                <label class="admin-field">
-                    <span>SKU (optional)</span>
-                    <input name="sku" maxlength="64" class="mono" />
-                </label>
-                <label class="admin-field">
-                    <span>UPC (optional)</span>
-                    <input name="upc" maxlength="32" class="mono" />
-                </label>
-                <label class="admin-field">
-                    <span>Price ($)</span>
-                    <input name="price" required inputmode="decimal" placeholder="19.99" class="input-num" />
-                </label>
-                <label class="admin-field">
-                    <span>Stock on hand</span>
-                    <input name="stock" type="number" min="0" step="1" value="0" required class="input-num" />
-                </label>
-            </div>
-            <div class="admin-actions">
-                <button type="submit" class="btn btn-outline">Add variant</button>
-            </div>
-        </form>
-
-        <form method="post" action="{{ url_for('store_admin_add_image', product_id=product.id) }}" class="admin-card" enctype="multipart/form-data">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-            <h2>Add an image</h2>
-            <label class="admin-field">
-                <span>Upload</span>
-                <input type="file" name="image" accept="image/webp,image/png,image/jpeg,image/gif" />
-                <small>WebP, PNG, JPEG or GIF, up to 5 MB.</small>
-            </label>
-            <label class="admin-field">
-                <span>Or an existing image address</span>
-                <input name="url" maxlength="2000" placeholder="/static/images/store/kys001.webp" class="mono" />
-            </label>
-            <label class="admin-field">
-                <span>Description</span>
-                <input name="alt" maxlength="300" placeholder="{{ product.name }}" />
-            </label>
-            <div class="admin-actions">
-                <button type="submit" class="btn btn-outline">Add image</button>
-            </div>
-        </form>
-    </div>
+    <form id="add-variant" method="post" action="{{ url_for('store_admin_add_variant', product_id=product.id) }}" hidden>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    </form>
+    <form id="add-image" method="post" action="{{ url_for('store_admin_add_image', product_id=product.id) }}" enctype="multipart/form-data" hidden>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    </form>
 
     <form method="post" action="{{ url_for('store_admin_delete_product', product_id=product.id) }}" class="admin-card admin-danger" data-confirm="Delete {{ product.name }} and all of its variants and images? This cannot be undone.">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
