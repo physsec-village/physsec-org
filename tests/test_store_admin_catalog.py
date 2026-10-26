@@ -6,7 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.main import app
-from src.store import db, media
+from src.store import admin_auth, db, media
+from tests.clerk_sessions import session_token
 
 PNG = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
@@ -17,15 +18,9 @@ PNG = (
 
 @pytest.fixture
 def client():
-    with TestClient(app) as anonymous:
-        page = anonymous.get("/store/admin/login")
-        response = anonymous.post(
-            "/store/admin/login",
-            data={"csrf_token": _csrf(page.text), "username": "admin", "password": "admin"},
-            follow_redirects=False,
-        )
-        assert response.status_code == 303
-        yield anonymous
+    with TestClient(app) as signed_in:
+        signed_in.cookies.set(admin_auth.SESSION_COOKIE, session_token())
+        yield signed_in
 
 
 @pytest.fixture
@@ -543,7 +538,6 @@ def test_orders_filter_by_review_and_link_to_stripe(client, catalog_factory, mon
 def test_stripe_page_reports_configuration_and_events(client, monkeypatch):
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live_123")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
-    monkeypatch.setenv("STORE_PUBLIC_ORIGIN", "https://physsec.org/")
     db.process_ignored_event("evt_ignored", "payment_intent.created", object_id="pi_x")
     db.record_event_failure(
         "evt_failed", "charge.refunded", "checkout_conflict", "Refund arrived before its order.",
@@ -553,7 +547,7 @@ def test_stripe_page_reports_configuration_and_events(client, monkeypatch):
     page = client.get("/store/admin/stripe")
 
     assert page.status_code == 200
-    assert "https://physsec.org/store/webhook" in page.text
+    assert "http://testserver/store/webhook" in page.text
     assert "https://dashboard.stripe.com/payments" in page.text
     assert "sk_live_123" not in page.text and "whsec_123" not in page.text
     assert "Live" in page.text

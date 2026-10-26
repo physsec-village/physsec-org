@@ -2,20 +2,10 @@
 {% block title %}Sign in{% endblock %}
 
 {% block main %}
-    <form method="post" action="{{ url_for('store_admin_login_submit') }}" class="admin-card admin-login">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <section class="admin-login">
         <h1>Sign in</h1>
-        <p class="admin-hint">Placeholder sign-in for the dev deployment.</p>
-        <label class="admin-field">
-            <span>Username</span>
-            <input name="username" autocomplete="username" required autofocus />
-        </label>
-        <label class="admin-field">
-            <span>Password</span>
-            <input name="password" type="password" autocomplete="current-password" required />
-        </label>
-        <div class="admin-actions">
-            <button type="submit" class="btn btn-primary">Sign in</button>
-        </div>
-    </form>
+        <p class="admin-hint">Sign in with your PSV account. Only accounts marked as store admins can continue.</p>
+        <div id="clerk-sign-in" data-after-sign-in-url="{{ url_for('store_admin_dashboard') }}"></div>
+        <noscript><p class="admin-error" role="alert">Signing in requires JavaScript.</p></noscript>
+    </section>
 {% endblock %}
