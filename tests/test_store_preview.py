@@ -34,17 +34,19 @@ def anonymous():
 
 
 @pytest.fixture
-def admin(anonymous):
-    anonymous.cookies.set(admin_auth.SESSION_COOKIE, session_token())
-    return anonymous
+def admin():
+    with TestClient(app) as client:
+        client.cookies.set(admin_auth.SESSION_COOKIE, session_token())
+        yield client
 
 
 @pytest.fixture
-def member(anonymous):
-    anonymous.cookies.set(
-        admin_auth.SESSION_COOKIE, session_token("user_member", admin=False)
-    )
-    return anonymous
+def member():
+    with TestClient(app) as client:
+        client.cookies.set(
+            admin_auth.SESSION_COOKIE, session_token("user_member", admin=False)
+        )
+        yield client
 
 
 def test_lifespan_reads_the_flag():
@@ -115,6 +117,7 @@ def test_admin_ui_and_webhook_stay_reachable(anonymous, admin):
     dashboard = admin.get("/store/admin")
 
     assert login.status_code == 200
+    assert 'id="clerk-sign-in"' in login.text
     assert webhook.status_code == 400
     assert dashboard.status_code == 200
     assert "the store is not published" in dashboard.text
