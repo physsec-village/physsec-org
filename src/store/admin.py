@@ -581,16 +581,20 @@ def add_image(
     alt: str = Form(""),
     next_url: str = Form("", alias="next"),
 ):
-    location = ""
+    uploaded = ""
     try:
         if image is not None and image.filename:
-            location = media.save_image(image.file.read(media.MAX_IMAGE_BYTES + 1))
+            location = uploaded = media.save_image(
+                image.file.read(media.MAX_IMAGE_BYTES + 1)
+            )
         else:
             location = media.image_url(url)
         db.add_image(product_id, location, " ".join(alt.split())[:300])
     except (media.MediaError, db.AdminError) as exc:
-        if location:
-            media.remove_image(location)
+        # Only a file this request wrote is removed; a linked address may be
+        # an upload another product still uses.
+        if uploaded:
+            media.remove_image(uploaded)
         return _product_page(request, product_id, 400, str(exc))
     logger.info("store_admin_image_added product_id=%s", product_id)
     return _back(request, "store_admin_product", "image", next_url, product_id=product_id)

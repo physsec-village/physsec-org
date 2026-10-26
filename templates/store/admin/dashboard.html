@@ -17,7 +17,7 @@
         </a>
         <a class="admin-stat{% if low_stock %} admin-stat-warn{% endif %}" href="{{ url_for('store_admin_dashboard') }}?status=sold_out">
             <span class="admin-stat-value">{{ low_stock }}</span>
-            <span class="admin-stat-label">Sold-out variants</span>
+            <span class="admin-stat-label">With a sold-out variant</span>
         </a>
         <a class="admin-stat{% if order_counts.unfulfilled %} admin-stat-accent{% endif %}" href="{{ url_for('store_admin_orders') }}?fulfillment=unfulfilled">
             <span class="admin-stat-value">{{ order_counts.unfulfilled }}</span>

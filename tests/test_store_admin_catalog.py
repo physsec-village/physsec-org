@@ -389,6 +389,15 @@ def test_images_are_uploaded_captioned_reordered_and_removed(
         files={"image": ("photo.exe", PNG, "application/octet-stream")},
         follow_redirects=False,
     )
+    # Linking an existing upload to a product that vanishes must not delete it.
+    shared = media.save_image(PNG)
+    missing_product = client.post(
+        "/store/admin/products/999999/images",
+        data={"csrf_token": csrf, "url": shared},
+    )
+    assert missing_product.status_code == 404
+    assert (media_dir / "store" / shared.rsplit("/", 1)[1]).exists()
+    media.remove_image(shared)
     linked = client.post(
         f"{base}/images",
         data={"csrf_token": csrf, "url": "/static/images/store/kys001.webp", "alt": "Stock"},
