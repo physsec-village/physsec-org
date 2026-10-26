@@ -2,8 +2,8 @@
 
 The UI is hidden (404) while the store is disabled. Sign-in is handled by
 Clerk (see admin_auth): the login page mounts Clerk's sign-in component, and
-every other page requires a verified Clerk session whose user has
-``admin: true`` in their public metadata. Every form also carries a CSRF
+every other page requires a verified Clerk session whose token carries
+``admin: true`` from the user's public metadata. Every form also carries a CSRF
 token bound to that session.
 """
 
@@ -55,15 +55,7 @@ def require_admin(request: Request) -> admin_auth.Session:
             status_code=303,
             headers={"Location": str(request.url_for("store_admin_login"))},
         )
-    try:
-        admin = admin_auth.is_admin(session.user_id)
-    except admin_auth.AdminLookupError:
-        logger.exception("store_admin_lookup_failed user_id=%s", session.user_id)
-        raise HTTPException(
-            status_code=503,
-            detail="Could not check admin access. Please try again in a moment.",
-        ) from None
-    if not admin:
+    if not session.admin:
         logger.warning("store_admin_forbidden user_id=%s", session.user_id)
         raise NotAnAdmin
     request.state.admin = True

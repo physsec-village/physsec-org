@@ -8,9 +8,11 @@ SDK, or supplied offline as ``CLERK_JWT_KEY``) and checks that its ``azp``
 claim is this site's origin.
 
 A verified session is not enough: the Clerk user must also carry
-``{"admin": true}`` in its public metadata, which is looked up through the
-Backend API and cached for a minute so revoking admin access takes effect
-promptly without a lookup on every request.
+``{"admin": true}`` in its public metadata. The Clerk instance's session
+token is customised to include ``{"metadata": "{{user.public_metadata}}"}``,
+so the check reads the verified token and needs no further network call;
+revoking the flag takes effect when the token is next refreshed (within a
+minute).
 
 Form (CSRF) tokens are HMACs of the Clerk session ID under a per-process
 secret, so a token is only valid for the session that rendered the form.
@@ -22,11 +24,8 @@ import hashlib
 import hmac
 import logging
 import secrets
-import threading
-import time
 from dataclasses import dataclass
 
-from clerk_backend_api import Clerk
 from clerk_backend_api.security import (
     AuthenticateRequestOptions,
     AuthErrorReason,
@@ -39,24 +38,17 @@ from . import config
 logger = logging.getLogger(__name__)
 
 SESSION_COOKIE = "__session"
-ADMIN_CACHE_SECONDS = 60
 
 _SECRET = secrets.token_bytes(32)
-# user_id -> (is_admin, monotonic expiry)
-_admin_cache: dict[str, tuple[bool, float]] = {}
-_admin_cache_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
 class Session:
-    """A verified Clerk session: who is signed in and which session it is."""
+    """A verified Clerk session: who is signed in and whether they are an admin."""
 
     user_id: str
     session_id: str
-
-
-class AdminLookupError(Exception):
-    """Clerk's Backend API could not say whether the user is an admin."""
+    admin: bool
 
 
 def session_from_request(request: Requestish) -> Session | None:
@@ -80,38 +72,9 @@ def session_from_request(request: Requestish) -> Session | None:
     if not isinstance(user_id, str) or not isinstance(session_id, str):
         logger.warning("store_admin_session_rejected reason=missing sub or sid")
         return None
-    return Session(user_id=user_id, session_id=session_id)
-
-
-def public_metadata(user_id: str) -> dict:
-    """Fetch a user's public metadata from Clerk's Backend API."""
-    user = Clerk(bearer_auth=config.clerk_secret_key()).users.get(user_id=user_id)
-    metadata = user.public_metadata
-    return metadata if isinstance(metadata, dict) else {}
-
-
-def is_admin(user_id: str) -> bool:
-    """Return whether the Clerk user's public metadata has ``admin: true``.
-
-    Results are cached for ADMIN_CACHE_SECONDS. Raises AdminLookupError when
-    the Backend API cannot be reached, so an outage is not mistaken for a
-    revoked admin.
-    """
-    now = time.monotonic()
-    cached = _admin_cache.get(user_id)
-    if cached is not None and cached[1] > now:
-        return cached[0]
-    try:
-        admin = public_metadata(user_id).get("admin") is True
-    except Exception as exc:
-        raise AdminLookupError("Clerk user lookup failed.") from exc
-    # Sync dependencies run in a threadpool, so guard the shared cache.
-    with _admin_cache_lock:
-        for key, (_, expiry) in list(_admin_cache.items()):
-            if expiry <= now:
-                _admin_cache.pop(key, None)
-        _admin_cache[user_id] = (admin, now + ADMIN_CACHE_SECONDS)
-    return admin
+    metadata = payload.get("metadata")
+    admin = isinstance(metadata, dict) and metadata.get("admin") is True
+    return Session(user_id=user_id, session_id=session_id, admin=admin)
 
 
 def csrf_token(session: Session) -> str:

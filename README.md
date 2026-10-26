@@ -203,10 +203,16 @@ component, and every other admin request verifies the Clerk session cookie
 claim is `STORE_PUBLIC_ORIGIN`. A signed-in user is only an admin when their
 Clerk **public metadata** contains `{"admin": true}`; set this on the user in
 the Clerk dashboard (Users, then Metadata). Everyone else gets a 403 page with
-a sign-out button. The metadata lookup goes through Clerk's Backend API and is
-cached for a minute, so removing the flag locks the user out within a minute.
-If Clerk cannot be reached the admin UI answers 503 rather than treating the
-user as a non-admin.
+a sign-out button. The flag is read from the session token itself, so each
+Clerk instance must include public metadata in its session token (Sessions,
+then "Customize session token"):
+
+```json
+{ "metadata": "{{user.public_metadata}}" }
+```
+
+Without that claim every user is treated as a non-admin. Removing the flag
+locks the user out when their token is next refreshed, within a minute.
 
 Dev (`dev.physsec.org`) uses a Clerk development instance and production uses
 the production instance; both are configured with `CLERK_PUBLISHABLE_KEY` and

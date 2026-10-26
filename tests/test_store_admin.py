@@ -23,11 +23,10 @@ os.environ["CLERK_JWT_KEY"] = (
 )
 ORIGIN = os.environ["STORE_PUBLIC_ORIGIN"]
 ADMIN_USER = "user_admin"
-VISITOR_USER = "user_visitor"
 
 
-def session_token(user_id: str = ADMIN_USER, **claims) -> str:
-    """Return a Clerk-shaped session JWT for user_id."""
+def session_token(user_id: str = ADMIN_USER, *, admin=True, **claims) -> str:
+    """Return a Clerk-shaped session JWT with the customised metadata claim."""
     now = int(time.time())
     payload = {
         "sub": user_id,
@@ -37,25 +36,10 @@ def session_token(user_id: str = ADMIN_USER, **claims) -> str:
         "iat": now,
         "nbf": now,
         "exp": now + 60,
+        "metadata": {"admin": admin},
         **claims,
     }
     return jwt.encode(payload, _PRIVATE_KEY, algorithm="RS256")
-
-
-@pytest.fixture(autouse=True)
-def clerk_users(monkeypatch):
-    """Stand in for Clerk's Backend API: only ADMIN_USER has admin metadata."""
-    metadata = {ADMIN_USER: {"admin": True}, VISITOR_USER: {"admin": False}}
-    calls = []
-
-    def public_metadata(user_id):
-        calls.append(user_id)
-        return metadata[user_id]
-
-    monkeypatch.setattr(admin_auth, "public_metadata", public_metadata)
-    admin_auth._admin_cache.clear()
-    yield {"metadata": metadata, "calls": calls}
-    admin_auth._admin_cache.clear()
 
 
 @pytest.fixture
@@ -196,7 +180,7 @@ def test_invalid_sessions_are_rejected(anonymous, token):
     assert response.headers["location"].endswith("/store/admin/login")
 
 
-def test_signed_in_admin_sees_dashboard_and_skips_login(client, clerk_users):
+def test_signed_in_admin_sees_dashboard_and_skips_login(client):
     page = client.get("/store/admin")
     assert page.status_code == 200
     assert page.headers["cache-control"] == "no-store"
@@ -210,13 +194,18 @@ def test_signed_in_admin_sees_dashboard_and_skips_login(client, clerk_users):
     assert login.status_code == 303
     assert login.headers["location"].endswith("/store/admin")
 
-    # The admin lookup is cached rather than repeated on every request.
-    client.get("/store/admin/orders")
-    assert clerk_users["calls"] == [ADMIN_USER]
 
-
-def test_signed_in_non_admin_is_forbidden(anonymous, clerk_users):
-    anonymous.cookies.set(admin_auth.SESSION_COOKIE, session_token(VISITOR_USER))
+@pytest.mark.parametrize(
+    "token",
+    [
+        pytest.param(session_token("user_visitor", admin=False), id="admin-false"),
+        pytest.param(session_token("user_visitor", admin="true"), id="admin-string"),
+        pytest.param(session_token("user_visitor", metadata={}), id="no-flag"),
+        pytest.param(session_token("user_visitor", metadata=None), id="no-claim"),
+    ],
+)
+def test_signed_in_non_admin_is_forbidden(anonymous, token):
+    anonymous.cookies.set(admin_auth.SESSION_COOKIE, token)
 
     page = anonymous.get("/store/admin")
     post = anonymous.post("/store/admin/products", data={"name": "x"})
@@ -226,19 +215,6 @@ def test_signed_in_non_admin_is_forbidden(anonymous, clerk_users):
     assert "data-sign-out=" in page.text
     assert 'href="http://testserver/store/admin/orders"' not in page.text
     assert post.status_code == 403
-    assert clerk_users["calls"] == [VISITOR_USER]
-
-
-def test_admin_lookup_failure_is_a_503_not_a_denial(client, monkeypatch):
-    def broken(user_id):
-        raise ConnectionError("clerk is down")
-
-    monkeypatch.setattr(admin_auth, "public_metadata", broken)
-
-    response = client.get("/store/admin")
-
-    assert response.status_code == 503
-    assert "try again" in response.text
 
 
 def test_login_page_mounts_clerk_sign_in(anonymous):
