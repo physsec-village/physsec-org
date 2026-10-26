@@ -201,6 +201,11 @@ catalog:
   images, uploaded (WebP, PNG, JPEG or GIF, up to 5 MB, stored under
   `STORE_MEDIA_DIR` and served from `/media`) or referenced by address, with
   alt text, ordering and removal.
+- **Review**: before go-live, every product carries a *reviewed* mark,
+  separate from *published*. The Review page walks through the unreviewed
+  products one at a time with the full editor, so each can be corrected and
+  marked reviewed (or skipped and revisited); the product list shows the mark
+  and can filter on it, and a product page can clear it.
 - **Collections**: creating, editing, reordering, publishing and deleting
   collections; the headed groups inside each one; and which products appear in
   each group, in what order.

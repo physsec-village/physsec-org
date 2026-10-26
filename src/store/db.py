@@ -32,7 +32,7 @@ from .models import (
 )
 
 MEDIA_DIR = os.getenv("STORE_MEDIA_DIR", "data/media")
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 _pool: ConnectionPool | None = None
 
 
@@ -1111,8 +1111,12 @@ def update_product(
     variants: Sequence[VariantUpdate],
     version: str,
     images: Sequence[ImageUpdate] = (),
+    reviewed: bool | None = None,
 ) -> None:
     """Update product details, collections, variants and image captions at once.
+
+    `reviewed` marks the product as checked for go-live (or clears that mark);
+    None leaves it as it was.
 
     `version` is the product's `updated_at` when the form loaded; every admin
     edit advances it, so a stale form is rejected rather than undoing another
@@ -1195,9 +1199,15 @@ def update_product(
                 if changed != 1:
                     raise AdminError("An image does not belong to this product.")
             _set_groups(conn, product_id, product.group_ids)
+            review_sql = ""
+            if reviewed is True:
+                review_sql = ",reviewed_at=COALESCE(reviewed_at,clock_timestamp())"
+            elif reviewed is False:
+                review_sql = ",reviewed_at=NULL"
             conn.execute(
                 "UPDATE products SET slug=%s,name=%s,description=%s,features=%s,"
-                "featured=%s,published=%s,updated_at=clock_timestamp() WHERE id=%s",
+                f"featured=%s,published=%s,updated_at=clock_timestamp(){review_sql} "
+                "WHERE id=%s",
                 (
                     product.slug,
                     product.name,
@@ -1210,6 +1220,34 @@ def update_product(
             )
     except psycopg.errors.UniqueViolation as exc:
         raise _unique_violation(exc) from exc
+
+
+def review_queue(after: int | None = None) -> dict[str, Any]:
+    """Return the next product to review and how far the review has got.
+
+    Products are reviewed in the dashboard's order (by name). `after` skips
+    past a product without marking it, continuing from the one that follows
+    it; the queue wraps around so skipped products come back.
+    """
+    products = admin_products()
+    pending = [product for product in products if product["reviewed_at"] is None]
+    current = pending[0] if pending else None
+    if after is not None and pending:
+        later = [p for p in pending if (p["name"], p["id"]) > _sort_key(after, products)]
+        current = later[0] if later else pending[0]
+    return {
+        "product": current,
+        "pending": len(pending),
+        "total": len(products),
+        "reviewed": len(products) - len(pending),
+    }
+
+
+def _sort_key(product_id: int, products: Sequence[Mapping[str, Any]]) -> tuple[str, int]:
+    for product in products:
+        if product["id"] == product_id:
+            return (product["name"], product["id"])
+    return ("", 0)
 
 
 def admin_create_product(product: ProductInput, variant: VariantInput) -> int:

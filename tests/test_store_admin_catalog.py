@@ -525,7 +525,7 @@ def test_orders_filter_by_review_and_link_to_stripe(client, catalog_factory, mon
     assert "https://dashboard.stripe.com/test/payments/pi_123" in detail.text
     assert "Payment disputed in Stripe (fraudulent)" in detail.text
     assert re.search(
-        r'admin-stat-value">1</span>\s*<span class="admin-stat-label">Needs review',
+        r'admin-stat-value">1</span>\s*<span class="admin-stat-label">Orders to check',
         dashboard.text,
     )
 
@@ -561,3 +561,133 @@ def test_stripe_page_reports_configuration_and_events(client, monkeypatch):
     monkeypatch.delenv("STRIPE_WEBHOOK_SECRET")
     bare = client.get("/store/admin/stripe")
     assert "Not configured" in bare.text and "Webhooks are rejected." in bare.text
+
+
+# Reviewing the catalog before go-live.
+def _review_form(product: dict, csrf: str, **overrides) -> dict:
+    form = _product_form(product, csrf, **overrides)
+    form.pop("published", None)
+    if product["published"]:
+        form["published"] = "true"
+    return form
+
+
+def test_review_queue_walks_unreviewed_products(client, catalog_factory):
+    catalog_factory.product("cross-key", "Cross Key")
+    catalog_factory.product("auto-jigglers", "Auto Jigglers")
+    catalog_factory.product("zener", "Zener Diodes", published=False)
+
+    first = client.get("/store/admin/review")
+    assert first.status_code == 200
+    assert "0 of 3 reviewed" in first.text
+    assert 'Now reviewing' in first.text and "Auto Jigglers" in first.text
+    assert 'name="reviewed"' not in first.text  # the save button marks it
+
+    product = _product("auto-jigglers")
+    csrf = _csrf(first.text)
+    saved = client.post(
+        f"/store/admin/review/{product['id']}",
+        data=_review_form(product, csrf, description="Ten jigglers, checked."),
+        follow_redirects=False,
+    )
+    assert saved.status_code == 303
+    assert saved.headers["location"] == f"/store/admin/review?after={product['id']}&notice=reviewed"
+    reviewed = _product("auto-jigglers")
+    assert reviewed["reviewed_at"] is not None
+    assert reviewed["description"] == "Ten jigglers, checked."
+
+    second = client.get(saved.headers["location"])
+    assert "Marked as reviewed." in second.text
+    assert "1 of 3 reviewed" in second.text
+    assert "Now reviewing" in second.text and "Cross Key" in second.text
+
+    # Skipping moves on without marking, and the queue wraps around.
+    cross = _product("cross-key")
+    skipped = client.get(f"/store/admin/review?after={cross['id']}")
+    assert "Zener Diodes" in skipped.text
+    assert _product("cross-key")["reviewed_at"] is None
+    zener = _product("zener")
+    wrapped = client.get(f"/store/admin/review?after={zener['id']}")
+    assert "Now reviewing" in wrapped.text and "Cross Key" in wrapped.text
+
+    # The dashboard shows the state and can filter on it.
+    dashboard = client.get("/store/admin?status=unreviewed").text
+    assert "Cross Key" in dashboard and "Zener" in dashboard
+    assert "Auto Jigglers" not in dashboard
+    assert "Reviewed</span>" in client.get("/store/admin").text
+    assert re.search(r'admin-stat-value">2</span>\s*<span class="admin-stat-label">To review', client.get("/store/admin").text)
+
+
+def test_review_save_reports_errors_and_product_page_clears_the_mark(client, catalog_factory):
+    catalog_factory.product("taken", "Taken")
+    product = catalog_factory.product("shim", "Shim")
+    product = _product("shim")
+    csrf = _csrf(client.get("/store/admin/review").text)
+
+    rejected = client.post(
+        f"/store/admin/review/{product['id']}",
+        data=_review_form(product, csrf, slug="taken"),
+    )
+    assert rejected.status_code == 400
+    assert "URL slug is already in use" in rejected.text
+    assert "Now reviewing" in rejected.text and "Shim" in rejected.text
+    assert _product("shim")["reviewed_at"] is None
+    assert client.post(f"/store/admin/review/999999", data=_review_form(product, csrf)).status_code == 404
+
+    marked = client.post(
+        f"/store/admin/review/{product['id']}",
+        data=_review_form(product, csrf),
+        follow_redirects=False,
+    )
+    assert marked.status_code == 303
+    product = _product("shim")
+    assert product["reviewed_at"] is not None
+    page = client.get(f"/store/admin/products/{product['id']}").text
+    assert 'name="reviewed" value="true" checked' in page
+
+    # Saving the product page with the box unticked clears the mark; ticked keeps it.
+    cleared = client.post(
+        f"/store/admin/products/{product['id']}",
+        data=_product_form(product, csrf),
+        follow_redirects=False,
+    )
+    assert cleared.status_code == 303
+    assert _product("shim")["reviewed_at"] is None
+    product = _product("shim")
+    kept = client.post(
+        f"/store/admin/products/{product['id']}",
+        data=_product_form(product, csrf, reviewed="true"),
+        follow_redirects=False,
+    )
+    assert kept.status_code == 303
+    assert _product("shim")["reviewed_at"] is not None
+
+
+def test_review_queue_finishes_and_row_actions_return_to_it(client, catalog_factory):
+    product = catalog_factory.product("one", "One", variants=[{"name": "A"}, {"name": "B"}])
+    a, b = product["variants"]
+    page = client.get("/store/admin/review")
+    csrf = _csrf(page.text)
+    assert 'name="next" value="/store/admin/review"' in page.text
+
+    moved = client.post(
+        f"/store/admin/products/{product['id']}/variants/{b['id']}/move",
+        data={"csrf_token": csrf, "direction": "up", "next": "/store/admin/review"},
+        follow_redirects=False,
+    )
+    assert moved.status_code == 303
+    assert moved.headers["location"] == "/store/admin/review"
+    elsewhere = client.post(
+        f"/store/admin/products/{product['id']}/variants/{a['id']}/move",
+        data={"csrf_token": csrf, "direction": "up", "next": "https://evil.example/"},
+        follow_redirects=False,
+    )
+    assert elsewhere.headers["location"].endswith(f"/store/admin/products/{product['id']}?notice=moved")
+
+    with db.connection() as conn:
+        conn.execute("UPDATE products SET reviewed_at=now()")
+    done = client.get("/store/admin/review")
+    assert done.status_code == 200
+    assert "Every product has been reviewed" in done.text
+    assert "1 of 1 reviewed" in done.text
+    assert re.findall(r'/store/admin/products/\d+"', client.get("/store/admin?status=unreviewed").text) == []

@@ -41,18 +41,21 @@
     </span>
 {% endmacro %}
 
-{% macro row_forms(prefix, move_url, csrf, delete_url=none, confirm=none) %}
+{% macro row_forms(prefix, move_url, csrf, delete_url=none, confirm=none, next_url="") %}
     <form id="{{ prefix }}-up" method="post" action="{{ move_url }}" hidden>
         <input type="hidden" name="csrf_token" value="{{ csrf }}" />
         <input type="hidden" name="direction" value="up" />
+        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
     </form>
     <form id="{{ prefix }}-down" method="post" action="{{ move_url }}" hidden>
         <input type="hidden" name="csrf_token" value="{{ csrf }}" />
         <input type="hidden" name="direction" value="down" />
+        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
     </form>
     {% if delete_url %}
         <form id="{{ prefix }}-delete" method="post" action="{{ delete_url }}" hidden{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
             <input type="hidden" name="csrf_token" value="{{ csrf }}" />
+            {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
         </form>
     {% endif %}
 {% endmacro %}
@@ -60,6 +63,7 @@
 {% macro status_tags(item) %}
     {% if item.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag tag-muted">Hidden</span>{% endif %}
     {% if item.featured %}<span class="tag tag-accent">Featured</span>{% endif %}
+    {% if item.reviewed_at is defined and item.reviewed_at %}<span class="tag tag-ok">Reviewed</span>{% endif %}
 {% endmacro %}
 
 {% macro toggle(name, label, checked, hint=none) %}

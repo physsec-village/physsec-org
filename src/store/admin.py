@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 NOTICES = {
     "saved": "Changes saved.",
+    "reviewed": "Marked as reviewed.",
     "created": "Product created.",
     "variant": "Variant added.",
     "image": "Image added.",
@@ -57,7 +58,9 @@ PRODUCT_FILTERS = {
     "featured": "Featured",
     "sold_out": "Published with a sold-out variant",
     "unlisted": "Not in any collection",
+    "unreviewed": "Not yet reviewed",
 }
+REVIEW_PATH = "/store/admin/review"
 
 
 class NotAnAdmin(Exception):
@@ -146,7 +149,12 @@ def _redirect(url: str) -> RedirectResponse:
     return RedirectResponse(url, status_code=303)
 
 
-def _back(request: Request, route: str, notice: str, **params: Any) -> RedirectResponse:
+def _back(
+    request: Request, route: str, notice: str, next_url: str = "", **params: Any
+) -> RedirectResponse:
+    """Redirect after an action, back to the review page when it came from there."""
+    if next_url.startswith(REVIEW_PATH) and "\n" not in next_url:
+        return _redirect(next_url)
     return _redirect(str(request.url_for(route, **params)) + f"?notice={notice}")
 
 
@@ -229,6 +237,8 @@ def filter_products(
         return [p for p in products if p["published"] and _has_sold_out_variant(p)]
     if status == "unlisted":
         return [p for p in products if not p["groups"]]
+    if status == "unreviewed":
+        return [p for p in products if p["reviewed_at"] is None]
     return products
 
 
@@ -244,6 +254,7 @@ def dashboard(request: Request, q: str = "", status: str = ""):
         products=filter_products(products, q, status),
         total=len(products),
         published_count=sum(1 for product in products if product["published"]),
+        unreviewed_count=sum(1 for p in products if p["reviewed_at"] is None),
         query=q,
         status=status,
         filters=PRODUCT_FILTERS,
@@ -359,14 +370,7 @@ def product_form(request: Request, product_id: int):
     return _product_page(request, product_id)
 
 
-@router.post(
-    "/products/{product_id}",
-    dependencies=[Depends(require_csrf)],
-    name="store_admin_update_product",
-)
-def update_product(
-    request: Request,
-    product_id: int,
+def product_form(
     name: str = Form(""),
     slug: str = Form(""),
     description: str = Form(""),
@@ -386,54 +390,90 @@ def update_product(
     variant_published: list[str] = Form([]),
     image_id: list[str] = Form([]),
     image_alt: list[str] = Form([]),
+) -> dict[str, Any]:
+    """Collect the product editor's fields; they are validated when saved."""
+    return {
+        "name": name,
+        "slug": slug,
+        "description": description,
+        "features": features,
+        "group_id": group_id,
+        "featured": featured,
+        "published": published,
+        "version": version,
+        "variants": (
+            variant_id,
+            variant_name,
+            variant_sku,
+            variant_upc,
+            variant_price,
+            variant_stock,
+            variant_expected_stock,
+        ),
+        "variant_published": variant_published,
+        "images": (image_id, image_alt),
+    }
+
+
+def _save_product(product_id: int, form: dict[str, Any], *, reviewed: bool | None) -> None:
+    """Validate and store an editor submission; raises on rejected input."""
+    variants = [
+        VariantUpdate(
+            id=_int(row_id, "Variant"),
+            name=row_name,
+            sku=row_sku,
+            upc=row_upc,
+            price_cents=_cents(row_price, "Price"),
+            stock_on_hand=_int(row_stock, "Stock"),
+            expected_stock=_int(row_expected, "Stock"),
+            published=row_id in form["variant_published"],
+        )
+        for (
+            row_id,
+            row_name,
+            row_sku,
+            row_upc,
+            row_price,
+            row_stock,
+            row_expected,
+        ) in _rows(*form["variants"], label="variant")
+    ]
+    images = [
+        ImageUpdate(id=_int(row_id, "Image"), alt=row_alt)
+        for row_id, row_alt in _rows(*form["images"], label="image")
+    ]
+    product = ProductInput(
+        name=form["name"],
+        slug=form["slug"],
+        description=form["description"],
+        features=_features(form["features"]),
+        featured=form["featured"],
+        published=form["published"],
+        group_ids=_group_ids(form["group_id"]),
+    )
+    db.update_product(
+        product_id,
+        product,
+        variants=variants,
+        version=form["version"],
+        images=images,
+        reviewed=reviewed,
+    )
+
+
+@router.post(
+    "/products/{product_id}",
+    dependencies=[Depends(require_csrf)],
+    name="store_admin_update_product",
+)
+def update_product(
+    request: Request,
+    product_id: int,
+    form: dict[str, Any] = Depends(product_form),
+    reviewed: bool = Form(False),
 ):
     try:
-        variants = [
-            VariantUpdate(
-                id=_int(row_id, "Variant"),
-                name=row_name,
-                sku=row_sku,
-                upc=row_upc,
-                price_cents=_cents(row_price, "Price"),
-                stock_on_hand=_int(row_stock, "Stock"),
-                expected_stock=_int(row_expected, "Stock"),
-                published=row_id in variant_published,
-            )
-            for (
-                row_id,
-                row_name,
-                row_sku,
-                row_upc,
-                row_price,
-                row_stock,
-                row_expected,
-            ) in _rows(
-                variant_id,
-                variant_name,
-                variant_sku,
-                variant_upc,
-                variant_price,
-                variant_stock,
-                variant_expected_stock,
-                label="variant",
-            )
-        ]
-        images = [
-            ImageUpdate(id=_int(row_id, "Image"), alt=row_alt)
-            for row_id, row_alt in _rows(image_id, image_alt, label="image")
-        ]
-        product = ProductInput(
-            name=name,
-            slug=slug,
-            description=description,
-            features=_features(features),
-            featured=featured,
-            published=published,
-            group_ids=_group_ids(group_id),
-        )
-        db.update_product(
-            product_id, product, variants=variants, version=version, images=images
-        )
+        _save_product(product_id, form, reviewed=reviewed)
     except (ValidationError, db.AdminError) as exc:
         return _product_page(request, product_id, 400, _message(exc))
     logger.info("store_admin_product_updated product_id=%s", product_id)
@@ -469,6 +509,7 @@ def add_variant(
     upc: str = Form(""),
     price: str = Form(""),
     stock: str = Form("0"),
+    next_url: str = Form("", alias="next"),
 ):
     try:
         db.add_variant(
@@ -484,7 +525,7 @@ def add_variant(
     except (ValidationError, db.AdminError) as exc:
         return _product_page(request, product_id, 400, _message(exc))
     logger.info("store_admin_variant_added product_id=%s", product_id)
-    return _back(request, "store_admin_product", "variant", product_id=product_id)
+    return _back(request, "store_admin_product", "variant", next_url, product_id=product_id)
 
 
 @router.post(
@@ -493,13 +534,17 @@ def add_variant(
     name="store_admin_move_variant",
 )
 def move_variant(
-    request: Request, product_id: int, variant_id: int, direction: str = Form("")
+    request: Request,
+    product_id: int,
+    variant_id: int,
+    direction: str = Form(""),
+    next_url: str = Form("", alias="next"),
 ):
     try:
         db.move_variant(product_id, variant_id, direction)
     except db.AdminError as exc:
         return _product_page(request, product_id, 400, str(exc))
-    return _back(request, "store_admin_product", "moved", product_id=product_id)
+    return _back(request, "store_admin_product", "moved", next_url, product_id=product_id)
 
 
 @router.post(
@@ -507,7 +552,12 @@ def move_variant(
     dependencies=[Depends(require_csrf)],
     name="store_admin_delete_variant",
 )
-def delete_variant(request: Request, product_id: int, variant_id: int):
+def delete_variant(
+    request: Request,
+    product_id: int,
+    variant_id: int,
+    next_url: str = Form("", alias="next"),
+):
     try:
         db.delete_variant(product_id, variant_id)
     except db.AdminError as exc:
@@ -515,7 +565,7 @@ def delete_variant(request: Request, product_id: int, variant_id: int):
     logger.info(
         "store_admin_variant_deleted product_id=%s variant_id=%s", product_id, variant_id
     )
-    return _back(request, "store_admin_product", "deleted", product_id=product_id)
+    return _back(request, "store_admin_product", "deleted", next_url, product_id=product_id)
 
 
 @router.post(
@@ -529,6 +579,7 @@ def add_image(
     image: UploadFile | None = File(None),
     url: str = Form(""),
     alt: str = Form(""),
+    next_url: str = Form("", alias="next"),
 ):
     location = ""
     try:
@@ -542,7 +593,7 @@ def add_image(
             media.remove_image(location)
         return _product_page(request, product_id, 400, str(exc))
     logger.info("store_admin_image_added product_id=%s", product_id)
-    return _back(request, "store_admin_product", "image", product_id=product_id)
+    return _back(request, "store_admin_product", "image", next_url, product_id=product_id)
 
 
 @router.post(
@@ -551,13 +602,17 @@ def add_image(
     name="store_admin_move_image",
 )
 def move_image(
-    request: Request, product_id: int, image_id: int, direction: str = Form("")
+    request: Request,
+    product_id: int,
+    image_id: int,
+    direction: str = Form(""),
+    next_url: str = Form("", alias="next"),
 ):
     try:
         db.move_image(product_id, image_id, direction)
     except db.AdminError as exc:
         return _product_page(request, product_id, 400, str(exc))
-    return _back(request, "store_admin_product", "moved", product_id=product_id)
+    return _back(request, "store_admin_product", "moved", next_url, product_id=product_id)
 
 
 @router.post(
@@ -565,14 +620,71 @@ def move_image(
     dependencies=[Depends(require_csrf)],
     name="store_admin_delete_image",
 )
-def delete_image(request: Request, product_id: int, image_id: int):
+def delete_image(
+    request: Request,
+    product_id: int,
+    image_id: int,
+    next_url: str = Form("", alias="next"),
+):
     try:
         orphaned = db.delete_image(product_id, image_id)
     except db.AdminError as exc:
         return _product_page(request, product_id, 400, str(exc))
     if orphaned:
         media.remove_image(orphaned)
-    return _back(request, "store_admin_product", "deleted", product_id=product_id)
+    return _back(request, "store_admin_product", "deleted", next_url, product_id=product_id)
+
+
+# Review queue: go through the unreviewed products one at a time before go-live.
+def _review_page(
+    request: Request,
+    *,
+    after: int | None = None,
+    product_id: int | None = None,
+    status_code: int = 200,
+    error: str | None = None,
+) -> HTMLResponse:
+    queue = db.review_queue(after)
+    if product_id is not None:
+        queue["product"] = db.admin_product(product_id)
+        if queue["product"] is None:
+            raise HTTPException(status_code=404)
+    return _render(
+        request,
+        "review.html",
+        status_code,
+        queue=queue,
+        product=queue["product"],
+        groups=db.admin_collection_groups(),
+        next_url=REVIEW_PATH,
+        review_mode=True,
+        error=error,
+    )
+
+
+@router.get("/review", response_class=HTMLResponse, name="store_admin_review")
+def review(request: Request, after: int | None = None):
+    return _review_page(request, after=after)
+
+
+@router.post(
+    "/review/{product_id}",
+    dependencies=[Depends(require_csrf)],
+    name="store_admin_review_save",
+)
+def review_save(
+    request: Request,
+    product_id: int,
+    form: dict[str, Any] = Depends(product_form),
+):
+    try:
+        _save_product(product_id, form, reviewed=True)
+    except (ValidationError, db.AdminError) as exc:
+        return _review_page(
+            request, product_id=product_id, status_code=400, error=_message(exc)
+        )
+    logger.info("store_admin_product_reviewed product_id=%s", product_id)
+    return _redirect(f"{REVIEW_PATH}?after={product_id}&notice=reviewed")
 
 
 # Collections.

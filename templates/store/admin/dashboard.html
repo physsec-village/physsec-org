@@ -27,9 +27,13 @@
             <span class="admin-stat-value">{{ order_counts.processing }}</span>
             <span class="admin-stat-label">Processing</span>
         </a>
+        <a class="admin-stat{% if unreviewed_count %} admin-stat-accent{% endif %}" href="{{ url_for('store_admin_review') }}">
+            <span class="admin-stat-value">{{ unreviewed_count }}</span>
+            <span class="admin-stat-label">To review</span>
+        </a>
         <a class="admin-stat{% if review_count %} admin-stat-warn{% endif %}" href="{{ url_for('store_admin_orders') }}?review=needs_review">
             <span class="admin-stat-value">{{ review_count }}</span>
-            <span class="admin-stat-label">Needs review</span>
+            <span class="admin-stat-label">Orders to check</span>
         </a>
     </section>
 
