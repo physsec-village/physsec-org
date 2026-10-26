@@ -14,7 +14,7 @@ from .forms.turnstile import get_turnstile_settings
 from .limiter import limiter
 from .router import not_found
 from .router import router as root_router
-from .store import db
+from .store import admin_auth, db
 from .store.admin import NotAnAdmin, not_an_admin
 from .store.admin import public_router as store_admin_public_router
 from .store.admin import router as store_admin_router
@@ -182,6 +182,12 @@ app.state.store_published = False
 
 @app.middleware("http")
 async def private_store_admin(request: Request, call_next):
+    # Admins previewing an unpublished store should see its link on every
+    # page, not just under /store, so the navbar and footer need the flag here.
+    if request.app.state.store_enabled and not request.app.state.store_published:
+        session = admin_auth.current_session(request)
+        if session is not None and session.admin:
+            request.state.store_preview = True
     response = await call_next(request)
     # Includes redirects and 404s, so no admin response is ever cached. An
     # unpublished storefront is admin-only too, so it gets the same treatment.

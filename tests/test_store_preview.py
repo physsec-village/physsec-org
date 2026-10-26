@@ -109,6 +109,17 @@ def test_admins_preview_the_storefront(admin, unpublished):
     assert cart.status_code == 200
 
 
+def test_admins_see_the_store_link_on_every_page(admin, member):
+    admin_home = admin.get("/")
+    member_home = member.get("/")
+
+    assert admin_home.text.count('/store">Store</a>') == 3
+    assert "disabled-state" not in admin_home.text
+    assert "x-robots-tag" not in admin_home.headers
+    assert '/store">Store</a>' not in member_home.text
+    assert member_home.text.count('<span class="disabled-state">Soon</span>') == 3
+
+
 def test_admin_ui_and_webhook_stay_reachable(anonymous, admin):
     login = anonymous.get("/store/admin/login")
     webhook = anonymous.post(
