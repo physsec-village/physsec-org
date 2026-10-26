@@ -22,6 +22,7 @@ import hashlib
 import hmac
 import logging
 import secrets
+import threading
 import time
 from dataclasses import dataclass
 
@@ -43,6 +44,7 @@ ADMIN_CACHE_SECONDS = 60
 _SECRET = secrets.token_bytes(32)
 # user_id -> (is_admin, monotonic expiry)
 _admin_cache: dict[str, tuple[bool, float]] = {}
+_admin_cache_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -103,9 +105,12 @@ def is_admin(user_id: str) -> bool:
         admin = public_metadata(user_id).get("admin") is True
     except Exception as exc:
         raise AdminLookupError("Clerk user lookup failed.") from exc
-    for key in [key for key, (_, expiry) in _admin_cache.items() if expiry <= now]:
-        del _admin_cache[key]
-    _admin_cache[user_id] = (admin, now + ADMIN_CACHE_SECONDS)
+    # Sync dependencies run in a threadpool, so guard the shared cache.
+    with _admin_cache_lock:
+        for key, (_, expiry) in list(_admin_cache.items()):
+            if expiry <= now:
+                _admin_cache.pop(key, None)
+        _admin_cache[user_id] = (admin, now + ADMIN_CACHE_SECONDS)
     return admin
 
 

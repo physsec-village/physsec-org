@@ -30,14 +30,26 @@
             return;
         }
 
+        // Set while the login page bounces a signed-in browser to the
+        // dashboard, so a server that keeps rejecting the session (wrong
+        // origin or keys) cannot cause a redirect loop.
+        const REDIRECTED = "storeAdminRedirected";
         const mount = document.getElementById("clerk-sign-in");
-        if (mount) {
+        if (!mount) {
+            sessionStorage.removeItem(REDIRECTED);
+        } else {
             const afterSignInUrl = mount.dataset.afterSignInUrl;
-            if (window.Clerk.user) {
+            if (window.Clerk.user && !sessionStorage.getItem(REDIRECTED)) {
                 // The browser already holds a Clerk session (for example the
                 // cookie expired in an idle tab); load() refreshed it.
+                sessionStorage.setItem(REDIRECTED, "1");
                 window.location.replace(afterSignInUrl);
                 return;
+            }
+            if (window.Clerk.user) {
+                sessionStorage.removeItem(REDIRECTED);
+                showError("The server rejected your session. Please sign in again.");
+                await window.Clerk.signOut();
             }
             // Match the admin theme; the page's dark colour scheme otherwise
             // renders native inputs dark inside Clerk's light card.
