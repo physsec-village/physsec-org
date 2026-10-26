@@ -53,7 +53,7 @@ PRODUCT_FILTERS = {
     "published": "Published",
     "hidden": "Hidden",
     "featured": "Featured",
-    "sold_out": "Published but sold out",
+    "sold_out": "Published with a sold-out variant",
     "unlisted": "Not in any collection",
 }
 
@@ -209,6 +209,12 @@ def _matches(product: dict[str, Any], needle: str) -> bool:
     )
 
 
+def _has_sold_out_variant(product: dict[str, Any]) -> bool:
+    return any(
+        v["published"] and v["available_stock"] <= 0 for v in product["variants"]
+    )
+
+
 def filter_products(
     products: list[dict[str, Any]], query: str, status: str
 ) -> list[dict[str, Any]]:
@@ -222,7 +228,7 @@ def filter_products(
     if status == "featured":
         return [p for p in products if p["featured"]]
     if status == "sold_out":
-        return [p for p in products if p["published"] and p["all_sold_out"]]
+        return [p for p in products if p["published"] and _has_sold_out_variant(p)]
     if status == "unlisted":
         return [p for p in products if not p["groups"]]
     return products
@@ -246,13 +252,8 @@ def dashboard(request: Request, q: str = "", status: str = ""):
         order_counts=db.admin_order_counts(),
         review_count=db.admin_review_count(),
         low_stock=sum(
-            1
-            for product in products
-            if product["published"]
-            and any(
-                v["published"] and v["available_stock"] <= 0
-                for v in product["variants"]
-            )
+            1 for product in products
+            if product["published"] and _has_sold_out_variant(product)
         ),
     )
 

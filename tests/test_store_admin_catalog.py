@@ -358,7 +358,9 @@ def test_deleting_an_unsold_product_removes_it_and_its_uploads(
 
 def test_dashboard_search_and_status_filters(client, catalog_factory):
     catalog_factory.product("live", "Live Pick", variants=[{"sku": "LP-1", "stock": 2}])
-    catalog_factory.product("gone", "Sold Out Shim", variants=[{"stock": 0}])
+    catalog_factory.product(
+        "gone", "Sold Out Shim", variants=[{"name": "A", "stock": 0}, {"name": "B", "stock": 5}]
+    )
     catalog_factory.product("draft", "Hidden Draft", published=False)
     group = catalog_factory.group(catalog_factory.collection())
     catalog_factory.add(group, _product("live"))
