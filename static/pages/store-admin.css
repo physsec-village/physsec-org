@@ -756,7 +756,7 @@ a.admin-stat:hover {
     object-fit: cover;
     border-radius: 8px;
     border: 1px solid var(--border);
-    background: #fff;
+    background: var(--bg-elevated);
 }
 
 .admin-thumb-blank {
@@ -892,7 +892,8 @@ a.admin-stat:hover {
     aspect-ratio: 1;
     object-fit: contain;
     border-radius: 8px;
-    background: #fff;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
 }
 
 .admin-image input {

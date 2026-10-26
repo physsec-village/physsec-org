@@ -3,7 +3,7 @@
 {% block title %}{{ product.name }} | PSV Store | Physical Security Village{% endblock %}
 {% block description %}{{ product.description or (product.name ~ " from the Physical Security Village store.") }}{% endblock %}
 {% block styles %}
-<link href="/static/pages/store.css?v=5" rel="stylesheet" />
+<link href="/static/pages/store.css?v=6" rel="stylesheet" />
 {% endblock %}
 
 {% block page_header %}
@@ -27,7 +27,7 @@
 
 {% block main %}
     <div class="page-shell">
-        {% include "store/toolbar.html" %}
+        {% include "store/preview_notice.html" %}
         <div class="product-detail">
             <div class="product-detail-photo">
                 {{ item_photo(product, class="photo-detail") }}
@@ -65,7 +65,7 @@
                         <label for="productVariant">Option</label>
                         <select id="productVariant" name="variant_id">
                             {% for variant in product.variants %}
-                                <option value="{{ variant.id }}" data-sku="{{ variant.sku or '' }}" data-upc="{{ variant.upc or '' }}"{% if variant.id == selected.id %} selected{% endif %}>{{ variant.name }} — {{ variant.price_str }}{% if variant.sold_out %} — Sold out{% endif %}</option>
+                                <option value="{{ variant.id }}" data-sku="{{ variant.sku or '' }}"{% if variant.id == selected.id %} selected{% endif %}>{{ variant.name }} — {{ variant.price_str }}{% if variant.sold_out %} — Sold out{% endif %}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -77,18 +77,13 @@
                             <span id="qtyValue" aria-live="polite">1</span>
                             <button type="button" id="qtyInc" aria-label="Increase quantity"{% if selected.available_stock <= 1 %} disabled{% endif %}>+</button>
                         </div>
-                        <button type="button" class="btn btn-primary product-add btn-add" data-add data-variant-id="{{ selected.id }}" data-detail{% if selected.sold_out %} disabled{% endif %}>{{ 'Sold out' if selected.sold_out else 'Add to cart' }}</button>
+                        <button type="button" class="btn {{ 'btn-ghost' if selected.sold_out else 'btn-primary' }} product-add btn-add" data-add data-variant-id="{{ selected.id }}" data-detail{% if selected.sold_out %} disabled{% endif %}>{{ 'Sold out' if selected.sold_out else 'Add to cart' }}</button>
                     {% else %}
                         <button type="button" class="btn btn-ghost product-add" disabled>Sold out</button>
                     {% endif %}
                 </div>
                 <dl class="product-specs">
                     <div id="productSkuRow"{% if not selected or not selected.sku %} hidden{% endif %}><dt>SKU</dt><dd class="mono" id="productSku">{{ selected.sku if selected and selected.sku else '' }}</dd></div>
-                    <div id="productUpcRow"{% if not selected or not selected.upc %} hidden{% endif %}><dt>UPC</dt><dd class="mono" id="productUpc">{{ selected.upc if selected and selected.upc else '' }}</dd></div>
-                    <div>
-                        <dt>Availability</dt>
-                        <dd id="productStock" aria-live="polite">{{ 'In stock' if selected and selected.purchasable else 'Sold out' }}</dd>
-                    </div>
                 </dl>
             </div>
         </div>

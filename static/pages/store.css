@@ -1,6 +1,6 @@
 /* PSV store: collection pages, product pages, cart drawer, and checkout.
-   Product photos are shot on white, so photo tiles stay white in both
-   themes and the image blends into the tile. */
+   Product photos have transparent backgrounds (see
+   tools/knockout_backgrounds.py), so photo tiles use the page surface. */
 
 .mono {
     font-family: "Share Tech Mono", monospace;
@@ -74,7 +74,7 @@
     position: relative;
     aspect-ratio: 4 / 3;
     border-radius: var(--radius-sm);
-    background: #ffffff;
+    background: linear-gradient(160deg, var(--surface-raised), var(--bg-elevated));
     border: 1px solid var(--border);
     overflow: hidden;
     display: flex;
@@ -87,10 +87,6 @@
     width: 100%;
     height: 100%;
     object-fit: contain;
-}
-
-.photo-blank {
-    background: linear-gradient(160deg, var(--surface-raised), var(--bg-elevated));
 }
 
 .photo-tag {
@@ -136,71 +132,15 @@
     font-size: 0.92rem;
 }
 
-/* ---- store bar ---- */
+/* ---- store search ---- */
 
-.store-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem 1rem;
-    margin-bottom: 2.25rem;
-    padding: 0.75rem 0.85rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    backdrop-filter: blur(16px);
+.store-search {
+    width: min(100%, 22rem);
+    margin-left: 0;
 }
 
-.store-bar-links {
-    flex: 1 1 24rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    overflow-x: auto;
-    scrollbar-width: none;
-    overscroll-behavior-x: contain;
-    padding-bottom: 0.1rem;
-}
-
-.store-bar-links::-webkit-scrollbar {
-    display: none;
-}
-
-.store-bar-link {
-    flex: 0 0 auto;
-    padding: 0.5rem 0.95rem;
-    border-radius: 999px;
-    border: 1px solid transparent;
-    color: var(--muted);
-    text-decoration: none;
-    font-size: 0.86rem;
-    font-weight: 500;
-    white-space: nowrap;
-    transition:
-        color var(--transition),
-        border-color var(--transition),
-        background var(--transition);
-}
-
-.store-bar-link:hover {
-    color: var(--text);
-    border-color: var(--border-strong);
-}
-
-.store-bar-link.active {
-    color: #09100c;
-    background: var(--accent);
-    border-color: var(--accent);
-}
-
-.store-bar-search {
-    flex: 0 1 18rem;
-    margin-left: auto;
-    min-width: min(100%, 14rem);
-}
-
-.store-bar-search input {
-    min-height: 40px;
+.store-hero-copy .store-search {
+    margin-top: 0.4rem;
 }
 
 /* ---- home hero ---- */
@@ -368,7 +308,7 @@
 
 .collection-card-photo {
     aspect-ratio: 16 / 9;
-    background: #ffffff;
+    background: linear-gradient(160deg, var(--surface-raised), var(--bg-elevated));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -609,45 +549,6 @@
 .item-bullets li::marker {
     color: var(--accent);
 }
-/* ---- home notes ---- */
-
-.store-notes {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-    gap: 1rem;
-}
-
-.store-note {
-    display: flex;
-    gap: 0.9rem;
-    padding: 1.1rem 1.2rem;
-    background: linear-gradient(135deg, var(--accent-soft), transparent 55%), var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-}
-
-.store-note svg {
-    flex-shrink: 0;
-    width: 1.2rem;
-    height: 1.2rem;
-    margin-top: 0.1rem;
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 2;
-}
-
-.store-note strong {
-    display: block;
-    margin-bottom: 0.25rem;
-    font-size: 0.95rem;
-}
-
-.store-note p {
-    color: var(--muted);
-    font-size: 0.86rem;
-    line-height: 1.6;
-}
-
 /* ---- collection page ---- */
 
 .collection-meta {
@@ -997,7 +898,7 @@
 .summary-item-thumb,
 .cart-item-thumb {
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -1549,17 +1450,8 @@
         padding: 0.45rem 0.7rem;
     }
 
-    .store-bar {
-        padding: 0.6rem;
-    }
-
-    .store-bar-links {
-        flex-wrap: nowrap;
-    }
-
-    .store-bar-search {
-        flex-basis: 100%;
-        margin-left: 0;
+    .store-search {
+        width: 100%;
     }
 }
 
@@ -1592,7 +1484,8 @@
 
 .product-gallery img {
     width: 100%;
-    background: white;
+    background: linear-gradient(160deg, var(--surface-raised), var(--bg-elevated));
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
 }
 

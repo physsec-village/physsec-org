@@ -3,7 +3,7 @@
 {% block description %}Check out your Physical Security Village store order.{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block styles %}
-<link href="/static/pages/store.css?v=5" rel="stylesheet" />
+<link href="/static/pages/store.css?v=6" rel="stylesheet" />
 {% endblock %}
 
 {% block page_header %}
@@ -21,6 +21,7 @@
 
 {% block main %}
     <div class="page-shell">
+        {% include "store/preview_notice.html" %}
         <form id="checkoutForm" class="checkout-layout">
             <div class="checkout-fields">
                 <div class="checkout-card">

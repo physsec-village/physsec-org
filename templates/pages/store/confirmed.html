@@ -3,11 +3,12 @@
 {% block description %}Your Physical Security Village store order status.{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block styles %}
-<link href="/static/pages/store.css?v=5" rel="stylesheet" />
+<link href="/static/pages/store.css?v=6" rel="stylesheet" />
 {% endblock %}
 
 {% block main %}
     <div class="page-shell">
+        {% include "store/preview_notice.html" %}
         <div class="order-confirm" data-order-confirmed="{{ 'true' if order else 'false' }}">
             {% if order %}
                 <div class="order-confirm-icon">

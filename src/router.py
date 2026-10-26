@@ -109,4 +109,6 @@ def sitemap_xml(request: Request):
 
 
 async def not_found(request, exc):
-    return templates.TemplateResponse(request=request, name="404.html", status_code=404)
+    return templates.TemplateResponse(
+        request=request, name="404.html", context={"error_page": True}, status_code=404
+    )
