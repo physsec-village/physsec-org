@@ -1,0 +1,17 @@
+{# Store search box, shown in the header of every browsing page. #}
+<form class="store-search search-wrap" action="{{ url_for('store_search_page') }}" method="get" role="search">
+    <label class="visually-hidden" for="storeSearch">Search the store</label>
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+    <input
+        id="storeSearch"
+        name="q"
+        type="search"
+        value="{{ query | default('') }}"
+        placeholder="Search tools and keys"
+        maxlength="80"
+        autocomplete="off"
+    />
+</form>
