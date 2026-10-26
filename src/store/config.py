@@ -14,7 +14,7 @@ MIN_RESERVATION_MINUTES = 31
 MAX_RESERVATION_MINUTES = 1440
 
 
-def _boolean(name: str) -> bool:
+def _env_flag(name: str) -> bool:
     """Return a boolean environment variable, treating unset as false."""
     value = os.getenv(name, "false").strip().lower()
     if value in {"true", "1", "yes", "on"}:
@@ -26,7 +26,7 @@ def _boolean(name: str) -> bool:
 
 def store_enabled() -> bool:
     """Return whether the store and its infrastructure should be active."""
-    return _boolean("STORE_ENABLED")
+    return _env_flag("STORE_ENABLED")
 
 
 def store_published() -> bool:
@@ -36,7 +36,7 @@ def store_published() -> bool:
     admins can reach; everyone else sees the store as if it were disabled.
     Unset means unpublished, so forgetting the flag never exposes the store.
     """
-    return _boolean("STORE_PUBLISHED")
+    return _env_flag("STORE_PUBLISHED")
 
 
 def _postgres_url(name: str) -> str:
