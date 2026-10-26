@@ -257,8 +257,8 @@ responses are sent with `Cache-Control: no-store`. Stock edits are rejected if
 stock changed since the form loaded or if the new value is below the units
 reserved by open checkouts, and a product or collection form loaded before
 another edit is rejected rather than undoing that edit. The nginx virtual
-hosts raise the request body limit to 6 MB for `/store/admin/` only, so
-image uploads get through.
+hosts raise the request body limit to 6 MB only for the image upload route
+(`/store/admin/products/<id>/images`); every other route stays at 64 KB.
 
 #### Migrating off Supabase
 

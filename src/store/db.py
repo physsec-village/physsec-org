@@ -1233,7 +1233,11 @@ def review_queue(after: int | None = None) -> dict[str, Any]:
     pending = [product for product in products if product["reviewed_at"] is None]
     current = pending[0] if pending else None
     if after is not None and pending:
-        later = [p for p in pending if (p["name"], p["id"]) > _sort_key(after, products)]
+        # Walk the list in the database's order rather than re-sorting names
+        # in Python, whose ordering can differ from the collation's.
+        ids = [p["id"] for p in products]
+        start = ids.index(after) + 1 if after in ids else 0
+        later = [p for p in products[start:] if p["reviewed_at"] is None]
         current = later[0] if later else pending[0]
     return {
         "product": current,
@@ -1242,12 +1246,6 @@ def review_queue(after: int | None = None) -> dict[str, Any]:
         "reviewed": len(products) - len(pending),
     }
 
-
-def _sort_key(product_id: int, products: Sequence[Mapping[str, Any]]) -> tuple[str, int]:
-    for product in products:
-        if product["id"] == product_id:
-            return (product["name"], product["id"])
-    return ("", 0)
 
 
 def admin_create_product(product: ProductInput, variant: VariantInput) -> int:
