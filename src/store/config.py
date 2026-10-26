@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import os
 
 from psycopg.conninfo import conninfo_to_dict
@@ -73,7 +75,61 @@ def reservation_minutes() -> int:
     return value
 
 
+def public_origin() -> str:
+    """Return the site origin browsers use, as Clerk reports it in ``azp``."""
+    value = os.getenv("STORE_PUBLIC_ORIGIN", "").strip().rstrip("/")
+    if not value.startswith(("https://", "http://")) or "/" in value.split("://", 1)[1]:
+        raise ValueError(
+            "STORE_PUBLIC_ORIGIN must be an origin like https://physsec.org."
+        )
+    return value
+
+
+def clerk_publishable_key() -> str:
+    """Return the Clerk publishable key the browser SDK is loaded with."""
+    value = os.getenv("CLERK_PUBLISHABLE_KEY", "").strip()
+    if not value.startswith(("pk_test_", "pk_live_")):
+        raise ValueError("CLERK_PUBLISHABLE_KEY must be a Clerk publishable key.")
+    return value
+
+
+def clerk_secret_key() -> str:
+    """Return the Clerk secret key used for signing-key and user lookups."""
+    value = os.getenv("CLERK_SECRET_KEY", "").strip()
+    if not value.startswith(("sk_test_", "sk_live_")):
+        raise ValueError("CLERK_SECRET_KEY must be a Clerk secret key.")
+    return value
+
+
+def clerk_jwt_key() -> str | None:
+    """Return the optional PEM public key for offline session verification."""
+    value = os.getenv("CLERK_JWT_KEY", "").strip()
+    if value and "-----BEGIN PUBLIC KEY-----" not in value:
+        raise ValueError("CLERK_JWT_KEY must be a PEM public key.")
+    return value or None
+
+
+def clerk_frontend_api() -> str:
+    """Return the Clerk Frontend API host encoded in the publishable key.
+
+    The browser SDK is served from this host, e.g. ``clerk.physsec.org`` for
+    a production instance or ``*.clerk.accounts.dev`` for a development one.
+    """
+    encoded = clerk_publishable_key().split("_", 2)[2]
+    try:
+        host = base64.b64decode(encoded + "=" * (-len(encoded) % 4)).decode()
+    except (binascii.Error, UnicodeDecodeError) as exc:
+        raise ValueError("CLERK_PUBLISHABLE_KEY is not a valid Clerk key.") from exc
+    if not host.endswith("$") or "/" in host:
+        raise ValueError("CLERK_PUBLISHABLE_KEY is not a valid Clerk key.")
+    return host[:-1]
+
+
 def validate_store_config() -> None:
     """Fail startup early when enabled store settings are invalid."""
     database_url()
     reservation_minutes()
+    public_origin()
+    clerk_frontend_api()
+    clerk_secret_key()
+    clerk_jwt_key()

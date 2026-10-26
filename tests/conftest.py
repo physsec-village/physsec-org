@@ -35,6 +35,10 @@ os.environ.update(
         "RECEIVER_EMAIL": "receiver@example.com",
         "STORE_ENABLED": "true",
         "DATABASE_URL": TEST_DATABASE_URL,
+        "STORE_PUBLIC_ORIGIN": "http://testserver",
+        # A publishable key encodes the Frontend API host; this one is fake.
+        "CLERK_PUBLISHABLE_KEY": "pk_test_Y2xlcmsuZXhhbXBsZS50ZXN0JA",
+        "CLERK_SECRET_KEY": "sk_test_unused",
     }
 )
 

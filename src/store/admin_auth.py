@@ -1,46 +1,87 @@
-"""Placeholder sign-in for the store admin UI.
+"""Clerk-backed sign-in for the store admin UI.
 
-TEMPORARY: the credentials are hardcoded (admin/admin) so the dev deployment
-can be explored. Replace this module with a real login before merging to main.
+Clerk's browser SDK signs the user in on /store/admin/login and keeps a
+short-lived session JWT in the ``__session`` cookie, refreshing it while an
+admin page is open. Every admin request verifies that JWT against the Clerk
+instance's signing keys (fetched from Clerk's Backend API and cached by the
+SDK, or supplied offline as ``CLERK_JWT_KEY``) and checks that its ``azp``
+claim is this site's origin.
 
-A successful sign-in sets a session cookie signed with a per-process secret,
-so sessions end whenever the app restarts (including every deploy).
+A verified session is not enough: the Clerk user must also carry
+``{"admin": true}`` in its public metadata. The Clerk instance's session
+token is customised to include ``{"metadata": "{{user.public_metadata}}"}``,
+so the check reads the verified token and needs no further network call;
+revoking the flag takes effect when the token is next refreshed (within a
+minute).
+
+Form (CSRF) tokens are HMACs of the Clerk session ID under a per-process
+secret, so a token is only valid for the session that rendered the form.
 """
 
 from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import secrets
+from dataclasses import dataclass
 
-USERNAME = "admin"
-PASSWORD = "admin"
-SESSION_COOKIE = "psv_store_admin"
+from clerk_backend_api.security import (
+    AuthenticateRequestOptions,
+    AuthErrorReason,
+    Requestish,
+    authenticate_request,
+)
+
+from . import config
+
+logger = logging.getLogger(__name__)
+
+SESSION_COOKIE = "__session"
 
 _SECRET = secrets.token_bytes(32)
 
 
-def _sign(purpose: str) -> str:
-    return hmac.new(_SECRET, purpose.encode(), hashlib.sha256).hexdigest()
+@dataclass(frozen=True)
+class Session:
+    """A verified Clerk session: who is signed in and whether they are an admin."""
+
+    user_id: str
+    session_id: str
+    admin: bool
 
 
-def check_credentials(username: str, password: str) -> bool:
-    username_ok = hmac.compare_digest(username.encode(), USERNAME.encode())
-    password_ok = hmac.compare_digest(password.encode(), PASSWORD.encode())
-    return username_ok and password_ok
+def session_from_request(request: Requestish) -> Session | None:
+    """Return the verified Clerk session on the request, or None."""
+    state = authenticate_request(
+        request,
+        AuthenticateRequestOptions(
+            secret_key=config.clerk_secret_key(),
+            jwt_key=config.clerk_jwt_key(),
+            authorized_parties=[config.public_origin()],
+            accepts_token=["session_token"],
+        ),
+    )
+    if not state.is_signed_in:
+        if state.reason is not AuthErrorReason.SESSION_TOKEN_MISSING:
+            logger.info("store_admin_session_rejected reason=%s", state.message)
+        return None
+    payload = state.payload or {}
+    user_id = payload.get("sub")
+    session_id = payload.get("sid")
+    if not isinstance(user_id, str) or not isinstance(session_id, str):
+        logger.warning("store_admin_session_rejected reason=missing sub or sid")
+        return None
+    metadata = payload.get("metadata")
+    admin = isinstance(metadata, dict) and metadata.get("admin") is True
+    return Session(user_id=user_id, session_id=session_id, admin=admin)
 
 
-def session_token() -> str:
-    return _sign("store-admin-session")
+def csrf_token(session: Session) -> str:
+    """Return the form token for this session."""
+    message = f"store-admin-csrf:{session.session_id}".encode()
+    return hmac.new(_SECRET, message, hashlib.sha256).hexdigest()
 
 
-def valid_session(token: str | None) -> bool:
-    return bool(token) and hmac.compare_digest(token.encode(), session_token().encode())
-
-
-def csrf_token() -> str:
-    return _sign("store-admin-csrf")
-
-
-def valid_csrf(token: str) -> bool:
-    return hmac.compare_digest(token.encode(), csrf_token().encode())
+def valid_csrf(session: Session, token: str) -> bool:
+    return hmac.compare_digest(token.encode(), csrf_token(session).encode())
