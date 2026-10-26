@@ -2,7 +2,20 @@
 {% block title %}Order {{ order.id[:8] }}{% endblock %}
 
 {% block main %}
-    <div class="admin-head"><h1>Order <span class="mono">{{ order.id[:8] }}</span></h1></div>
+    <nav class="admin-crumbs" aria-label="Breadcrumb">
+        <a href="{{ url_for('store_admin_orders') }}">Orders</a><span>/</span><span class="mono">{{ order.id[:8] }}</span>
+    </nav>
+    <div class="admin-head">
+        <h1>
+            Order <span class="mono">{{ order.id[:8] }}</span>
+            <span class="tag{% if order.fulfillment_state == 'shipped' %} tag-ok{% elif order.fulfillment_state == 'unfulfilled' %} tag-accent{% endif %}">{{ order.fulfillment_state }}</span>
+            {% if order.review_state == 'needs_review' %}<span class="tag tag-warn">needs review</span>{% endif %}
+            {% if order.refund_state != 'none' %}<span class="tag tag-warn">{{ order.refund_state }} refund</span>{% endif %}
+        </h1>
+        {% if order.payment_intent_id %}
+            <a class="btn btn-outline" href="{{ stripe_url('payments/' ~ order.payment_intent_id) }}" rel="noopener">Open in Stripe</a>
+        {% endif %}
+    </div>
     <p class="admin-meta">
         <span class="mono">{{ order.id }}</span> · placed {{ order.created_at.strftime("%Y-%m-%d %H:%M UTC") }}
     </p>
@@ -59,12 +72,23 @@
             {% else %}
                 <p>No shipping address recorded.</p>
             {% endif %}
+            <h2>Payment</h2>
             <dl class="admin-totals">
-                <dt>Payment</dt><dd>{{ order.payment_state }}</dd>
+                <dt>Status</dt><dd>{{ order.payment_state }}</dd>
                 <dt>Refund</dt><dd>{{ order.refund_state }}</dd>
-                <dt>Payment intent</dt><dd class="mono">{{ order.payment_intent_id or "—" }}</dd>
+                <dt>Payment intent</dt>
+                <dd class="mono">
+                    {% if order.payment_intent_id %}
+                        <a href="{{ stripe_url('payments/' ~ order.payment_intent_id) }}" rel="noopener">{{ order.payment_intent_id }}</a>
+                    {% else %}—{% endif %}
+                </dd>
+                <dt>Checkout session</dt><dd class="mono">{{ order.stripe_session_id }}</dd>
             </dl>
-            <p class="admin-hint">Issue refunds in the Stripe dashboard; the refund state updates from Stripe's webhook.</p>
+            <p class="admin-hint">
+                Refund or dispute this payment in Stripe. The store records
+                refunds and disputes from Stripe's webhooks; a disputed order is
+                flagged for review here.
+            </p>
         </section>
     </div>
 

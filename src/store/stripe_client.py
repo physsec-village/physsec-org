@@ -86,6 +86,32 @@ def create_checkout_session(checkout: dict[str, Any]) -> stripe.checkout.Session
     )
 
 
+def configuration_status() -> dict[str, Any]:
+    """Describe the Stripe setup for the admin without exposing any secret."""
+    secret_key = os.getenv("STRIPE_SECRET_KEY", "").strip()
+    origin = os.getenv("STORE_PUBLIC_ORIGIN", "").strip().rstrip("/")
+    return {
+        "secret_key": bool(secret_key),
+        "test_mode": is_test_mode(),
+        "webhook_secret": bool(os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()),
+        "webhook_url": f"{origin}/store/webhook" if origin else "",
+        "public_origin": origin,
+        "ship_countries": os.getenv("STORE_SHIP_COUNTRIES", "US,CA"),
+        "shipping_rates": bool(os.getenv("STRIPE_SHIPPING_RATE_IDS", "").strip()),
+        "automatic_tax": os.getenv("STORE_AUTOMATIC_TAX", "").lower() == "true",
+    }
+
+
+def is_test_mode() -> bool:
+    return "_test_" in os.getenv("STRIPE_SECRET_KEY", "")
+
+
+def dashboard_url(path: str) -> str:
+    """Link into the Stripe dashboard, in test mode when the key is a test key."""
+    mode = "test/" if is_test_mode() else ""
+    return f"https://dashboard.stripe.com/{mode}{path.lstrip('/')}"
+
+
 def construct_webhook_event(payload: bytes, signature: str | None) -> stripe.Event:
     """Verify and decode a Stripe webhook payload."""
     return stripe.Webhook.construct_event(

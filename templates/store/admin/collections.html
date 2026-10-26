@@ -1,0 +1,87 @@
+{% extends "store/admin/base.html" %}
+{% block title %}Collections{% endblock %}
+
+{% block main %}
+    <div class="admin-head">
+        <h1>Collections <span class="admin-count">{{ collections | length }}</span></h1>
+    </div>
+    <p class="admin-hint">
+        Collections are the store's shelves: each has a page listing its
+        products in headed groups, in this order. A product can be in any
+        number of collections. Hidden collections are not shown in the store.
+    </p>
+
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th scope="col"><span class="visually-hidden">Order</span></th>
+                    <th scope="col">Collection</th>
+                    <th scope="col">Tag</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="num">Groups</th>
+                    <th scope="col" class="num">Products</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for collection in collections %}
+                    <tr{% if not collection.published %} class="admin-row-retired"{% endif %}>
+                        <td>
+                            <span class="admin-row-actions">
+                                <form method="post" action="{{ url_for('store_admin_move_collection', collection_id=collection.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                                    <input type="hidden" name="direction" value="up" />
+                                    <button type="submit" class="btn-icon" title="Move up" aria-label="Move {{ collection.title }} up"{% if loop.first %} disabled{% endif %}>&uarr;</button>
+                                </form>
+                                <form method="post" action="{{ url_for('store_admin_move_collection', collection_id=collection.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                                    <input type="hidden" name="direction" value="down" />
+                                    <button type="submit" class="btn-icon" title="Move down" aria-label="Move {{ collection.title }} down"{% if loop.last %} disabled{% endif %}>&darr;</button>
+                                </form>
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('store_admin_collection', collection_id=collection.id) }}">{{ collection.title }}</a>
+                            <span class="admin-sub mono">/store/collection/{{ collection.slug }}</span>
+                        </td>
+                        <td>{{ collection.tag or "—" }}</td>
+                        <td>{% if collection.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag">Hidden</span>{% endif %}</td>
+                        <td class="num">{{ collection.group_count }}</td>
+                        <td class="num{% if not collection.item_count %} warn{% endif %}">{{ collection.item_count }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="6" class="admin-empty">No collections yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <form method="post" action="{{ url_for('store_admin_create_collection') }}" class="admin-card">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <h2>New collection</h2>
+        <div class="admin-grid">
+            <label class="admin-field">
+                <span>Title</span>
+                <input name="title" value="{{ form.title or '' }}" required maxlength="200" data-slug-source />
+            </label>
+            <label class="admin-field">
+                <span>URL slug (optional)</span>
+                <input name="slug" value="{{ form.slug or '' }}" maxlength="200" placeholder="derived from the title" class="mono" data-slug-target />
+            </label>
+            <label class="admin-field">
+                <span>Tag (short label shown above the title)</span>
+                <input name="tag" value="{{ form.tag or '' }}" maxlength="100" placeholder="Village tools" />
+            </label>
+        </div>
+        <label class="admin-field">
+            <span>Blurb (one sentence shown on the store home page)</span>
+            <input name="blurb" value="{{ form.blurb or '' }}" maxlength="1000" />
+        </label>
+        <div class="admin-checks">
+            <label><input type="checkbox" name="published" value="true" {% if form.published %}checked{% endif %} /> Published</label>
+        </div>
+        <div class="admin-actions">
+            <button type="submit" class="btn btn-primary">Create collection</button>
+        </div>
+    </form>
+{% endblock %}

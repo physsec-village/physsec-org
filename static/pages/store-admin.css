@@ -341,3 +341,266 @@ a.admin-stat:hover {
     line-height: 1.5;
     margin: 0.75rem 0;
 }
+
+/* Navigation, breadcrumbs and headings. */
+.admin-nav a[aria-current="page"] {
+    color: var(--text);
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 0.15rem;
+}
+
+.admin-crumbs {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.admin-crumbs a {
+    color: var(--muted);
+}
+
+.admin-main h1 .tag {
+    vertical-align: middle;
+    margin-left: 0.4rem;
+}
+
+.admin-count {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 0.9em;
+}
+
+.admin-sub {
+    display: block;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.admin-empty {
+    color: var(--muted);
+    padding: 1rem 0.6rem;
+}
+
+.admin-stat-warn .admin-stat-value {
+    color: var(--warning);
+}
+
+.admin-stat-accent .admin-stat-value {
+    color: var(--accent);
+}
+
+.admin-stats-tight {
+    margin-bottom: 1rem;
+}
+
+.admin-stats-tight .admin-stat {
+    padding: 0.6rem 0.8rem;
+}
+
+.admin-stats-tight .admin-stat-value {
+    font-size: 1.3rem;
+}
+
+/* Thumbnails. */
+.admin-thumb {
+    display: block;
+    width: 44px;
+    height: 44px;
+    object-fit: cover;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--border);
+    background: var(--bg);
+}
+
+.admin-thumb-blank {
+    background:
+        linear-gradient(135deg, transparent 48%, var(--border-strong) 49%, var(--border-strong) 51%, transparent 52%),
+        var(--bg);
+}
+
+.admin-col-thumb {
+    width: 52px;
+}
+
+/* Row ordering and deletion. */
+.admin-row-actions {
+    display: inline-flex;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.admin-row-actions form {
+    display: inline;
+}
+
+.btn-icon {
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-xs);
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.btn-icon:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--accent);
+}
+
+.btn-icon:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.btn-icon-danger:hover:not(:disabled) {
+    color: var(--warning);
+    border-color: var(--warning);
+}
+
+.btn-sm {
+    min-height: 0;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.9rem;
+}
+
+/* Product images. */
+.admin-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+
+.admin-image {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+}
+
+.admin-image img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: contain;
+    border-radius: var(--radius-xs);
+    background: var(--bg-elevated);
+}
+
+.admin-image-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.admin-image-foot .admin-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin input[type="file"] {
+    padding: 0.4rem;
+}
+
+/* Collection groups. */
+.admin-group {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+}
+
+.admin-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.admin-group-head h3 {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.admin-table-items td {
+    vertical-align: middle;
+}
+
+.admin-add-row td {
+    padding-top: 0.75rem;
+}
+
+.admin-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-right: 0.5rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.admin-inline select {
+    width: auto;
+    min-width: 16rem;
+}
+
+/* Destructive actions. */
+.admin-danger {
+    border-color: rgba(208, 162, 61, 0.35);
+}
+
+.btn-danger {
+    border: 1px solid var(--warning);
+    background: transparent;
+    color: var(--warning);
+}
+
+.btn-danger:hover {
+    background: rgba(208, 162, 61, 0.12);
+}
+
+/* Key/value details. */
+.admin-kv {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.4rem 1rem;
+    margin: 0.5rem 0 1rem;
+}
+
+.admin-kv dt {
+    color: var(--muted);
+}
+
+.admin-kv dd {
+    overflow-wrap: anywhere;
+}
+
+.admin-filter input[type="search"] {
+    min-width: 16rem;
+}
+
+.admin-filter select {
+    width: auto;
+}
+
+.admin-col-name {
+    min-width: 16rem;
+}
+
+.admin-table td.admin-col-skus {
+    white-space: normal;
+}

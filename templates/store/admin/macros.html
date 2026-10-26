@@ -11,7 +11,51 @@
                 {{ group_label(group) }}
             </label>
         {% else %}
-            <p class="admin-hint">There are no collections yet.</p>
+            <p class="admin-hint">There are no collections yet. <a href="/store/admin/collections">Create one</a> to list products in the store.</p>
         {% endfor %}
     </fieldset>
+{% endmacro %}
+
+{% macro thumb(url, alt="") %}
+    {% if url %}
+        <img class="admin-thumb" src="{{ url }}" alt="{{ alt }}" loading="lazy" decoding="async" />
+    {% else %}
+        <span class="admin-thumb admin-thumb-blank" aria-hidden="true"></span>
+    {% endif %}
+{% endmacro %}
+
+{#
+  Reorder and delete buttons for a row that sits inside a larger form. They
+  submit the small hidden forms emitted by row_forms() once that form closes,
+  so saving the big form and moving a row stay separate requests.
+#}
+{% macro row_buttons(prefix, first, last, label, delete_label=none) %}
+    <span class="admin-row-actions">
+        <button type="submit" form="{{ prefix }}-up" class="btn-icon" title="Move up" aria-label="Move {{ label }} up"{% if first %} disabled{% endif %}>&uarr;</button>
+        <button type="submit" form="{{ prefix }}-down" class="btn-icon" title="Move down" aria-label="Move {{ label }} down"{% if last %} disabled{% endif %}>&darr;</button>
+        {% if delete_label %}
+            <button type="submit" form="{{ prefix }}-delete" class="btn-icon btn-icon-danger" title="{{ delete_label }}" aria-label="{{ delete_label }} {{ label }}">&times;</button>
+        {% endif %}
+    </span>
+{% endmacro %}
+
+{% macro row_forms(prefix, move_url, csrf, delete_url=none, confirm=none) %}
+    <form id="{{ prefix }}-up" method="post" action="{{ move_url }}" hidden>
+        <input type="hidden" name="csrf_token" value="{{ csrf }}" />
+        <input type="hidden" name="direction" value="up" />
+    </form>
+    <form id="{{ prefix }}-down" method="post" action="{{ move_url }}" hidden>
+        <input type="hidden" name="csrf_token" value="{{ csrf }}" />
+        <input type="hidden" name="direction" value="down" />
+    </form>
+    {% if delete_url %}
+        <form id="{{ prefix }}-delete" method="post" action="{{ delete_url }}" hidden{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
+            <input type="hidden" name="csrf_token" value="{{ csrf }}" />
+        </form>
+    {% endif %}
+{% endmacro %}
+
+{% macro status_tags(item) %}
+    {% if item.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag">Hidden</span>{% endif %}
+    {% if item.featured %}<span class="tag tag-accent">Featured</span>{% endif %}
 {% endmacro %}

@@ -48,7 +48,7 @@ def _paid_session(checkout):
 def test_schema_and_rfid_catalog(catalog_factory):
     variant_id = _database(catalog_factory)
 
-    assert db.readiness() == {"ready": True, "schema_version": 3}
+    assert db.readiness() == {"ready": True, "schema_version": 4}
     product = db.get_published_products()[0]
     assert product["variants"][0]["id"] == variant_id
     assert product["price_cents"] == 2500

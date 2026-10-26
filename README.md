@@ -141,9 +141,9 @@ gets the same privileges without a per-environment migration.
 The catalog lives in PostgreSQL: products, their variants and images, and
 ordered collections and groups are explicit data. A product can appear in
 several groups or collections. Only published products and collections appear
-in the store. Products, variants, stock and collection membership are edited in
-the [store admin](#store-admin); collections, groups and images are still
-managed with SQL. There is no startup import.
+in the store. The whole catalog is edited in the [store admin](#store-admin):
+products, variants, stock, images, collections, their groups and the order of
+everything. There is no startup import.
 
 The seed migration inserts the initial catalog with every variant's stock at 0.
 Nothing is purchasable until inventory is counted and stock is set in the admin.
@@ -166,7 +166,14 @@ Checkout creation atomically reserves inventory before contacting Stripe.
 Provider calls use the durable checkout ID as their idempotency key. Signed
 webhooks consume or release reservations and record an event ledger in the same
 transaction as order state. Payment, fulfillment, manual review, and refund
-states remain independent. `/readyz` verifies PostgreSQL connectivity and the
+states remain independent. Payments themselves are managed in the Stripe
+dashboard; the store only listens. The webhook endpoint (`/store/webhook`)
+should be subscribed to `checkout.session.completed`,
+`checkout.session.async_payment_succeeded`, `checkout.session.expired`,
+`charge.refunded` and `charge.dispute.created`: paid sessions become orders,
+expired ones release stock, refunds update the order's refund state, and a
+dispute flags the order for review. Other event types are recorded and
+ignored. `/readyz` verifies PostgreSQL connectivity and the
 expected store schema version;
 `/healthz` remains the process liveness probe.
 
@@ -184,17 +191,33 @@ production database.
 
 #### Store admin
 
-`/store/admin` is a small server-rendered admin UI for the store: it lists
-every product with its stock, reservations and availability; edits a product's
-name, URL slug, description, features, collections and published/featured
-flags, and each variant's label, SKU, UPC, price, stock and published flag;
-creates products and adds variants; and lists orders, shows their items and
-shipping address, and updates fulfillment and review state. Products and
-variants cannot be deleted (the application role's only `DELETE` grant is on
-collection membership); unpublish them instead. An unpublished variant is
-hidden from the store and cannot be bought, but stays on past orders, and a
-published product must keep at least one published variant. Refunds are issued in the Stripe
-dashboard and recorded from Stripe's webhook.
+`/store/admin` is a server-rendered admin UI for the store. It edits the whole
+catalog:
+
+- **Products**: a searchable, filterable list with stock, reservations and
+  availability; a product's name, URL slug, description, features, collections
+  and published/featured flags; each variant's label, SKU, UPC, price, stock and
+  published flag, plus adding, reordering and deleting variants; and product
+  images, uploaded (WebP, PNG, JPEG or GIF, up to 5 MB, stored under
+  `STORE_MEDIA_DIR` and served from `/media`) or referenced by address, with
+  alt text, ordering and removal.
+- **Collections**: creating, editing, reordering, publishing and deleting
+  collections; the headed groups inside each one; and which products appear in
+  each group, in what order.
+- **Orders**: a list filterable by fulfillment and review state, each order's
+  items, totals and shipping address, fulfillment and review updates, and a link
+  to the payment in the Stripe dashboard.
+- **Stripe**: which Stripe settings are configured (never the secrets), the
+  webhook endpoint and the events it needs, and the ledger of received webhook
+  deliveries with their outcome, for checking that payments reach the store.
+
+Checkouts and orders reference the variants they sold, so a variant that has
+ever been reserved or sold, and the product that owns it, cannot be deleted;
+unpublish them instead. An unpublished variant is hidden from the store and
+cannot be bought, but stays on past orders, and a published product must keep
+at least one published variant. Everything else in the catalog can be deleted.
+Refunds and disputes are handled in the Stripe dashboard and recorded from
+Stripe's webhooks.
 
 The admin UI returns 404 while the store is disabled. Sign-in is a
 **temporary placeholder with hardcoded `admin`/`admin` credentials** in
@@ -204,7 +227,10 @@ signed with a per-process secret, so every restart or deploy signs you out.
 Every form carries a CSRF token, the session cookie is `HttpOnly` and
 `SameSite=Strict`, and admin responses are sent with `Cache-Control: no-store`.
 Stock edits are rejected if stock changed since the form loaded or if the new
-value is below the units reserved by open checkouts.
+value is below the units reserved by open checkouts, and a product or collection
+form loaded before another edit is rejected rather than undoing that edit. The
+nginx virtual hosts raise the request body limit to 6 MB for `/store/admin/`
+only, so image uploads get through.
 
 #### Migrating off Supabase
 

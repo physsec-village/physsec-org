@@ -3,43 +3,27 @@
 {% block title %}New product{% endblock %}
 
 {% block main %}
+    <nav class="admin-crumbs" aria-label="Breadcrumb">
+        <a href="{{ url_for('store_admin_dashboard') }}">Products</a><span>/</span><span>New product</span>
+    </nav>
     <div class="admin-head"><h1>New product</h1></div>
 
     <form method="post" action="{{ url_for('store_admin_create_product') }}" class="admin-card">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <p class="admin-hint">
             The URL slug sets the product's store address and is derived from
-            the name when left blank. SKUs are optional. Add more variants
-            after creating the product.
+            the name when left blank. Every product has at least one variant;
+            add more variants and images after creating it.
         </p>
+        <h2>Details</h2>
         <div class="admin-grid">
             <label class="admin-field">
                 <span>Name</span>
-                <input name="name" value="{{ form.name }}" required maxlength="200" />
+                <input name="name" value="{{ form.name }}" required maxlength="200" data-slug-source />
             </label>
             <label class="admin-field">
                 <span>URL slug (optional)</span>
-                <input name="slug" value="{{ form.slug }}" maxlength="200" placeholder="cross-key" />
-            </label>
-            <label class="admin-field">
-                <span>Variant label (optional)</span>
-                <input name="variant_name" value="{{ form.variant_name }}" maxlength="200" />
-            </label>
-            <label class="admin-field">
-                <span>SKU (optional)</span>
-                <input name="sku" value="{{ form.sku }}" maxlength="64" />
-            </label>
-            <label class="admin-field">
-                <span>UPC</span>
-                <input name="upc" value="{{ form.upc }}" maxlength="32" />
-            </label>
-            <label class="admin-field">
-                <span>Price ($)</span>
-                <input name="price" value="{{ form.price }}" required inputmode="decimal" placeholder="19.99" />
-            </label>
-            <label class="admin-field">
-                <span>Stock on hand</span>
-                <input name="stock" value="{{ form.stock or 0 }}" type="number" min="0" step="1" required />
+                <input name="slug" value="{{ form.slug }}" maxlength="200" placeholder="cross-key" class="mono" data-slug-target />
             </label>
         </div>
         <label class="admin-field">
@@ -53,7 +37,31 @@
         {{ collection_picker(groups, form.group_ids) }}
         <div class="admin-checks">
             <label><input type="checkbox" name="published" value="true" {% if form.published %}checked{% endif %} /> Published</label>
-            <label><input type="checkbox" name="featured" value="true" {% if form.featured %}checked{% endif %} /> Featured</label>
+            <label><input type="checkbox" name="featured" value="true" {% if form.featured %}checked{% endif %} /> Featured on the store home page</label>
+        </div>
+
+        <h2>First variant</h2>
+        <div class="admin-grid">
+            <label class="admin-field">
+                <span>Variant label (optional)</span>
+                <input name="variant_name" value="{{ form.variant_name }}" maxlength="200" placeholder="Leave blank for a single option" />
+            </label>
+            <label class="admin-field">
+                <span>SKU (optional)</span>
+                <input name="sku" value="{{ form.sku }}" maxlength="64" class="mono" />
+            </label>
+            <label class="admin-field">
+                <span>UPC (optional)</span>
+                <input name="upc" value="{{ form.upc }}" maxlength="32" class="mono" />
+            </label>
+            <label class="admin-field">
+                <span>Price ($)</span>
+                <input name="price" value="{{ form.price }}" required inputmode="decimal" placeholder="19.99" class="input-num" />
+            </label>
+            <label class="admin-field">
+                <span>Stock on hand</span>
+                <input name="stock" value="{{ form.stock or 0 }}" type="number" min="0" step="1" required class="input-num" />
+            </label>
         </div>
         <div class="admin-actions">
             <button type="submit" class="btn btn-primary">Create product</button>

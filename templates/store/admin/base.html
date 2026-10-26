@@ -7,16 +7,19 @@
         <title>{% block title %}Store admin{% endblock %} | PSV</title>
         <link rel="icon" type="image/png" href="/static/psv-compact-logo.png" />
         <link href="/static/styles.css" rel="stylesheet" />
-        <link href="/static/pages/store-admin.css" rel="stylesheet" />
+        <link href="/static/pages/store-admin.css?v=2" rel="stylesheet" />
     </head>
 
     <body class="admin">
         <header class="admin-bar">
             <a class="admin-brand" href="{{ url_for('store_admin_dashboard') }}">PSV store admin</a>
             {% if signed_in %}
+                {% set path = request.url.path %}
                 <nav class="admin-nav" aria-label="Admin">
-                    <a href="{{ url_for('store_admin_dashboard') }}">Products</a>
-                    <a href="{{ url_for('store_admin_orders') }}">Orders</a>
+                    <a href="{{ url_for('store_admin_dashboard') }}"{% if path == '/store/admin' or path.startswith('/store/admin/products') %} aria-current="page"{% endif %}>Products</a>
+                    <a href="{{ url_for('store_admin_collections') }}"{% if path.startswith('/store/admin/collections') %} aria-current="page"{% endif %}>Collections</a>
+                    <a href="{{ url_for('store_admin_orders') }}"{% if path.startswith('/store/admin/orders') %} aria-current="page"{% endif %}>Orders</a>
+                    <a href="{{ url_for('store_admin_stripe') }}"{% if path.startswith('/store/admin/stripe') %} aria-current="page"{% endif %}>Stripe</a>
                     <a href="{{ url_for('store_page') }}">View store</a>
                     <form method="post" action="{{ url_for('store_admin_logout') }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
@@ -31,5 +34,6 @@
             {% if error %}<p class="admin-error" role="alert">{{ error }}</p>{% endif %}
             {% block main %}{% endblock %}
         </main>
+        <script src="/static/pages/store-admin.js?v=1" defer></script>
     </body>
 </html>

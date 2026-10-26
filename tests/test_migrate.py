@@ -152,8 +152,8 @@ def test_migrator_grants_the_database_url_role(
         privileges = conn.execute(
             """
             SELECT has_schema_privilege(%(role)s, 'store', 'USAGE'),
-                   has_table_privilege(%(role)s, 'store.products', 'SELECT, INSERT, UPDATE'),
-                   has_table_privilege(%(role)s, 'store.products', 'DELETE'),
+                   has_table_privilege(%(role)s, 'store.products', 'SELECT, INSERT, UPDATE, DELETE'),
+                   has_table_privilege(%(role)s, 'store.orders', 'DELETE'),
                    has_table_privilege(%(role)s, 'store.schema_metadata', 'SELECT'),
                    has_table_privilege(%(role)s, 'store.schema_metadata', 'INSERT'),
                    has_table_privilege(%(role)s, 'store.schema_metadata', 'UPDATE')
