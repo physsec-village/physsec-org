@@ -1,0 +1,20 @@
+{% extends "store/admin/base.html" %}
+{% block title %}Not a store admin{% endblock %}
+
+{% block main %}
+    <section class="admin-card admin-login">
+        <h1>Not a store admin</h1>
+        <p class="admin-hint">
+            You are signed in, but this account is not marked as a store admin.
+            Ask an administrator to set <code>admin: true</code> in your Clerk
+            public metadata, then sign in again.
+        </p>
+        <div class="admin-actions">
+            <button
+                type="button"
+                class="btn btn-primary"
+                data-sign-out="{{ url_for('store_admin_login') }}?notice=signed_out"
+            >Sign out</button>
+        </div>
+    </section>
+{% endblock %}

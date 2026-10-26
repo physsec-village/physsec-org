@@ -15,6 +15,7 @@ from .limiter import limiter
 from .router import not_found
 from .router import router as root_router
 from .store import db
+from .store.admin import NotAnAdmin, not_an_admin
 from .store.admin import public_router as store_admin_public_router
 from .store.admin import router as store_admin_router
 from .store.config import store_enabled, validate_store_config
@@ -146,6 +147,7 @@ logger = logging.getLogger(__name__)
 exceptions = {
     404: not_found,
     RateLimitExceeded: rate_limit_exceeded,
+    NotAnAdmin: not_an_admin,
     Exception: unhandled_exception,
 }
 

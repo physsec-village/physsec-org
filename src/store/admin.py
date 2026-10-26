@@ -1,8 +1,10 @@
 """Basic store administration UI: products, variants, stock, and orders.
 
-The UI is hidden (404) while the store is disabled. Sign-in is a placeholder
-with hardcoded credentials; see admin_auth. Every form also carries a CSRF
-token.
+The UI is hidden (404) while the store is disabled. Sign-in is handled by
+Clerk (see admin_auth): the login page mounts Clerk's sign-in component, and
+every other page requires a verified Clerk session whose user has
+``admin: true`` in their public metadata. Every form also carries a CSRF
+token bound to that session.
 """
 
 from __future__ import annotations
@@ -11,11 +13,11 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import ValidationError
 
 from ..dependencies import templates
-from . import admin_auth, db
+from . import admin_auth, config, db
 from .models import (
     ProductInput,
     VariantInput,
@@ -35,20 +37,51 @@ NOTICES = {
 }
 
 
-def require_admin(request: Request) -> None:
-    if not admin_auth.valid_session(request.cookies.get(admin_auth.SESSION_COOKIE)):
+class NotAnAdmin(Exception):
+    """Raised for a signed-in Clerk user whose public metadata lacks admin."""
+
+
+def current_session(request: Request) -> admin_auth.Session | None:
+    """Verify the request's Clerk session once and remember it."""
+    if not hasattr(request.state, "admin_session"):
+        request.state.admin_session = admin_auth.session_from_request(request)
+    return request.state.admin_session
+
+
+def require_admin(request: Request) -> admin_auth.Session:
+    session = current_session(request)
+    if session is None:
         raise HTTPException(
             status_code=303,
             headers={"Location": str(request.url_for("store_admin_login"))},
         )
+    try:
+        admin = admin_auth.is_admin(session.user_id)
+    except admin_auth.AdminLookupError:
+        logger.exception("store_admin_lookup_failed user_id=%s", session.user_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Could not check admin access. Please try again in a moment.",
+        ) from None
+    if not admin:
+        logger.warning("store_admin_forbidden user_id=%s", session.user_id)
+        raise NotAnAdmin
+    request.state.admin = True
+    return session
 
 
-def require_csrf(csrf_token: str = Form("")) -> None:
-    if not admin_auth.valid_csrf(csrf_token):
+def require_csrf(request: Request, csrf_token: str = Form("")) -> None:
+    session = current_session(request)
+    if session is None or not admin_auth.valid_csrf(session, csrf_token):
         raise HTTPException(status_code=403, detail="Invalid form token.")
 
 
-# Sign-in pages, reachable without a session.
+async def not_an_admin(request: Request, exc: NotAnAdmin) -> Response:
+    """Render the 403 page offering sign-out to a non-admin Clerk user."""
+    return _render(request, "forbidden.html", 403)
+
+
+# Sign-in page, reachable without a session.
 public_router = APIRouter(
     prefix="/store/admin",
     include_in_schema=False,
@@ -64,57 +97,30 @@ router = APIRouter(
 
 @public_router.get("/login", response_class=HTMLResponse, name="store_admin_login")
 def login_form(request: Request):
+    if current_session(request) is not None:
+        return _redirect(str(request.url_for("store_admin_dashboard")))
     return _render(request, "login.html", error=None)
-
-
-@public_router.post(
-    "/login",
-    dependencies=[Depends(require_csrf)],
-    name="store_admin_login_submit",
-)
-def login(request: Request, username: str = Form(""), password: str = Form("")):
-    if not admin_auth.check_credentials(username, password):
-        return _render(request, "login.html", 401, error="Wrong username or password.")
-    response = _redirect(str(request.url_for("store_admin_dashboard")))
-    response.set_cookie(
-        admin_auth.SESSION_COOKIE,
-        admin_auth.session_token(),
-        path="/store/admin",
-        httponly=True,
-        samesite="strict",
-        secure=request.url.scheme == "https",
-    )
-    return response
-
-
-@public_router.post(
-    "/logout",
-    dependencies=[Depends(require_csrf)],
-    name="store_admin_logout",
-)
-def logout(request: Request):
-    response = _redirect(
-        str(request.url_for("store_admin_login")) + "?notice=signed_out"
-    )
-    response.delete_cookie(admin_auth.SESSION_COOKIE, path="/store/admin")
-    return response
 
 
 def _render(
     request: Request, name: str, status_code: int = 200, **context: Any
 ) -> HTMLResponse:
     notice = NOTICES.get(request.query_params.get("notice", ""))
+    session = current_session(request)
     return templates.TemplateResponse(
         request=request,
         name=f"store/admin/{name}",
         status_code=status_code,
         context={
-            "csrf_token": admin_auth.csrf_token(),
+            "csrf_token": admin_auth.csrf_token(session) if session else "",
             "money": dollars_from_cents,
             "notice": notice,
-            "signed_in": admin_auth.valid_session(
-                request.cookies.get(admin_auth.SESSION_COOKIE)
-            ),
+            "signed_in": session is not None,
+            "admin": getattr(request.state, "admin", False),
+            "clerk": {
+                "publishable_key": config.clerk_publishable_key(),
+                "frontend_api": config.clerk_frontend_api(),
+            },
             **context,
         },
     )

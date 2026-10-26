@@ -19,7 +19,7 @@ This repository contains the FastAPI-based website for Physical Security Village
 - `src/forms/router.py`: volunteer page, calls page, contact email endpoint
 - `src/forms/email.py`: SMTP configuration from environment variables
 - `src/store/`: store catalog, PostgreSQL persistence, Stripe checkout, and
-  the `/store/admin` UI (`admin.py`, `admin_auth.py`)
+  the `/store/admin` UI (`admin.py`, Clerk sign-in in `admin_auth.py`)
 - `templates/`: page templates, navbar, footer, base layout, 404 page
 - `static/`: global and page-specific CSS, logos, SVG assets
 - `Dockerfile`: container image definition
@@ -196,15 +196,32 @@ hidden from the store and cannot be bought, but stays on past orders, and a
 published product must keep at least one published variant. Refunds are issued in the Stripe
 dashboard and recorded from Stripe's webhook.
 
-The admin UI returns 404 while the store is disabled. Sign-in is a
-**temporary placeholder with hardcoded `admin`/`admin` credentials** in
-`src/store/admin_auth.py`, for exploring the store on the dev deployment; it
-must be replaced with a real login before this reaches `main`. Sessions are
-signed with a per-process secret, so every restart or deploy signs you out.
-Every form carries a CSRF token, the session cookie is `HttpOnly` and
-`SameSite=Strict`, and admin responses are sent with `Cache-Control: no-store`.
-Stock edits are rejected if stock changed since the form loaded or if the new
-value is below the units reserved by open checkouts.
+The admin UI returns 404 while the store is disabled. Sign-in uses
+[Clerk](https://clerk.com): `/store/admin/login` mounts Clerk's sign-in
+component, and every other admin request verifies the Clerk session cookie
+(`__session`) server-side with `clerk-backend-api`, including that its `azp`
+claim is `STORE_PUBLIC_ORIGIN`. A signed-in user is only an admin when their
+Clerk **public metadata** contains `{"admin": true}`; set this on the user in
+the Clerk dashboard (Users, then Metadata). Everyone else gets a 403 page with
+a sign-out button. The metadata lookup goes through Clerk's Backend API and is
+cached for a minute, so removing the flag locks the user out within a minute.
+If Clerk cannot be reached the admin UI answers 503 rather than treating the
+user as a non-admin.
+
+Dev (`dev.physsec.org`) uses a Clerk development instance and production uses
+the production instance; both are configured with `CLERK_PUBLISHABLE_KEY` and
+`CLERK_SECRET_KEY`. The optional `CLERK_JWT_KEY` (the instance's PEM public
+key) verifies sessions without fetching Clerk's signing keys. For local
+development set `STORE_PUBLIC_ORIGIN` to the origin you browse from, such as
+`http://localhost:8000`; Clerk development instances accept `+clerk_test`
+email addresses with the fixed verification code `424242`, so no mailbox is
+needed. Sign-up is governed by the Clerk instance's settings and does not grant
+admin access.
+
+Every form carries a CSRF token bound to the Clerk session, and admin
+responses are sent with `Cache-Control: no-store`. Stock edits are rejected if
+stock changed since the form loaded or if the new value is below the units
+reserved by open checkouts.
 
 #### Migrating off Supabase
 

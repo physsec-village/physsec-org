@@ -1,11 +1,61 @@
+import os
 import re
+import time
 
+import jwt
 import pytest
-
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
 from src.main import app
 from src.store import admin_auth, db
+
+# Sessions are signed with a throwaway key and verified offline through
+# CLERK_JWT_KEY, so no test talks to Clerk.
+_PRIVATE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+os.environ["CLERK_JWT_KEY"] = (
+    _PRIVATE_KEY.public_key()
+    .public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    .decode()
+)
+ORIGIN = os.environ["STORE_PUBLIC_ORIGIN"]
+ADMIN_USER = "user_admin"
+VISITOR_USER = "user_visitor"
+
+
+def session_token(user_id: str = ADMIN_USER, **claims) -> str:
+    """Return a Clerk-shaped session JWT for user_id."""
+    now = int(time.time())
+    payload = {
+        "sub": user_id,
+        "sid": f"sess_{user_id}",
+        "azp": ORIGIN,
+        "iss": "https://clerk.example.test",
+        "iat": now,
+        "nbf": now,
+        "exp": now + 60,
+        **claims,
+    }
+    return jwt.encode(payload, _PRIVATE_KEY, algorithm="RS256")
+
+
+@pytest.fixture(autouse=True)
+def clerk_users(monkeypatch):
+    """Stand in for Clerk's Backend API: only ADMIN_USER has admin metadata."""
+    metadata = {ADMIN_USER: {"admin": True}, VISITOR_USER: {"admin": False}}
+    calls = []
+
+    def public_metadata(user_id):
+        calls.append(user_id)
+        return metadata[user_id]
+
+    monkeypatch.setattr(admin_auth, "public_metadata", public_metadata)
+    admin_auth._admin_cache.clear()
+    yield {"metadata": metadata, "calls": calls}
+    admin_auth._admin_cache.clear()
 
 
 @pytest.fixture
@@ -28,13 +78,7 @@ def catalog(catalog_factory):
 
 @pytest.fixture
 def client(anonymous):
-    page = anonymous.get("/store/admin/login")
-    response = anonymous.post(
-        "/store/admin/login",
-        data={"csrf_token": _csrf(page.text), "username": "admin", "password": "admin"},
-        follow_redirects=False,
-    )
-    assert response.status_code == 303
+    anonymous.cookies.set(admin_auth.SESSION_COOKIE, session_token())
     return anonymous
 
 
@@ -116,48 +160,96 @@ def _paid_order() -> str:
 def test_admin_requires_sign_in(anonymous):
     response = anonymous.get("/store/admin", follow_redirects=False)
     anonymous.cookies.set(admin_auth.SESSION_COOKIE, "0" * 64)
-    forged = anonymous.get("/store/admin", follow_redirects=False)
+    garbage = anonymous.get("/store/admin", follow_redirects=False)
     anonymous.cookies.clear()
     post = anonymous.post("/store/admin/orders/x", follow_redirects=False)
 
-    for blocked in (response, forged, post):
+    for blocked in (response, garbage, post):
         assert blocked.status_code == 303
         assert blocked.headers["location"].endswith("/store/admin/login")
         assert blocked.headers["cache-control"] == "no-store"
+    assert anonymous.get("/store/admin/login").status_code == 200
 
 
-def test_sign_in_rejects_wrong_credentials_and_bad_tokens(anonymous):
-    csrf = _csrf(anonymous.get("/store/admin/login").text)
-    wrong = anonymous.post(
-        "/store/admin/login",
-        data={"csrf_token": csrf, "username": "admin", "password": "nope"},
-    )
-    no_token = anonymous.post(
-        "/store/admin/login", data={"username": "admin", "password": "admin"}
-    )
+@pytest.mark.parametrize(
+    "token",
+    [
+        pytest.param(session_token(exp=int(time.time()) - 120), id="expired"),
+        pytest.param(session_token(azp="https://evil.example"), id="other-origin"),
+        pytest.param(session_token(sid=None), id="no-session-id"),
+        pytest.param(
+            jwt.encode(
+                {"sub": ADMIN_USER, "sid": "sess_x", "azp": ORIGIN, "exp": 2**31},
+                rsa.generate_private_key(public_exponent=65537, key_size=2048),
+                algorithm="RS256",
+            ),
+            id="wrong-key",
+        ),
+    ],
+)
+def test_invalid_sessions_are_rejected(anonymous, token):
+    anonymous.cookies.set(admin_auth.SESSION_COOKIE, token)
 
-    assert wrong.status_code == 401
-    assert "Wrong username or password." in wrong.text
-    assert no_token.status_code == 403
-    assert admin_auth.SESSION_COOKIE not in anonymous.cookies
+    response = anonymous.get("/store/admin", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"].endswith("/store/admin/login")
 
 
-def test_sign_in_and_sign_out(client):
+def test_signed_in_admin_sees_dashboard_and_skips_login(client, clerk_users):
     page = client.get("/store/admin")
     assert page.status_code == 200
     assert page.headers["cache-control"] == "no-store"
     assert "noindex" in page.headers["x-robots-tag"]
     assert "Proxmark" in page.text
     assert "PSV-RFID-001" in page.text
+    assert "data-sign-out=" in page.text
+    assert "clerk.browser.js" in page.text
 
-    out = client.post(
-        "/store/admin/logout",
-        data={"csrf_token": _csrf(page.text)},
-        follow_redirects=False,
-    )
+    login = client.get("/store/admin/login", follow_redirects=False)
+    assert login.status_code == 303
+    assert login.headers["location"].endswith("/store/admin")
 
-    assert out.status_code == 303
-    assert client.get("/store/admin", follow_redirects=False).status_code == 303
+    # The admin lookup is cached rather than repeated on every request.
+    client.get("/store/admin/orders")
+    assert clerk_users["calls"] == [ADMIN_USER]
+
+
+def test_signed_in_non_admin_is_forbidden(anonymous, clerk_users):
+    anonymous.cookies.set(admin_auth.SESSION_COOKIE, session_token(VISITOR_USER))
+
+    page = anonymous.get("/store/admin")
+    post = anonymous.post("/store/admin/products", data={"name": "x"})
+
+    assert page.status_code == 403
+    assert "Not a store admin" in page.text
+    assert "data-sign-out=" in page.text
+    assert 'href="http://testserver/store/admin/orders"' not in page.text
+    assert post.status_code == 403
+    assert clerk_users["calls"] == [VISITOR_USER]
+
+
+def test_admin_lookup_failure_is_a_503_not_a_denial(client, monkeypatch):
+    def broken(user_id):
+        raise ConnectionError("clerk is down")
+
+    monkeypatch.setattr(admin_auth, "public_metadata", broken)
+
+    response = client.get("/store/admin")
+
+    assert response.status_code == 503
+    assert "try again" in response.text
+
+
+def test_login_page_mounts_clerk_sign_in(anonymous):
+    page = anonymous.get("/store/admin/login")
+
+    assert page.status_code == 200
+    assert 'id="clerk-sign-in"' in page.text
+    assert 'data-after-sign-in-url="http://testserver/store/admin"' in page.text
+    assert 'data-clerk-publishable-key="pk_test_' in page.text
+    assert 'src="https://clerk.example.test/npm/@clerk/clerk-js@5' in page.text
+    assert "csrf_token" not in page.text
 
 
 def test_admin_is_hidden_while_store_is_disabled(anonymous):
@@ -173,12 +265,16 @@ def test_admin_is_hidden_while_store_is_disabled(anonymous):
 def test_forms_require_the_csrf_token(client):
     product = _product()
     url = f"/store/admin/products/{product['id']}"
+    csrf = _csrf(client.get(url).text)
 
     missing = client.post(url, data=_variant_form(product, ""))
     forged = client.post(url, data=_variant_form(product, "0" * 64))
+    client.cookies.set(admin_auth.SESSION_COOKIE, session_token(sid="sess_other"))
+    other_session = client.post(url, data=_variant_form(product, csrf))
 
     assert missing.status_code == 403
     assert forged.status_code == 403
+    assert other_session.status_code == 403
     assert (
         _product()["variants"][0]["price_cents"]
         == product["variants"][0]["price_cents"]

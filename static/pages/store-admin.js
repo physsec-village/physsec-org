@@ -1,0 +1,69 @@
+// Store admin sign-in and sign-out through Clerk's browser SDK.
+//
+// clerk.browser.js is loaded from the Clerk Frontend API with the publishable
+// key in its data attribute (see store/admin/base.html). It keeps the
+// __session cookie fresh while a page is open; the server verifies that
+// cookie on every admin request.
+(function () {
+    "use strict";
+
+    function showError(message) {
+        const main = document.querySelector(".admin-main");
+        if (!main) return;
+        const error = document.createElement("p");
+        error.className = "admin-error";
+        error.setAttribute("role", "alert");
+        error.textContent = message;
+        main.prepend(error);
+    }
+
+    window.addEventListener("load", async () => {
+        if (!window.Clerk) {
+            showError("Sign-in could not be loaded. Check your connection and reload.");
+            return;
+        }
+        try {
+            await window.Clerk.load();
+        } catch (error) {
+            console.error(error);
+            showError("Sign-in could not be loaded. Reload to try again.");
+            return;
+        }
+
+        const mount = document.getElementById("clerk-sign-in");
+        if (mount) {
+            const afterSignInUrl = mount.dataset.afterSignInUrl;
+            if (window.Clerk.user) {
+                // The browser already holds a Clerk session (for example the
+                // cookie expired in an idle tab); load() refreshed it.
+                window.location.replace(afterSignInUrl);
+                return;
+            }
+            // Match the admin theme; the page's dark colour scheme otherwise
+            // renders native inputs dark inside Clerk's light card.
+            const theme = getComputedStyle(document.documentElement);
+            const color = (name) => theme.getPropertyValue(name).trim();
+            window.Clerk.mountSignIn(mount, {
+                forceRedirectUrl: afterSignInUrl,
+                appearance: {
+                    variables: {
+                        colorPrimary: color("--accent"),
+                        colorBackground: color("--surface-raised"),
+                        colorText: color("--text"),
+                        colorTextSecondary: color("--muted"),
+                        colorInputBackground: color("--bg"),
+                        colorInputText: color("--text"),
+                        colorNeutral: color("--text"),
+                        borderRadius: color("--radius-xs"),
+                    },
+                },
+            });
+        }
+
+        for (const button of document.querySelectorAll("[data-sign-out]")) {
+            button.addEventListener("click", () => {
+                window.Clerk.signOut({ redirectUrl: button.dataset.signOut });
+            });
+        }
+    });
+})();
