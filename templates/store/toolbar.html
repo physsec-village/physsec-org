@@ -1,4 +1,9 @@
 {# Collection navigation and search shown on every store page. #}
+{% if request.state.store_preview %}
+    <p class="store-preview-notice" role="status">
+        <strong>Preview.</strong> The store is not published yet; only signed-in admins can see it.
+    </p>
+{% endif %}
 <div class="store-bar" role="navigation" aria-label="Store sections">
     <div class="store-bar-links">
         <a

@@ -23,6 +23,7 @@ from pydantic import ValidationError
 
 from ..dependencies import templates
 from . import admin_auth, config, db, media, stripe_client
+from .admin_auth import current_session
 from .models import (
     CollectionInput,
     GroupInput,
@@ -65,13 +66,6 @@ REVIEW_PATH = "/store/admin/review"
 
 class NotAnAdmin(Exception):
     """Raised for a signed-in Clerk user whose public metadata lacks admin."""
-
-
-def current_session(request: Request) -> admin_auth.Session | None:
-    """Verify the request's Clerk session once and remember it."""
-    if not hasattr(request.state, "admin_session"):
-        request.state.admin_session = admin_auth.session_from_request(request)
-    return request.state.admin_session
 
 
 def require_admin(request: Request) -> admin_auth.Session:

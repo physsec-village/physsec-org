@@ -114,6 +114,16 @@ configuration is required. Set `STORE_ENABLED=true` only after applying the
 migration and configuring the deployment environment; enabled store
 misconfiguration fails application startup.
 
+An enabled store is not public until `STORE_PUBLISHED=true`. Unset or `false`
+keeps it a preview: the storefront, including checkout, is only served to
+signed-in [store admins](#store-admin), and everyone else gets the same 404 as
+when the store is disabled. The navigation and footer keep the "coming soon"
+placeholder, `/store` is left out of the sitemap, and every storefront
+response carries `X-Robots-Tag: noindex, nofollow` and `Cache-Control:
+no-store`. The admin UI and the Stripe webhook work as usual, so the catalog
+can be prepared and test-mode checkouts exercised before launch. Publishing
+is a configuration change only: set `STORE_PUBLISHED=true` and restart.
+
 The store uses a private PostgreSQL VM managed in the
 `physsec-village/physsec-oci` repository. Production URLs must require TLS
 (`sslmode=require`, `verify-ca`, or `verify-full`). Use the environment's
@@ -224,7 +234,8 @@ at least one published variant. Everything else in the catalog can be deleted.
 Refunds and disputes are handled in the Stripe dashboard and recorded from
 Stripe's webhooks.
 
-The admin UI returns 404 while the store is disabled. Sign-in uses
+The admin UI returns 404 while the store is disabled; it does not depend on
+`STORE_PUBLISHED`. Sign-in uses
 [Clerk](https://clerk.com): `/store/admin/login` mounts Clerk's sign-in
 component, and every other admin request verifies the Clerk session cookie
 (`__session`) server-side with `clerk-backend-api`, including that its `azp`

@@ -16,7 +16,7 @@
         <li id="nav-home-link"><a href="{{ url_for('home_page') }}">Home</a></li>
         <li><a href="{{ url_for('about_us_page') }}">About Us</a></li>
         <li><a href="{{ url_for('get_involved_page') }}">Get Involved</a></li>
-        {% if request.app.state.store_enabled %}
+        {% if request.app.state.store_published or request.state.store_preview %}
             <li><a href="{{ url_for('store_page') }}">Store</a></li>
         {% else %}
             <li>
@@ -127,7 +127,7 @@
     <a href="{{ url_for('get_involved_page') }}"
         >Get Involved</a
     >
-    {% if request.app.state.store_enabled %}
+    {% if request.app.state.store_published or request.state.store_preview %}
         <a href="{{ url_for('store_page') }}">Store</a>
     {% else %}
         <span

@@ -98,7 +98,7 @@ def robots_txt():
 @router.get("/sitemap.xml", include_in_schema=False)
 def sitemap_xml(request: Request):
     paths = SITEMAP_PATHS
-    if request.app.state.store_enabled:
+    if request.app.state.store_published:
         paths += STORE_SITEMAP_PATHS
     urls = "".join(f"<url><loc>https://physsec.org{path}</loc></url>" for path in paths)
     return Response(

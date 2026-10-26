@@ -18,8 +18,9 @@ from .store import db
 from .store.admin import NotAnAdmin, not_an_admin
 from .store.admin import public_router as store_admin_public_router
 from .store.admin import router as store_admin_router
-from .store.config import store_enabled, validate_store_config
+from .store.config import store_enabled, store_published, validate_store_config
 from .store.router import router as store_router
+from .store.router import webhook_router as store_webhook_router
 
 
 def rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONResponse:
@@ -158,6 +159,8 @@ async def lifespan(app: FastAPI):
     get_mail_config()
     get_turnstile_settings()
     app.state.store_enabled = store_enabled()
+    # Published means publicly reachable, so it implies enabled.
+    app.state.store_published = app.state.store_enabled and store_published()
     if not app.state.store_enabled:
         yield
         return
@@ -174,13 +177,18 @@ async def lifespan(app: FastAPI):
 app = FastAPI(exception_handlers=exceptions, lifespan=lifespan)
 app.state.limiter = limiter
 app.state.store_enabled = False
+app.state.store_published = False
 
 
 @app.middleware("http")
 async def private_store_admin(request: Request, call_next):
     response = await call_next(request)
-    # Includes redirects and 404s, so no admin response is ever cached.
-    if request.url.path.startswith("/store/admin"):
+    # Includes redirects and 404s, so no admin response is ever cached. An
+    # unpublished storefront is admin-only too, so it gets the same treatment.
+    path = request.url.path
+    if path.startswith("/store/admin") or (
+        path.startswith("/store") and not request.app.state.store_published
+    ):
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Robots-Tag"] = "noindex, nofollow"
     return response
@@ -192,5 +200,6 @@ app.mount("/media", StaticFiles(directory=db.MEDIA_DIR, check_dir=False), name="
 app.include_router(root_router)
 app.include_router(form_router)
 app.include_router(store_router)
+app.include_router(store_webhook_router)
 app.include_router(store_admin_public_router)
 app.include_router(store_admin_router)
