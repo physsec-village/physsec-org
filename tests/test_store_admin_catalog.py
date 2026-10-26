@@ -525,7 +525,7 @@ def test_orders_filter_by_review_and_link_to_stripe(client, catalog_factory, mon
     assert "https://dashboard.stripe.com/test/payments/pi_123" in detail.text
     assert "Payment disputed in Stripe (fraudulent)" in detail.text
     assert re.search(
-        r'admin-stat-value">1</span>\s*<span class="admin-stat-label">Orders needing review',
+        r'admin-stat-value">1</span>\s*<span class="admin-stat-label">Needs review',
         dashboard.text,
     )
 

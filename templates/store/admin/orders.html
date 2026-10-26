@@ -3,35 +3,39 @@
 
 {% block main %}
     <div class="admin-head">
-        <h1>Orders <span class="admin-count">{{ orders | length }}</span></h1>
-        <form method="get" class="admin-filter">
-            <label>
-                <span>Fulfillment</span>
-                <select name="fulfillment">
-                    <option value="">All</option>
-                    {% for state in states %}
-                        <option value="{{ state }}" {% if state == fulfillment %}selected{% endif %}>{{ state | capitalize }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>
-                <span>Review</span>
-                <select name="review">
-                    <option value="">All</option>
-                    {% for state in review_states %}
-                        <option value="{{ state }}" {% if state == review %}selected{% endif %}>{{ state | replace("_", " ") | capitalize }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <button type="submit" class="btn btn-outline">Filter</button>
-        </form>
+        <div>
+            <h1>Orders <span class="admin-count">{{ orders | length }}</span></h1>
+            <p class="admin-meta">
+                Orders arrive from Stripe's webhook once a checkout is paid. Payments,
+                refunds and disputes are handled in the
+                <a href="{{ stripe_url('payments') }}" rel="noopener">Stripe dashboard</a>;
+                fulfillment and review are tracked here.
+            </p>
+        </div>
     </div>
-    <p class="admin-hint">
-        Orders arrive from Stripe's webhook once a checkout is paid. Payments,
-        refunds and disputes are handled in the
-        <a href="{{ stripe_url('payments') }}" rel="noopener">Stripe dashboard</a>;
-        fulfillment and review are tracked here.
-    </p>
+
+    <form method="get" class="admin-filter">
+        <label>
+            <span>Fulfillment</span>
+            <select name="fulfillment">
+                <option value="">All</option>
+                {% for state in states %}
+                    <option value="{{ state }}" {% if state == fulfillment %}selected{% endif %}>{{ state | capitalize }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span>Review</span>
+            <select name="review">
+                <option value="">All</option>
+                {% for state in review_states %}
+                    <option value="{{ state }}" {% if state == review %}selected{% endif %}>{{ state | replace("_", " ") | capitalize }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn btn-outline">Filter</button>
+        {% if fulfillment or review %}<a class="btn btn-ghost" href="{{ url_for('store_admin_orders') }}">Clear</a>{% endif %}
+    </form>
 
     <div class="admin-table-wrap">
         <table class="admin-table">
@@ -39,10 +43,9 @@
                 <tr>
                     <th scope="col">Placed</th>
                     <th scope="col">Order</th>
-                    <th scope="col">Email</th>
+                    <th scope="col">Customer</th>
                     <th scope="col" class="num">Items</th>
                     <th scope="col" class="num">Total</th>
-                    <th scope="col">Payment</th>
                     <th scope="col">Fulfillment</th>
                     <th scope="col">Review</th>
                     <th scope="col">Refund</th>
@@ -56,16 +59,15 @@
                         <td>{{ order.email or "—" }}</td>
                         <td class="num">{{ order.item_count }}</td>
                         <td class="num mono">${{ money(order.amount_total_cents) }} {{ order.currency | upper }}</td>
-                        <td>{{ order.payment_state }}</td>
-                        <td><span class="tag{% if order.fulfillment_state == 'shipped' %} tag-ok{% elif order.fulfillment_state == 'unfulfilled' %} tag-accent{% endif %}">{{ order.fulfillment_state }}</span></td>
-                        <td>{% if order.review_state == 'needs_review' %}<span class="tag tag-warn">needs review</span>{% else %}clear{% endif %}</td>
-                        <td>{% if order.refund_state != 'none' %}<span class="tag tag-warn">{{ order.refund_state }}</span>{% else %}none{% endif %}</td>
+                        <td><span class="tag{% if order.fulfillment_state == 'shipped' %} tag-ok{% elif order.fulfillment_state == 'unfulfilled' %} tag-accent{% else %} tag-muted{% endif %}">{{ order.fulfillment_state }}</span></td>
+                        <td>{% if order.review_state == 'needs_review' %}<span class="tag tag-warn">needs review</span>{% else %}<span class="admin-sub">clear</span>{% endif %}</td>
+                        <td>{% if order.refund_state != 'none' %}<span class="tag tag-warn">{{ order.refund_state }}</span>{% else %}<span class="admin-sub">none</span>{% endif %}</td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="9" class="admin-empty">No orders{% if fulfillment or review %} match this filter{% endif %}.</td></tr>
+                    <tr><td colspan="8" class="admin-empty">No orders{% if fulfillment or review %} match this filter{% endif %}.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    <p class="admin-hint">Times are UTC. Showing the 200 most recent orders.</p>
+    <p class="admin-hint admin-hint-after">Times are UTC. Showing the 200 most recent orders.</p>
 {% endblock %}

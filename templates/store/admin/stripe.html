@@ -3,15 +3,19 @@
 
 {% block main %}
     <div class="admin-head">
-        <h1>Stripe</h1>
-        <a class="btn btn-outline" href="{{ stripe_url('payments') }}" rel="noopener">Open the Stripe dashboard</a>
+        <div>
+            <h1>Stripe</h1>
+            <p class="admin-meta">
+                Payments, refunds, disputes, shipping rates and tax are managed in
+                Stripe. The store only listens: webhooks create orders when a
+                checkout is paid, release stock when one expires, and record refunds
+                and disputes against orders.
+            </p>
+        </div>
+        <div class="admin-head-actions">
+            <a class="btn btn-outline" href="{{ stripe_url('payments') }}" rel="noopener">Open the Stripe dashboard</a>
+        </div>
     </div>
-    <p class="admin-hint">
-        Payments, refunds, disputes, shipping rates and tax are managed in
-        Stripe. The store only needs to hear back: Stripe's webhooks create
-        orders when a checkout is paid, release stock when one expires, and
-        record refunds and disputes against orders.
-    </p>
 
     <div class="admin-columns">
         <section class="admin-card">
@@ -76,7 +80,10 @@
         </section>
     </div>
 
-    <h2>Recent events</h2>
+    <div class="admin-card-head admin-section-head">
+        <h2>Recent events</h2>
+        <span class="admin-sub">Times are UTC · 100 most recent</span>
+    </div>
     <div class="admin-table-wrap">
         <table class="admin-table">
             <thead>
@@ -103,10 +110,10 @@
                         <td>
                             {% if event.state == 'processed' %}<span class="tag tag-ok">processed</span>
                             {% elif event.state == 'failed' %}<span class="tag tag-warn">failed</span>
-                            {% else %}<span class="tag">{{ event.state }}</span>{% endif %}
+                            {% else %}<span class="tag tag-muted">{{ event.state }}</span>{% endif %}
                         </td>
                         <td class="num">{{ event.attempts }}</td>
-                        <td>{% if event.last_error_code %}<span class="mono">{{ event.last_error_code }}</span> {{ event.last_error_detail or "" }}{% else %}—{% endif %}</td>
+                        <td>{% if event.last_error_code %}<span class="mono">{{ event.last_error_code }}</span> <span class="admin-sub">{{ event.last_error_detail or "" }}</span>{% else %}—{% endif %}</td>
                     </tr>
                 {% else %}
                     <tr><td colspan="7" class="admin-empty">No webhook events received yet.</td></tr>
@@ -114,5 +121,4 @@
             </tbody>
         </table>
     </div>
-    <p class="admin-hint">Times are UTC. Showing the 100 most recent events.</p>
 {% endblock %}

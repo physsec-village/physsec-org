@@ -8,7 +8,9 @@
         {% for group in groups %}
             <label>
                 <input type="checkbox" name="group_id" value="{{ group.id }}" {% if group.id in selected %}checked{% endif %} />
-                {{ group_label(group) }}
+                <span>
+                    {% if group.group_title %}<span class="admin-groups-collection">{{ group.collection_title }} ›</span> {{ group.group_title }}{% else %}{{ group.collection_title }}{% endif %}{% if not group.published %} <span class="admin-groups-collection">(hidden)</span>{% endif %}
+                </span>
             </label>
         {% else %}
             <p class="admin-hint">There are no collections yet. <a href="/store/admin/collections">Create one</a> to list products in the store.</p>
@@ -56,6 +58,14 @@
 {% endmacro %}
 
 {% macro status_tags(item) %}
-    {% if item.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag">Hidden</span>{% endif %}
+    {% if item.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag tag-muted">Hidden</span>{% endif %}
     {% if item.featured %}<span class="tag tag-accent">Featured</span>{% endif %}
+{% endmacro %}
+
+{% macro toggle(name, label, checked, hint=none) %}
+    <label class="admin-toggle">
+        <input type="checkbox" name="{{ name }}" value="true"{% if checked %} checked{% endif %} />
+        <strong>{{ label }}</strong>
+        {% if hint %}<small>{{ hint }}</small>{% endif %}
+    </label>
 {% endmacro %}

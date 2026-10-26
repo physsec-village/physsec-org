@@ -1,17 +1,16 @@
 {% extends "store/admin/base.html" %}
+{% from "store/admin/macros.html" import toggle %}
 {% block title %}Collections{% endblock %}
 
 {% block main %}
     <div class="admin-head">
-        <h1>Collections <span class="admin-count">{{ collections | length }}</span></h1>
+        <div>
+            <h1>Collections <span class="admin-count">{{ collections | length }}</span></h1>
+            <p class="admin-meta">The store's shelves, in the order they appear. A product can sit in any number of them.</p>
+        </div>
     </div>
-    <p class="admin-hint">
-        Collections are the store's shelves: each has a page listing its
-        products in headed groups, in this order. A product can be in any
-        number of collections. Hidden collections are not shown in the store.
-    </p>
 
-    <div class="admin-table-wrap">
+    <div class="admin-table-wrap admin-table-standalone">
         <table class="admin-table">
             <thead>
                 <tr>
@@ -26,7 +25,7 @@
             <tbody>
                 {% for collection in collections %}
                     <tr{% if not collection.published %} class="admin-row-retired"{% endif %}>
-                        <td>
+                        <td class="admin-col-order">
                             <span class="admin-row-actions">
                                 <form method="post" action="{{ url_for('store_admin_move_collection', collection_id=collection.id) }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
@@ -45,7 +44,7 @@
                             <span class="admin-sub mono">/store/collection/{{ collection.slug }}</span>
                         </td>
                         <td>{{ collection.tag or "—" }}</td>
-                        <td>{% if collection.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag">Hidden</span>{% endif %}</td>
+                        <td>{% if collection.published %}<span class="tag tag-ok">Published</span>{% else %}<span class="tag tag-muted">Hidden</span>{% endif %}</td>
                         <td class="num">{{ collection.group_count }}</td>
                         <td class="num{% if not collection.item_count %} warn{% endif %}">{{ collection.item_count }}</td>
                     </tr>
@@ -65,21 +64,22 @@
                 <input name="title" value="{{ form.title or '' }}" required maxlength="200" data-slug-source />
             </label>
             <label class="admin-field">
-                <span>URL slug (optional)</span>
+                <span>URL slug</span>
                 <input name="slug" value="{{ form.slug or '' }}" maxlength="200" placeholder="derived from the title" class="mono" data-slug-target />
             </label>
             <label class="admin-field">
-                <span>Tag (short label shown above the title)</span>
+                <span>Tag</span>
                 <input name="tag" value="{{ form.tag or '' }}" maxlength="100" placeholder="Village tools" />
+                <small>Short label shown above the title.</small>
             </label>
         </div>
         <label class="admin-field">
-            <span>Blurb (one sentence shown on the store home page)</span>
-            <input name="blurb" value="{{ form.blurb or '' }}" maxlength="1000" />
+            <span>Blurb</span>
+            <input name="blurb" value="{{ form.blurb or '' }}" maxlength="1000" placeholder="One sentence shown on the store home page" />
         </label>
-        <div class="admin-checks">
-            <label><input type="checkbox" name="published" value="true" {% if form.published %}checked{% endif %} /> Published</label>
-        </div>
+        <fieldset class="admin-toggles">
+            {{ toggle("published", "Published", form.published, "Visible in the store as soon as it has products") }}
+        </fieldset>
         <div class="admin-actions">
             <button type="submit" class="btn btn-primary">Create collection</button>
         </div>

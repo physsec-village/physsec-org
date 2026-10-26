@@ -449,7 +449,7 @@ def _low_stock(client):
     page = client.get("/store/admin").text
     return int(re.search(
         r'admin-stat-value">(\d+)</span>\s*<span class="admin-stat-label">'
-        r"Published with a sold-out variant",
+        r"Sold-out variants",
         page,
     ).group(1))
 

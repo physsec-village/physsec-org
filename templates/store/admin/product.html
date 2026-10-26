@@ -1,5 +1,5 @@
 {% extends "store/admin/base.html" %}
-{% from "store/admin/macros.html" import collection_picker, row_buttons, row_forms, status_tags %}
+{% from "store/admin/macros.html" import collection_picker, row_buttons, row_forms, status_tags, toggle %}
 {% block title %}{{ product.name }}{% endblock %}
 
 {% block main %}
@@ -7,114 +7,145 @@
         <a href="{{ url_for('store_admin_dashboard') }}">Products</a><span>/</span><span>{{ product.name }}</span>
     </nav>
     <div class="admin-head">
-        <h1>{{ product.name }} {{ status_tags(product) }}</h1>
+        <div>
+            <h1>{{ product.name }} {{ status_tags(product) }}</h1>
+            <p class="admin-meta">
+                <span class="mono">/store/product/{{ product.slug }}</span> ·
+                updated {{ product.updated_at.strftime("%Y-%m-%d %H:%M UTC") }}
+            </p>
+        </div>
         {% if product.published %}
-            <a class="btn btn-outline" href="{{ url_for('store_product_page', slug=product.slug) }}">View in store</a>
+            <div class="admin-head-actions">
+                <a class="btn btn-outline" href="{{ url_for('store_product_page', slug=product.slug) }}">View in store</a>
+            </div>
         {% endif %}
     </div>
-    <p class="admin-meta">
-        <span class="mono">/store/product/{{ product.slug }}</span> ·
-        updated {{ product.updated_at.strftime("%Y-%m-%d %H:%M UTC") }}
-    </p>
 
-    <form method="post" action="{{ url_for('store_admin_update_product', product_id=product.id) }}" class="admin-card" id="product-form">
+    <form method="post" action="{{ url_for('store_admin_update_product', product_id=product.id) }}" id="product-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <input type="hidden" name="version" value="{{ product.updated_at.isoformat() }}" />
-        <h2>Details</h2>
-        <div class="admin-grid">
-            <label class="admin-field">
-                <span>Name</span>
-                <input name="name" value="{{ product.name }}" required maxlength="200" />
-            </label>
-            <label class="admin-field">
-                <span>URL slug</span>
-                <input name="slug" value="{{ product.slug }}" required maxlength="200" class="mono" />
-            </label>
-        </div>
-        <label class="admin-field">
-            <span>Description</span>
-            <textarea name="description" rows="4" maxlength="5000">{{ product.description }}</textarea>
-        </label>
-        <label class="admin-field">
-            <span>Features (one per line, shown as a list on the product page)</span>
-            <textarea name="features" rows="3" maxlength="5000">{{ product.features | join("\n") }}</textarea>
-        </label>
-        {{ collection_picker(groups, product.group_ids) }}
-        <div class="admin-checks">
-            <label><input type="checkbox" name="published" value="true" {% if product.published %}checked{% endif %} /> Published</label>
-            <label><input type="checkbox" name="featured" value="true" {% if product.featured %}checked{% endif %} /> Featured on the store home page</label>
+        <div class="admin-editor">
+            <div class="admin-editor-main">
+                <section class="admin-card">
+                    <h2>Details</h2>
+                    <div class="admin-grid">
+                        <label class="admin-field">
+                            <span>Name</span>
+                            <input name="name" value="{{ product.name }}" required maxlength="200" />
+                        </label>
+                        <label class="admin-field">
+                            <span>URL slug</span>
+                            <input name="slug" value="{{ product.slug }}" required maxlength="200" class="mono" />
+                        </label>
+                    </div>
+                    <label class="admin-field">
+                        <span>Description</span>
+                        <textarea name="description" rows="4" maxlength="5000">{{ product.description }}</textarea>
+                    </label>
+                    <label class="admin-field">
+                        <span>Features</span>
+                        <textarea name="features" rows="3" maxlength="5000" placeholder="One per line">{{ product.features | join("\n") }}</textarea>
+                        <small>Shown as a bulleted list on the product page.</small>
+                    </label>
+                </section>
+
+                <section class="admin-card">
+                    <div class="admin-card-head">
+                        <h2>Images</h2>
+                        <span class="admin-count">{{ product.images | length }}</span>
+                    </div>
+                    {% if product.images %}
+                        <ul class="admin-images">
+                            {% for image in product.images %}
+                                <li class="admin-image">
+                                    <img src="{{ image.url }}" alt="{{ image.alt }}" loading="lazy" decoding="async" />
+                                    <input type="hidden" name="image_id" value="{{ image.id }}" />
+                                    <input name="image_alt" value="{{ image.alt }}" maxlength="300" placeholder="Describe the image" aria-label="Description of image {{ loop.index }}" />
+                                    <div class="admin-image-foot">
+                                        <span class="admin-sub mono" title="{{ image.url }}">{{ image.url | replace("/static/images/store/", "") | replace("/media/store/", "") }}</span>
+                                        {{ row_buttons("image-" ~ image.id, loop.first, loop.last, "image " ~ loop.index, delete_label="Remove") }}
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                        <p class="admin-hint admin-hint-after">The first image is the product's photo in listings and the cart; the rest form the gallery on the product page.</p>
+                    {% else %}
+                        <p class="admin-empty">No images yet, so the store shows a placeholder. Add one below.</p>
+                    {% endif %}
+                </section>
+            </div>
+
+            <aside class="admin-editor-side">
+                <section class="admin-card">
+                    <h2>Visibility</h2>
+                    <fieldset class="admin-toggles">
+                        {{ toggle("published", "Published", product.published, "Shown and purchasable in the store") }}
+                        {{ toggle("featured", "Featured", product.featured, "Pinned on the store home page") }}
+                    </fieldset>
+                    <div class="admin-actions admin-actions-stack">
+                        <button type="submit" class="btn btn-primary">Save changes</button>
+                    </div>
+                </section>
+                <section class="admin-card">
+                    <div class="admin-card-head">
+                        <h2>Collections</h2>
+                        <a class="admin-sub" href="{{ url_for('store_admin_collections') }}">Manage</a>
+                    </div>
+                    {{ collection_picker(groups, product.group_ids) }}
+                </section>
+            </aside>
         </div>
 
-        <h2>Variants</h2>
-        <p class="admin-hint">
-            Reserved units belong to open checkouts and are released when they
-            expire. Stock cannot be set below the reserved count. Price changes
-            apply to new checkouts only. The label is the option buyers pick;
-            leave it blank on a product with one variant. A variant that has
-            been reserved or sold cannot be deleted: unpublish it to retire it.
-        </p>
-        <div class="admin-table-wrap">
-            <table class="admin-table">
-                <thead>
-                    <tr>
-                        <th scope="col">Label</th>
-                        <th scope="col">SKU</th>
-                        <th scope="col">UPC</th>
-                        <th scope="col">Price ($)</th>
-                        <th scope="col">On hand</th>
-                        <th scope="col" class="num">Reserved</th>
-                        <th scope="col" class="num">Available</th>
-                        <th scope="col">Published</th>
-                        <th scope="col"><span class="visually-hidden">Order and delete</span></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for variant in product.variants %}
-                        {% set label = variant.name or ("variant " ~ loop.index) %}
-                        <tr{% if not variant.published %} class="admin-row-retired"{% endif %}>
-                            <td>
-                                <input type="hidden" name="variant_id" value="{{ variant.id }}" />
-                                <input type="hidden" name="variant_expected_stock" value="{{ variant.stock_on_hand }}" />
-                                <input name="variant_name" value="{{ variant.name }}" maxlength="200" aria-label="Label for {{ label }}" />
-                            </td>
-                            <td><input name="variant_sku" value="{{ variant.sku or '' }}" maxlength="64" class="mono" aria-label="SKU for {{ label }}" /></td>
-                            <td><input name="variant_upc" value="{{ variant.upc or '' }}" maxlength="32" class="mono" aria-label="UPC for {{ label }}" /></td>
-                            <td><input name="variant_price" value="{{ money(variant.price_cents) }}" inputmode="decimal" required class="input-num" aria-label="Price for {{ label }}" /></td>
-                            <td><input name="variant_stock" value="{{ variant.stock_on_hand }}" type="number" min="{{ variant.reserved }}" step="1" required class="input-num" aria-label="Stock on hand for {{ label }}" /></td>
-                            <td class="num mono">{{ variant.reserved }}</td>
-                            <td class="num mono{% if variant.available_stock <= 0 %} warn{% endif %}">{{ variant.available_stock }}</td>
-                            <td><input type="checkbox" name="variant_published" value="{{ variant.id }}"{% if variant.published %} checked{% endif %} aria-label="Publish {{ label }}" /></td>
-                            <td>{{ row_buttons("variant-" ~ variant.id, loop.first, loop.last, label, delete_label="Delete") }}</td>
+        <section class="admin-card">
+            <div class="admin-card-head">
+                <h2>Variants</h2>
+                <span class="admin-count">{{ product.variants | length }}</span>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-table admin-variants">
+                    <thead>
+                        <tr>
+                            <th scope="col">Label</th>
+                            <th scope="col">SKU</th>
+                            <th scope="col">UPC</th>
+                            <th scope="col">Price ($)</th>
+                            <th scope="col">On hand</th>
+                            <th scope="col" class="num">Reserved</th>
+                            <th scope="col" class="num">Available</th>
+                            <th scope="col">Live</th>
+                            <th scope="col"><span class="visually-hidden">Order and delete</span></th>
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <h2>Images</h2>
-        <p class="admin-hint">
-            The first image is the product's photo in listings and the cart;
-            the rest appear in the gallery on the product page. Describe each
-            image for screen readers.
-        </p>
-        {% if product.images %}
-            <ul class="admin-images">
-                {% for image in product.images %}
-                    <li class="admin-image">
-                        <img src="{{ image.url }}" alt="{{ image.alt }}" loading="lazy" decoding="async" />
-                        <input type="hidden" name="image_id" value="{{ image.id }}" />
-                        <input name="image_alt" value="{{ image.alt }}" maxlength="300" placeholder="Describe the image" aria-label="Description of image {{ loop.index }}" />
-                        <div class="admin-image-foot">
-                            <span class="admin-sub mono" title="{{ image.url }}">{{ image.url | replace("/static/images/store/", "") | replace("/media/store/", "") }}</span>
-                            {{ row_buttons("image-" ~ image.id, loop.first, loop.last, "image " ~ loop.index, delete_label="Remove") }}
-                        </div>
-                    </li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p class="admin-empty">No images yet. The store shows a placeholder.</p>
-        {% endif %}
-
+                    </thead>
+                    <tbody>
+                        {% for variant in product.variants %}
+                            {% set label = variant.name or ("variant " ~ loop.index) %}
+                            <tr{% if not variant.published %} class="admin-row-retired"{% endif %}>
+                                <td>
+                                    <input type="hidden" name="variant_id" value="{{ variant.id }}" />
+                                    <input type="hidden" name="variant_expected_stock" value="{{ variant.stock_on_hand }}" />
+                                    <input name="variant_name" value="{{ variant.name }}" maxlength="200" placeholder="Default" aria-label="Label for {{ label }}" />
+                                </td>
+                                <td><input name="variant_sku" value="{{ variant.sku or '' }}" maxlength="64" class="mono" aria-label="SKU for {{ label }}" /></td>
+                                <td><input name="variant_upc" value="{{ variant.upc or '' }}" maxlength="32" class="mono" aria-label="UPC for {{ label }}" /></td>
+                                <td><input name="variant_price" value="{{ money(variant.price_cents) }}" inputmode="decimal" required class="input-num" aria-label="Price for {{ label }}" /></td>
+                                <td><input name="variant_stock" value="{{ variant.stock_on_hand }}" type="number" min="{{ variant.reserved }}" step="1" required class="input-num" aria-label="Stock on hand for {{ label }}" /></td>
+                                <td class="num">{{ variant.reserved }}</td>
+                                <td class="num{% if variant.available_stock <= 0 %} warn{% endif %}">{{ variant.available_stock }}</td>
+                                <td><input type="checkbox" name="variant_published" value="{{ variant.id }}"{% if variant.published %} checked{% endif %} aria-label="Publish {{ label }}" /></td>
+                                <td>{{ row_buttons("variant-" ~ variant.id, loop.first, loop.last, label, delete_label="Delete") }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="admin-hint admin-hint-after">
+                Reserved units belong to open checkouts and are released when they
+                expire; stock cannot drop below them. Price changes apply to new
+                checkouts only. The label is the option buyers pick; leave it blank
+                on a product with one variant. A variant that has been reserved or
+                sold cannot be deleted: untick <em>Live</em> to retire it.
+            </p>
+        </section>
         <div class="admin-actions">
             <button type="submit" class="btn btn-primary">Save changes</button>
             <a class="btn btn-ghost" href="{{ url_for('store_admin_dashboard') }}">Back to products</a>
@@ -175,11 +206,12 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
             <h2>Add an image</h2>
             <label class="admin-field">
-                <span>Upload a WebP, PNG, JPEG or GIF file (up to 5 MB)</span>
+                <span>Upload</span>
                 <input type="file" name="image" accept="image/webp,image/png,image/jpeg,image/gif" />
+                <small>WebP, PNG, JPEG or GIF, up to 5 MB.</small>
             </label>
             <label class="admin-field">
-                <span>Or use an existing image address</span>
+                <span>Or an existing image address</span>
                 <input name="url" maxlength="2000" placeholder="/static/images/store/kys001.webp" class="mono" />
             </label>
             <label class="admin-field">
@@ -194,14 +226,14 @@
 
     <form method="post" action="{{ url_for('store_admin_delete_product', product_id=product.id) }}" class="admin-card admin-danger" data-confirm="Delete {{ product.name }} and all of its variants and images? This cannot be undone.">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-        <h2>Delete product</h2>
-        <p class="admin-hint">
-            Removes the product, its variants, images and collection
-            memberships. A product that has ever been reserved or sold cannot be
-            deleted; unpublish it instead.
-        </p>
-        <div class="admin-actions">
-            <button type="submit" class="btn btn-danger">Delete product</button>
+        <div class="admin-card-head">
+            <h2>Delete product</h2>
+            <button type="submit" class="btn btn-danger btn-sm">Delete product</button>
         </div>
+        <p class="admin-hint">
+            Removes the product, its variants, images and collection memberships.
+            A product that has ever been reserved or sold cannot be deleted;
+            unpublish it instead.
+        </p>
     </form>
 {% endblock %}
