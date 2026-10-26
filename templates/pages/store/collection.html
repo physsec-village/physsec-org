@@ -3,7 +3,7 @@
 {% block title %}{{ collection.title }} | PSV Store | Physical Security Village{% endblock %}
 {% block description %}{{ collection.blurb or ("Shop " ~ collection.title ~ " from the Physical Security Village store.") }}{% endblock %}
 {% block styles %}
-<link href="/static/pages/store.css?v=4" rel="stylesheet" />
+<link href="/static/pages/store.css?v=5" rel="stylesheet" />
 {% endblock %}
 
 {% block page_header %}
@@ -21,13 +21,12 @@
             {% if collection.tag %}<span class="chip">{{ collection.tag }}</span>{% endif %}
         </div>
         {% if collection.blurb %}<p class="page-summary">{{ collection.blurb }}</p>{% endif %}
+        {% include "store/search.html" %}
     </div>
 {% endblock %}
 
 {% block main %}
     <div class="page-shell">
-        {% include "store/toolbar.html" %}
-
         {% if collection.titled_groups | length > 1 %}
             <div class="group-jump" role="navigation" aria-label="Sections in {{ collection.title }}">
                 {% for g in collection.titled_groups %}

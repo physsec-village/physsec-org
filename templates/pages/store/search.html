@@ -4,7 +4,7 @@
 {% block description %}Search the Physical Security Village store.{% endblock %}
 {% block robots %}noindex,follow{% endblock %}
 {% block styles %}
-<link href="/static/pages/store.css?v=4" rel="stylesheet" />
+<link href="/static/pages/store.css?v=5" rel="stylesheet" />
 {% endblock %}
 
 {% block page_header %}
@@ -20,13 +20,12 @@
         {% if query %}
             <p class="page-summary">{{ results | length }} item{{ "" if results | length == 1 else "s" }} match.</p>
         {% endif %}
+        {% include "store/search.html" %}
     </div>
 {% endblock %}
 
 {% block main %}
     <div class="page-shell">
-        {% include "store/toolbar.html" %}
-
         {% if results %}
             <div class="item-grid">
                 {% for p in results %}{{ item_card(p, show_group=true) }}{% endfor %}
@@ -38,9 +37,9 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
                 {% if query %}
-                    <p>Nothing matches “{{ query }}”. Try a key name, a SKU, or browse a collection above.</p>
+                    <p>Nothing matches “{{ query }}”. Try another name, or <a href="{{ url_for('store_page') }}">browse the collections</a>.</p>
                 {% else %}
-                    <p>Type a tool, key, or SKU to search, or pick a collection above.</p>
+                    <p>Type a tool or key name above, or <a href="{{ url_for('store_page') }}">browse the collections</a>.</p>
                 {% endif %}
             </div>
         {% endif %}

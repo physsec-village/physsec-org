@@ -274,13 +274,13 @@
         detailButton.dataset.variantId = id;
         detailButton.disabled = qtyMax <= 0;
         detailButton.textContent = qtyMax > 0 ? "Add to cart" : "Sold out";
+        detailButton.classList.toggle("btn-primary", qtyMax > 0);
+        detailButton.classList.toggle("btn-ghost", qtyMax <= 0);
         document.getElementById("productPrice").textContent = money(variant.price_cents);
-        document.getElementById("productStock").textContent = qtyMax > 0 ? "In stock" : "Sold out";
         const option = variantSelect.selectedOptions[0];
-        for (const [field, value] of [["Sku", option.dataset.sku], ["Upc", option.dataset.upc]]) {
-            document.getElementById("product" + field).textContent = value || "";
-            document.getElementById("product" + field + "Row").hidden = !value;
-        }
+        const sku = option.dataset.sku || "";
+        document.getElementById("productSku").textContent = sku;
+        document.getElementById("productSkuRow").hidden = !sku;
         updateQuantityButtons();
     }
 

@@ -36,12 +36,5 @@
     <script>
         // Reflect actual path in the error display
         document.getElementById("nfPath").textContent = window.location.pathname;
-
-        // Navbar scroll tint
-        const nav = document.querySelector("nav");
-        window.addEventListener("scroll", () => {
-            nav.style.borderBottomColor =
-                window.scrollY > 20 ? "rgba(21,161,74,0.1)" : "var(--border)";
-        });
     </script>
 {% endblock %}

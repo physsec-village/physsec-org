@@ -95,7 +95,7 @@ def error_page(request: Request, error_id: str) -> Response:
         return templates.TemplateResponse(
             request=request,
             name="500.html",
-            context={"error_id": error_id},
+            context={"error_id": error_id, "error_page": True},
             status_code=500,
         )
     except Exception:
