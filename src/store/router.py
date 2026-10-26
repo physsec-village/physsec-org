@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from ..dependencies import templates
-from . import db, storefront
+from . import admin_auth, db, storefront
 from .config import reservation_minutes
 from .stripe_client import (
     StripeNotConfigured,
@@ -29,7 +29,28 @@ def require_store_enabled(request: Request) -> None:
         raise HTTPException(status_code=404)
 
 
+def require_store_visible(request: Request) -> None:
+    """Limit the storefront to signed-in admins until it is published.
+
+    An unpublished store answers 404 to everyone else, exactly like a
+    disabled one, so neither visitors nor crawlers learn it exists.
+    """
+    if request.app.state.store_published:
+        return
+    session = admin_auth.current_session(request)
+    if session is None or not session.admin:
+        raise HTTPException(status_code=404)
+    request.state.store_preview = True
+
+
+# The storefront: catalog pages, checkout and the cart API.
 router = APIRouter(
+    prefix="/store",
+    dependencies=[Depends(require_store_enabled), Depends(require_store_visible)],
+)
+
+# Stripe calls the webhook whether or not the store is published.
+webhook_router = APIRouter(
     prefix="/store",
     dependencies=[Depends(require_store_enabled)],
 )
@@ -237,7 +258,7 @@ def store_confirmed_page(request: Request, session_id: str = ""):
     )
 
 
-@router.post("/webhook", include_in_schema=False)
+@webhook_router.post("/webhook", include_in_schema=False)
 async def store_webhook(request: Request):
     content_length = request.headers.get("content-length")
     try:

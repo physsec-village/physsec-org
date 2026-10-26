@@ -121,6 +121,17 @@
     padding: 12%;
 }
 
+/* ---- preview notice (unpublished store, admins only) ---- */
+
+.store-preview-notice {
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-size: 0.92rem;
+}
+
 /* ---- store search ---- */
 
 .store-search {

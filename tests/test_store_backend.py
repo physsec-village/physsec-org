@@ -18,6 +18,7 @@ from src.store.config import (
     database_url,
     reservation_minutes,
     store_enabled,
+    store_published,
 )
 
 
@@ -70,11 +71,22 @@ def test_store_numeric_configuration_is_validated(monkeypatch, name, value, read
         reader()
 
 
-def test_store_feature_flag_is_validated(monkeypatch):
+def test_store_feature_flags_are_validated(monkeypatch):
     monkeypatch.setenv("STORE_ENABLED", "sometimes")
+    monkeypatch.setenv("STORE_PUBLISHED", "soon")
 
     with pytest.raises(ValueError, match="STORE_ENABLED"):
         store_enabled()
+    with pytest.raises(ValueError, match="STORE_PUBLISHED"):
+        store_published()
+
+
+def test_store_is_unpublished_unless_told_otherwise(monkeypatch):
+    monkeypatch.delenv("STORE_PUBLISHED")
+    assert store_published() is False
+
+    monkeypatch.setenv("STORE_PUBLISHED", " Yes ")
+    assert store_published() is True
 
 
 def test_production_database_requires_tls(monkeypatch):
@@ -383,6 +395,7 @@ def test_checkout_http_retry_reuses_reservation(catalog_factory, monkeypatch):
 
     monkeypatch.setattr(store_router, "create_checkout_session", create_session)
     app.state.store_enabled = True
+    app.state.store_published = True
     client = TestClient(app)
     payload = {"items": [{"variant_id": variant_id, "qty": 1}]}
 
@@ -425,6 +438,7 @@ def test_checkout_http_rejects_and_releases_a_stale_retry(catalog_factory, monke
         )
 
     app.state.store_enabled = True
+    app.state.store_published = True
     response = TestClient(app).post(
         "/store/checkout",
         json={
@@ -503,6 +517,7 @@ def test_webhook_http_rejects_invalid_and_replays_paid_event_once(
 ):
     variant_id = _database(catalog_factory)
     app.state.store_enabled = True
+    app.state.store_published = True
     client = TestClient(app)
 
     invalid = client.post(

@@ -14,14 +14,29 @@ MIN_RESERVATION_MINUTES = 31
 MAX_RESERVATION_MINUTES = 1440
 
 
-def store_enabled() -> bool:
-    """Return whether the store and its infrastructure should be active."""
-    value = os.getenv("STORE_ENABLED", "false").strip().lower()
+def _env_flag(name: str) -> bool:
+    """Return a boolean environment variable, treating unset as false."""
+    value = os.getenv(name, "false").strip().lower()
     if value in {"true", "1", "yes", "on"}:
         return True
     if value in {"false", "0", "no", "off"}:
         return False
-    raise ValueError("STORE_ENABLED must be true or false.")
+    raise ValueError(f"{name} must be true or false.")
+
+
+def store_enabled() -> bool:
+    """Return whether the store and its infrastructure should be active."""
+    return _env_flag("STORE_ENABLED")
+
+
+def store_published() -> bool:
+    """Return whether the enabled store is open to the public.
+
+    Until this is true, the storefront is a preview that only signed-in
+    admins can reach; everyone else sees the store as if it were disabled.
+    Unset means unpublished, so forgetting the flag never exposes the store.
+    """
+    return _env_flag("STORE_PUBLISHED")
 
 
 def _postgres_url(name: str) -> str:

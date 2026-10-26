@@ -5,7 +5,7 @@
     <div class="footer-links">
         <a href="{{ url_for('about_us_page') }}">About</a>
         <a href="{{ url_for('get_involved_page') }}">Get Involved</a>
-        {% if request.app.state.store_enabled %}
+        {% if request.app.state.store_published or request.state.store_preview %}
             <a href="{{ url_for('store_page') }}">Store</a>
         {% else %}
             <span

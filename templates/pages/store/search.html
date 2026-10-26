@@ -4,7 +4,7 @@
 {% block description %}Search the Physical Security Village store.{% endblock %}
 {% block robots %}noindex,follow{% endblock %}
 {% block styles %}
-<link href="/static/pages/store.css?v=5" rel="stylesheet" />
+<link href="/static/pages/store.css?v=6" rel="stylesheet" />
 {% endblock %}
 
 {% block page_header %}
@@ -26,6 +26,7 @@
 
 {% block main %}
     <div class="page-shell">
+        {% include "store/preview_notice.html" %}
         {% if results %}
             <div class="item-grid">
                 {% for p in results %}{{ item_card(p, show_group=true) }}{% endfor %}

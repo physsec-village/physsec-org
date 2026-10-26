@@ -32,6 +32,7 @@ from clerk_backend_api.security import (
     Requestish,
     authenticate_request,
 )
+from starlette.requests import Request
 
 from . import config
 
@@ -75,6 +76,13 @@ def session_from_request(request: Requestish) -> Session | None:
     metadata = payload.get("metadata")
     admin = isinstance(metadata, dict) and metadata.get("admin") is True
     return Session(user_id=user_id, session_id=session_id, admin=admin)
+
+
+def current_session(request: Request) -> Session | None:
+    """Verify the request's Clerk session once and remember it."""
+    if not hasattr(request.state, "admin_session"):
+        request.state.admin_session = session_from_request(request)
+    return request.state.admin_session
 
 
 def csrf_token(session: Session) -> str:

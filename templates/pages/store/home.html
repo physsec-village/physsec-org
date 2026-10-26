@@ -3,7 +3,7 @@
 {% block title %}PSV Store | Physical Security Village{% endblock %}
 {% block description %}Bypass tools, Lishi picks, keyed-alike utility and elevator keys, RFID fobs, and gear from the Physical Security Village. Every purchase funds the Village.{% endblock %}
 {% block styles %}
-<link href="/static/pages/store.css?v=5" rel="stylesheet" />
+<link href="/static/pages/store.css?v=6" rel="stylesheet" />
 {% endblock %}
 
 {% block page_header %}
@@ -47,6 +47,7 @@
 
 {% block main %}
     <div class="page-shell">
+        {% include "store/preview_notice.html" %}
         <section class="store-section" id="collections">
             <div class="store-section-head">
                 <h2>Shop by collection</h2>

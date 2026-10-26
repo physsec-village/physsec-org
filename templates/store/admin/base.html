@@ -13,7 +13,7 @@
             rel="stylesheet"
         />
         <link href="/static/styles.css" rel="stylesheet" />
-        <link href="/static/pages/store-admin.css?v=4" rel="stylesheet" />
+        <link href="/static/pages/store-admin.css?v=5" rel="stylesheet" />
         <script
             async
             crossorigin="anonymous"
@@ -32,6 +32,9 @@
                     <div><span>PSV</span><strong>Store admin</strong></div>
                 </a>
                 {% if signed_in %}
+                    {% if not request.app.state.store_published %}
+                        <p class="admin-preview">Preview: the store is not published. Only admins can open it.</p>
+                    {% endif %}
                     <nav class="admin-nav" aria-label="Admin">
                         {% if admin %}
                             <a href="{{ url_for('store_admin_dashboard') }}"{% if path == '/store/admin' or path.startswith('/store/admin/products') %} aria-current="page"{% endif %}>

@@ -1,0 +1,6 @@
+{# Admin-only banner shown on every store page while the store is unpublished. #}
+{% if request.state.store_preview %}
+    <p class="store-preview-notice" role="status">
+        <strong>Preview.</strong> The store is not published yet; only signed-in admins can see it.
+    </p>
+{% endif %}
